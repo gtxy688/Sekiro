@@ -45,3 +45,56 @@ Skills 位于 `.claude/skills/` 目录，每个 skill 有独立的 `SKILL.md` �
 
 如果你认为哪怕只有 1% 的可能性某个 skill 适用于你正在做的事情，你必须调用该 skill 检查。
 <!-- superpowers-zh:end -->
+
+---
+
+## Harness 工程配置
+
+> 本节定义 AI Agent 在本项目中必须遵守的架构约束、代码规范和工作流。
+
+### 架构约束（不可违反）
+
+- 所有战斗参数必须用 `ScriptableObject`，禁止硬编码数值
+- 状态机使用 HFSM 模式（继承 `StateMachine` 基类），禁止在 `MonoBehaviour.Update` 中写 switch-case
+- 模块间通信走 `CombatEvents` 事件系统，禁止直接引用其他模块
+- 弹刀判定用 `Physics.OverlapSphere` 每帧检测，不用 `OnTriggerEnter`
+- `Player/` 和 `Boss/` 模块不能直接互相引用，只能通过事件通信
+
+### 代码规范
+
+- 命名规则：类名 `PascalCase`，方法名 `PascalCase`，私有字段 `_camelCase`
+- 每个公开方法必须有 XML 文档注释（`/// <summary>`）
+- 单个脚本文件不超过 300 行
+- 一次提交只做一件事（原子性）
+
+### 测试要求
+
+- 新增数值逻辑 → 必须配套 EditMode 单元测试
+- 新增状态转换 → 必须配套 PlayMode 集成测试
+- 修改已有逻辑前 → 先运行现有测试确保不回归
+- 测试运行方式：Unity Editor → Window → General → Test Runner
+
+### 文档加载指引
+
+当 Agent 接到任务时，根据任务类型加载对应文档：
+
+| 任务类型 | 必读文档 | 可选文档 |
+|---------|---------|---------|
+| 弹刀系统 | `DOCS/specs/deflect-system.md` | `DOCS/architecture/code-structure.md` |
+| 架势条 | `DOCS/specs/posture-system.md` | `DOCS/architecture/data-layer.md` |
+| Boss AI | `DOCS/specs/boss-ai.md` | `DOCS/architecture/state-machine.md` |
+| 危字/识破 | `DOCS/specs/danger-system.md` | `DOCS/specs/animation-system.md` |
+| 雷电反击 | `DOCS/specs/lightning-system.md` | `DOCS/architecture/state-machine.md` |
+| 输入系统 | `DOCS/specs/input-system.md` | `DOCS/architecture/code-structure.md` |
+| 动画集成 | `DOCS/specs/animation-system.md` | — |
+| UI/HUD | `DOCS/specs/ui-hud.md` | — |
+| HFSM 框架 | `DOCS/architecture/state-machine.md` | — |
+| 数据层 | `DOCS/architecture/data-layer.md` | — |
+
+### 工作流（TDD 强制）
+
+1. 读取相关规格文档（参考上方指引表）
+2. 编写测试（定义"完成"的标准）
+3. 编写实现代码（遵循架构约束和代码规范）
+4. 运行测试，全部通过后提交
+5. 运行验证（游戏能否启动，有无编译错误）
