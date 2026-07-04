@@ -2,7 +2,7 @@
 
 ## 设计意图
 
-弦一郎 Boss AI 是只狼双向弹刀博弈的对手端核心。Boss 拥有两阶段招式表、动态行为权重和弹刀 AI，根据玩家行为实时决策出招，营造"越打越聪明、阶段转换后更激进"的体验。
+弦一郎 Boss AI 是只狼双向弹刀博弈的对手端核心。Boss 拥有丰富的招式表、动态行为权重和弹刀 AI，根据玩家行为实时决策出招，营造"越打越聪明"的战斗体验。
 
 ## 核心机制
 
@@ -22,12 +22,7 @@ BossStateMachine
 │   ├── Active（判定生效）
 │   └── Recovery（后摇）
 │
-├── RangedState（远程射箭，仅一阶段）
-│
-├── LightningState（雷电攻击，仅二阶段）
-│   ├── Leap（跳起蓄雷）
-│   ├── Fall（下落）
-│   └── Land（落地）
+├── RangedState（远程射箭）
 │
 ├── StaggerState（被弹刀硬直）
 │   └── 短暂停顿，约 0.3 秒
@@ -35,11 +30,8 @@ BossStateMachine
 ├── CollapseState（架势崩溃）
 │   └── 2 秒无法行动，等待忍杀
 │
-├── ExecutedState（被忍杀）
-│   └── 处决演出，战斗结束
-│
-└── PhaseTransitionState（阶段转换）
-    └── 黑屏转场
+└── ExecutedState（被忍杀）
+    └── 处决演出，战斗结束
 ```
 
 ### AI 决策流程
@@ -48,7 +40,6 @@ BossStateMachine
 每帧 BossAI.Execute()：
 │
 ├── 计算与玩家距离
-├── 评估当前阶段（一阶段 / 二阶段）
 ├── 根据行为权重表随机选择招式
 ├── 考虑特殊触发条件：
 │    ├── 玩家喝药 → 大概率突进攻击
@@ -80,23 +71,9 @@ Boss 弹刀由 AI 控制，不是玩家输入：
      ├── 玩家普攻命中时：40% 概率弹刀
      ├── 玩家连招中（2 段以上）：60% 概率弹刀
      ├── Boss 低血量（< 30%）：25% 概率（给玩家翻盘机会）
-     └── 二阶段：所有概率 +10%
 ```
 
-### 阶段转换（黑屏转场）
-
-```
-第一管血归零：
-  1. 弦一郎播放受击倒地动画（0.5 秒）
-  2. 屏幕渐黑（0.5 秒）
-  3. 黑屏显示文字："弦一郎·雷"（1 秒）
-  4. 屏幕渐亮（0.5 秒）
-  5. 弦一郎以二阶段姿态重新出现
-  6. 玩家回复约 30% 生命值和架势
-  7. 战斗继续
-```
-
-### 一阶段攻击表（剑 + 弓）
+### 攻击表（剑 + 弓）
 
 | 编号 | 招式名称 | 类型 | 伤害 | 破韧值 | 前摇(帧) | 判定(帧) | 后摇(帧) | 可弹刀 | 危字类型 |
 |------|---------|------|------|--------|---------|---------|---------|--------|---------|
@@ -109,26 +86,6 @@ Boss 弹刀由 AI 控制，不是玩家输入：
 | 7 | 三连斩 | 近战 | 80+90+100 | 10+10+15 | 8+6+8 | 3+3+4 | 10+8+12 | ✅✅✅ | 无 |
 | 8 | 射箭×3 | 远程 | 60×3 | 10×3 | - | - | - | - | 无 |
 | 9 | 后撤步 | 位移 | 0 | 0 | 10 | - | - | - | 无 |
-
-### 二阶段攻击表（雷 + 剑）
-
-二阶段保留一阶段所有招式，并新增：
-
-| 编号 | 招式名称 | 类型 | 伤害 | 破韧值 | 前摇(帧) | 判定(帧) | 后摇(帧) | 可弹刀 | 危字类型 |
-|------|---------|------|------|--------|---------|---------|---------|--------|---------|
-| 10 | 雷电下劈 | 雷电 | 200 | 40 | 25 | 8 | 20 | ❌ | 突刺↓(雷) |
-| 11 | 冲刺斩 | 近战 | 130 | 20 | 8 | 6 | 10 | ✅ | 无 |
-| 12 | 雷光连斩 | 近战 | 90×4 | 12×4 | 6×4 | 4×4 | 8×4 | ✅✅✅✅ | 无 |
-| 13 | 雷电突刺 | 雷电 | 180 | 35 | 18 | 6 | 16 | ❌ | 突刺↓(雷) |
-
-### 二阶段变化规则
-
-- 所有近战攻击速度提升 20%（前摇缩短 15%）
-- 雷电下劈：新增，20% 权重，每隔 3-4 次攻击必出一次
-- 雷光连斩：新增，15% 权重，压制玩家连续弹刀能力
-- 后撤 + 射箭：移除（二阶段不再射箭）
-- 架势恢复速度降低（不给玩家喘息机会）
-- 弹刀概率整体 +10%，低血量时不再降低弹刀概率
 
 ## 数据结构
 
@@ -149,18 +106,11 @@ public class BossDeflectConfig : ScriptableObject
     public float deflectChanceOnPlayerAttack = 0.4f;   // 玩家攻击时40%弹刀
     public float deflectChanceInCombo = 0.6f;          // 玩家连招中60%弹刀
     public float deflectChanceLowHealth = 0.25f;       // Boss低血量时25%
-    public float phase2Bonus = 0.1f;                   // 二阶段概率+10%
     
     [Header("惩罚参数")]
     public float posturePenaltyMultiplier = 1.5f;      // 被弹反后玩家架势升1.5倍
     public float playerHitStunDuration = 0.3f;         // 被弹反后玩家硬直时长
     public float hitStopDuration = 0.03f;              // 帧冻结时长
-}
-
-public enum BossPhase
-{
-    Phase1,
-    Phase2
 }
 
 public enum BossAIState
@@ -169,11 +119,9 @@ public enum BossAIState
     Move,
     Attack,
     Ranged,
-    Lightning,
     Stagger,
     Collapse,
-    Executed,
-    PhaseTransition
+    Executed
 }
 ```
 
@@ -243,16 +191,6 @@ public class BossAIController
     /// </summary>
     /// <param name="duration">硬直时长（秒）</param>
     public void TransitionToStaggerState(float duration);
-    
-    /// <summary>
-    /// 触发阶段转换
-    /// </summary>
-    public void TriggerPhaseTransition();
-    
-    /// <summary>
-    /// 当前阶段
-    /// </summary>
-    public BossPhase CurrentPhase { get; }
 }
 
 public enum DeflectResult
@@ -267,15 +205,13 @@ public enum DeflectResult
 
 ### Boss 属性
 
-| 参数 | 一阶段 | 二阶段 | 单位 | 说明 |
-|------|--------|--------|------|------|
-| maxHealth | 1000 | 1200 | 点 | 最大生命值 |
-| maxPosture | 300 | 400 | 点 | 最大架势 |
-| attack | 100 | 120 | 点 | 攻击力 |
-| postureRecoveryRate | 10 | 8 | %/秒 | 架势恢复速度 |
-| moveSpeed | 中等 | 较快 | - | 移动速度 |
-| attackSpeedMultiplier | 1.0 | 1.2 | 倍 | 二阶段攻速提升 |
-| startupReduction | 1.0 | 0.85 | 倍 | 二阶段前摇缩短 |
+| 参数 | 值 | 单位 | 说明 |
+|------|-----|------|------|
+| maxHealth | 1000 | 点 | 最大生命值 |
+| maxPosture | 300 | 点 | 最大架势 |
+| attack | 100 | 点 | 攻击力 |
+| postureRecoveryRate | 10 | %/秒 | 架势恢复速度 |
+| moveSpeed | 中等 | - | 移动速度 |
 
 ### Boss 弹刀参数
 
@@ -290,13 +226,13 @@ public enum DeflectResult
 
 ### AI 弹刀概率
 
-| 参数 | 一阶段 | 二阶段 | 说明 |
-|------|--------|--------|------|
-| deflectChanceOnAttack | 40% | 50% | 玩家普攻命中时弹刀概率 |
-| deflectChanceInCombo | 60% | 70% | 玩家连招中弹刀概率 |
-| deflectChanceLowHealth | 25% | 不降低 | Boss 低血量时弹刀概率 |
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| deflectChanceOnAttack | 40% | 玩家普攻命中时弹刀概率 |
+| deflectChanceInCombo | 60% | 玩家连招中弹刀概率 |
+| deflectChanceLowHealth | 25% | Boss 低血量时弹刀概率 |
 
-### 一阶段 AI 行为权重
+### AI 行为权重
 
 | 行为 | 权重 | 触发条件 |
 |------|------|---------|
@@ -308,64 +244,47 @@ public enum DeflectResult
 | 扫击 | 5% | 距离 < 2 米，偶尔触发 |
 | 后撤 + 射箭 | 15% | 距离 > 4 米 或 被连续攻击后 |
 
-### 二阶段 AI 行为权重变化
-
-| 行为 | 权重变化 | 说明 |
-|------|---------|------|
-| 雷电下劈 | 新增，20% | 每隔 3-4 次攻击必出一次 |
-| 雷光连斩 | 新增，15% | 压制玩家连续弹刀 |
-| 后撤 + 射箭 | 移除 | 二阶段不再射箭 |
-| 冲刺斩 | 新增 | 快速接近 |
-
 ## 与其他系统的交互
 
 ### 输入
 
 - `PlayerCombatController` → 玩家攻击命中事件、玩家连击计数
 - `PostureSystem` → 双方架势值变化
-- `HealthSystem` → Boss 血量（触发阶段转换）
+- `HealthSystem` → Boss 血量
 - `PlayerStateMachine` → 玩家当前状态（喝药/崩溃等）
 
 ### 输出
 
-- `BossStateMachine` → 状态转换（Attack/Stagger/Collapse/PhaseTransition）
+- `BossStateMachine` → 状态转换（Attack/Stagger/Collapse）
 - `DeflectSystem` → Boss 弹刀成功时影响玩家架势
 - `PostureSystem` → 增加/恢复架势
-- `CombatEvents` → 广播 `OnBossPostureBreak` / `OnPhaseTransition` / `OnDeathblow`
-- `VFXManager` → 弹刀特效、阶段转换特效
-- `AudioManager` → 弹刀音效、阶段转换音效
-- `UI` → Boss 血条、架势条、阶段转换文字
+- `CombatEvents` → 广播 `OnBossPostureBreak` / `OnDeathblow`
+- `VFXManager` → 弹刀特效
+- `AudioManager` → 弹刀音效
+- `UI` → Boss 血条、架势条
 
 ## 测试要点
 
 ### EditMode 单元测试
 
-- [ ] `SelectAttack_Phase1_CloseRange_PrefersMelee` — 一阶段近距离优先选择近战招式
-- [ ] `SelectAttack_Phase1_FarRange_PrefersRanged` — 一阶段远距离优先射箭
-- [ ] `SelectAttack_Phase2_NoRanged` — 二阶段不再使用射箭
-- [ ] `SelectAttack_Phase2_HasLightningAttacks` — 二阶段包含雷电招式
-- [ ] `SelectAttack_Phase2_AttackSpeedMultiplier_Applied` — 二阶段攻速加成生效
+- [ ] `SelectAttack_Phase1_CloseRange_PrefersMelee` — 近距离优先选择近战招式
+- [ ] `SelectAttack_Phase1_FarRange_PrefersRanged` — 远距离优先射箭
 - [ ] `ShouldEnterDeflectStance_BaseProbability_40Percent` — 基础弹刀概率正确
 - [ ] `ShouldEnterDeflectStance_PlayerCombo_IncreasedTo60Percent` — 连招时概率提升
 - [ ] `ShouldEnterDeflectStance_LowHealth_DecreasedTo25Percent` — 低血量时概率降低
-- [ ] `ShouldEnterDeflectStance_Phase2_Bonus10Percent` — 二阶段概率 +10%
 - [ ] `TryDeflect_InWindow_ReturnsPerfectDeflect` — 弹刀窗口内返回完美弹刀
 - [ ] `TryDeflect_OutsideWindow_ReturnsNormalBlock` — 窗口外返回普通格挡
 - [ ] `TryDeflect_WrongAngle_ReturnsNone` — 角度不对不弹刀
 - [ ] `TryDeflect_NotInStance_ReturnsNone` — 未在弹刀姿态不弹刀
-- [ ] `TriggerPhaseTransition_SetsPhase2` — 阶段转换正确设置二阶段
 - [ ] `TransitionToStaggerState_SetsCorrectDuration` — 硬直时长正确
 - [ ] `BossDeflect_OnSuccess_PlayerPostureIncreased` — Boss 弹刀成功后玩家架势上升
 
 ## 验收标准
 
 1. Boss AI 根据与玩家距离和行为权重动态选择招式
-2. 一阶段包含 9 种招式（含远程射箭），二阶段新增 4 种雷电招式
-3. 二阶段攻击速度提升 20%，前摇缩短 15%
-4. Boss 弹刀窗口为 9 帧，比玩家的 12 帧窄
-5. AI 弹刀概率根据玩家行为动态调整（40%→60%→25%）
-6. 二阶段弹刀概率整体 +10%，低血量不再降低
-7. 玩家连砍 3 段以上时 Boss 有 60% 概率弹刀
-8. Boss 弹刀成功后立即获得反击窗口
-9. 第一管血归零时触发黑屏转场，玩家回复 30% 生命值和架势
-10. Boss 架势归零时播放崩溃动画，等待忍杀
+2. 包含 9 种招式（含远程射箭）
+3. Boss 弹刀窗口为 9 帧，比玩家的 12 帧窄
+4. AI 弹刀概率根据玩家行为动态调整（40%→60%→25%）
+5. 玩家连砍 3 段以上时 Boss 有 60% 概率弹刀
+6. Boss 弹刀成功后立即获得反击窗口
+7. Boss 架势归零时播放崩溃动画，等待忍杀

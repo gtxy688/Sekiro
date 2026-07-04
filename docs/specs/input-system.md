@@ -58,7 +58,6 @@
   架势崩溃         （不可打断，锁定所有输入）
   忍杀演出         （不可打断，锁定所有输入）
   识破             （不可打断）
-  接雷等待         弹雷（按左键）
 
 打断实现：
   高优先级输入 → 检查 CanInterrupt(currentState, newInput)
@@ -74,7 +73,7 @@
   检查条件：
   ├─ 剩余次数 > 0？
   ├─ 当前不在硬直/被控状态？（HitState / StunState / DeathblowState）
-  ├─ 当前不在其他不可打断动画中？（忍杀演出、阶段转换）
+  ├─ 当前不在其他不可打断动画中？（忍杀演出）
   │
   ├─ 全部满足 → 进入 HealingState
   │    ├─ 立即扣除 1 次使用次数
@@ -321,7 +320,6 @@ public static class HitStopManager
 | hitStop_deflect | 3 | 帧 | 弹刀命中帧冻结（约 0.05 秒） |
 | hitStop_mikiri | 4 | 帧 | 识破帧冻结（约 0.067 秒） |
 | hitStop_jumpStomp | 3 | 帧 | 跳跃踩头帧冻结（约 0.05 秒） |
-| hitStop_lightning | 6 | 帧 | 雷电反击帧冻结（约 0.1 秒） |
 | hitStop_deathblow | 5 | 帧 | 忍杀帧冻结（约 0.083 秒） |
 | hitStop_postureBreak | 4 | 帧 | 架势崩溃帧冻结（约 0.067 秒） |
 

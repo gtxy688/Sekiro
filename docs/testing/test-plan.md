@@ -17,7 +17,6 @@
 | PostureSystem | PostureSystemTest.cs | 架势增加、恢复速率、崩溃判定、脱战恢复计时器 |
 | DamageCalculator | DamageCalculatorTest.cs | 伤害计算、格挡减伤、弹刀伤害加成 |
 | InputBuffer | InputBufferTest.cs | 缓冲窗口、超时清空、优先级排序 |
-| LightningCounterSystem | LightningSystemTest.cs | 状态流转（None→Falling→Charged→Reflected/Failed）、输入超时 |
 
 ### PlayMode 集成测试
 
@@ -26,7 +25,7 @@
 | 被测系统 | 测试文件 | 必须覆盖的场景 |
 |---------|---------|---------------|
 | PlayerStateMachine | PlayerStateMachineTest.cs | 状态转换（Idle→Attack→Deflect→Hit）、优先级打断 |
-| BossStateMachine | BossStateMachineTest.cs | AI 决策（距离判断、招式选择）、阶段转换 |
+| BossStateMachine | BossStateMachineTest.cs | AI 决策（距离判断、招式选择） |
 | CombatIntegration | CombatIntegrationTest.cs | 弹刀触发伤害计算+架势变化+事件广播的完整链路 |
 
 ## 测试编写规范
@@ -95,7 +94,6 @@ protected static AttackData CreateTestAttackData(float damage = 100f, float post
 | PostureSystem | 90%+ | 核心战斗逻辑，必须高覆盖 |
 | DamageCalculator | 90%+ | 核心战斗逻辑，必须高覆盖 |
 | InputBuffer | 80%+ | 重要但逻辑相对简单 |
-| LightningSystem | 80%+ | 状态流转需覆盖 |
 | BossStateMachine | 70%+ | AI 逻辑复杂，覆盖关键路径 |
 | UI/Camera | 手工验证 | 不要求自动化测试 |
 
@@ -117,7 +115,6 @@ Assets/Tests/
 │   ├── PostureSystemTest.cs
 │   ├── DamageCalculatorTest.cs
 │   ├── InputBufferTest.cs
-│   └── LightningSystemTest.cs
 ├── PlayMode/
 │   ├── PlayerStateMachineTest.cs
 │   ├── BossStateMachineTest.cs

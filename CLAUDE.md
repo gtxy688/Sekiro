@@ -84,7 +84,6 @@ Skills 位于 `.claude/skills/` 目录，每个 skill 有独立的 `SKILL.md` �
 | 架势条 | `DOCS/specs/posture-system.md` | `DOCS/architecture/data-layer.md` |
 | Boss AI | `DOCS/specs/boss-ai.md` | `DOCS/architecture/state-machine.md` |
 | 危字/识破 | `DOCS/specs/danger-system.md` | `DOCS/specs/animation-system.md` |
-| 雷电反击 | `DOCS/specs/lightning-system.md` | `DOCS/architecture/state-machine.md` |
 | 输入系统 | `DOCS/specs/input-system.md` | `DOCS/architecture/code-structure.md` |
 | 动画集成 | `DOCS/specs/animation-system.md` | — |
 | UI/HUD | `DOCS/specs/ui-hud.md` | — |
