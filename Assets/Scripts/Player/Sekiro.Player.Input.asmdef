@@ -1,7 +1,9 @@
 {
-    "name": "Sekiro.Core",
-    "rootNamespace": "Sekiro.Core",
-    "references": [],
+    "name": "Sekiro.Player.Input",
+    "rootNamespace": "Sekiro.Player.Input",
+    "references": [
+        "Sekiro.Core"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
