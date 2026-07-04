@@ -1,0 +1,17 @@
+{
+    "name": "Sekiro.Combat",
+    "rootNamespace": "Sekiro.Combat",
+    "references": [
+        "Sekiro.Core",
+        "Sekiro.Core.Data"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
