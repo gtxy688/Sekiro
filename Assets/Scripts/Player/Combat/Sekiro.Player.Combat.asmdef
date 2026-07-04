@@ -1,0 +1,19 @@
+{
+    "name": "Sekiro.Player.Combat",
+    "rootNamespace": "Sekiro.Player.Combat",
+    "references": [
+        "Sekiro.Core",
+        "Sekiro.Core.Data",
+        "Sekiro.Combat",
+        "Sekiro.Player.Input"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
