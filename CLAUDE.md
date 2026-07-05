@@ -76,19 +76,36 @@ Skills 位于 `.claude/skills/` 目录，每个 skill 有独立的 `SKILL.md` �
 
 ### 文档加载指引
 
-当 Agent 接到任务时，根据任务类型加载对应文档：
+当 Agent 接到任务时，根据任务类型加载对应文档（每文件 15-30 行，只读精确需要的）：
 
-| 任务类型 | 必读文档 | 可选文档 |
-|---------|---------|---------|
-| 弹刀系统 | `DOCS/specs/deflect-system.md` | `DOCS/architecture/code-structure.md` |
-| 架势条 | `DOCS/specs/posture-system.md` | `DOCS/architecture/data-layer.md` |
-| Boss AI | `DOCS/specs/boss-ai.md` | `DOCS/architecture/state-machine.md` |
-| 危字/识破 | `DOCS/specs/danger-system.md` | `DOCS/specs/animation-system.md` |
-| 输入系统 | `DOCS/specs/input-system.md` | `DOCS/architecture/code-structure.md` |
-| 动画集成 | `DOCS/specs/animation-system.md` | — |
-| UI/HUD | `DOCS/specs/ui-hud.md` | — |
-| HFSM 框架 | `DOCS/architecture/state-machine.md` | — |
-| 数据层 | `DOCS/architecture/data-layer.md` | — |
+| 任务类型 | 必读文档 |
+|---------|---------|
+| 弹刀判定 | `DOCS/specs/deflect/deflect-mechanics.md` |
+| 抖刀惩罚/加成链 | `DOCS/specs/deflect/deflect-penalties.md` |
+| 弹刀参数/验收 | `DOCS/specs/deflect/deflect-params.md` |
+| 架势条规则 | `DOCS/specs/posture/posture-rules.md` |
+| 架势参数/验收 | `DOCS/specs/posture/posture-params.md` |
+| Boss 状态机 | `DOCS/specs/boss/boss-state-machine.md` |
+| Boss AI 决策+权重表 | `DOCS/specs/boss/boss-ai-decision.md` |
+| Boss 招式表 | `DOCS/specs/boss/boss-attacks.md` |
+| Boss 弹刀 AI | `DOCS/specs/boss/boss-deflect.md` |
+| Boss 数值/验收 | `DOCS/specs/boss/boss-params.md` |
+| 危字类型+提示 | `DOCS/specs/danger/danger-types.md` |
+| 识破+踩头判定 | `DOCS/specs/danger/mikiri-stomp.md` |
+| 危字参数/验收 | `DOCS/specs/danger/danger-params.md` |
+| 输入优先级+打断 | `DOCS/specs/input/input-priority.md` |
+| 输入缓冲 | `DOCS/specs/input/input-buffer.md` |
+| 帧冻结 | `DOCS/specs/input/hitstop.md` |
+| 回血系统 | `DOCS/specs/input/healing.md` |
+| 动画策略+事件 | `DOCS/specs/animation/animation-strategy.md` |
+| 动画参数/验收 | `DOCS/specs/animation/animation-params.md` |
+| UI 布局+元素 | `DOCS/specs/ui/ui-overview.md` |
+| UI 事件映射 | `DOCS/specs/ui/ui-events.md` |
+| 伤害数字 | `DOCS/specs/ui/ui-damage-numbers.md` |
+| HFSM 框架 | `DOCS/architecture/state-machine.md` |
+| 数据层 | `DOCS/architecture/data-layer.md` |
+| 代码结构 | `DOCS/architecture/code-structure.md` |
+| 测试计划 | `DOCS/testing/test-plan.md` |
 
 ### 工作流（TDD 强制）
 

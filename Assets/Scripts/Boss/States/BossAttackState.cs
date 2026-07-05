@@ -2,6 +2,7 @@ using UnityEngine;
 using Sekiro.Core.StateMachine;
 using Sekiro.Core.Data;
 using Sekiro.Core.Events;
+using Sekiro.Combat;
 using Sekiro.Boss.AI;
 using Sekiro.Boss.Attacks;
 
@@ -142,8 +143,13 @@ namespace Sekiro.Boss.States
                 if (hits[i].transform == ctx.PlayerTransform)
                 {
                     _hasHit = true;
-                    // Boss 命中玩家 → 广播玩家受伤事件（由玩家战斗系统处理弹刀/伤害）
-                    CombatEvents.RaisePlayerDamaged(_currentAttack.damage);
+
+                    // 计算攻击方向（Boss → 玩家）
+                    Vector3 attackDir = (ctx.PlayerTransform.position - ctx.BossTransform.position).normalized;
+                    Vector3 playerForward = ctx.PlayerTransform.forward;
+
+                    // 通过 Combat 层事件传递完整攻击数据
+                    BossAttackEvents.RaiseBossAttackHitPlayer(_currentAttack, attackDir, playerForward);
                     break;
                 }
             }

@@ -77,35 +77,18 @@ namespace Sekiro.Player.Combat
         }
 
         /// <summary>
-        /// 每帧读取输入并分发战斗行为
+        /// 每帧仅处理弹刀释放检测（由 DeflectState 管理弹刀按下）。
+        /// 战斗输入由 PlayerStateMachine 的当前状态管理。
         /// </summary>
         private void Update()
         {
             if (_inputReader == null) return;
 
-            // 弹刀（鼠标右键）
-            if (_inputReader.IsDeflectPressed())
-                HandleDeflectPressed();
-
+            // 弹刀释放检测（DeflectSystem 需要知道何时松开）
             bool deflectHeld = _inputReader.IsDeflectHeld();
             if (_wasDeflectHeld && !deflectHeld)
                 HandleDeflectReleased();
             _wasDeflectHeld = deflectHeld;
-
-            // 攻击（鼠标左键）
-            if (_inputReader.IsAttackPressed())
-                HandleAttack();
-
-            // 闪避 / 识破（Shift）
-            if (_inputReader.IsDodgePressed())
-                HandleDodge();
-
-            // 跳跃（空格）— 由 PlayerController.Update 自行处理
-            // TODO: 当需要战斗状态限制跳跃时，在此处拦截
-
-            // 回血（E）
-            if (_inputReader.IsHealPressed())
-                Heal();
         }
 
         #endregion
@@ -131,7 +114,7 @@ namespace Sekiro.Player.Combat
         /// <summary>
         /// 攻击输入：管理 3 段连招计数
         /// </summary>
-        internal void HandleAttack()
+        public void HandleAttack()
         {
             if (Time.time - _lastAttackTime > ComboResetTime)
                 _comboCount = 0;
@@ -179,7 +162,7 @@ namespace Sekiro.Player.Combat
         /// </summary>
         /// <param name="attack">攻击数据</param>
         /// <param name="result">弹刀结果</param>
-        internal void ApplyDamageResult(AttackData attack, DeflectResult result)
+        public void ApplyDamageResult(AttackData attack, DeflectResult result)
         {
             DefenseState state = DeflectResultToDefenseState(result);
 

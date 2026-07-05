@@ -1,0 +1,20 @@
+{
+    "name": "Sekiro.Player.StateMachine",
+    "rootNamespace": "Sekiro.Player.StateMachine",
+    "references": [
+        "Sekiro.Core",
+        "Sekiro.Core.Data",
+        "Sekiro.Combat",
+        "Sekiro.Player.Input",
+        "Sekiro.Player.Combat"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

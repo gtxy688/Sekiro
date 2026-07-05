@@ -58,6 +58,8 @@ namespace Sekiro.Boss
             AddState<States.BossMoveState>();
             AddState<States.BossAttackState>();
             AddState<States.BossStaggerState>();
+            AddState<States.BossCollapseState>();
+            AddState<States.BossExecutedState>();
         }
 
     }
