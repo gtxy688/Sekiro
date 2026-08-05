@@ -1,6 +1,3 @@
- 复刻只狼战斗系统 | 一场经典boss战：苇名弦一郎
- 具体内容看 DOCS/ARPG战斗Demo_项目策划案_只狼.md
- 现在的内容是，帮我完成人物模型，动画等不可或缺的基础设置
 
 <!-- superpowers-zh:begin (do not edit between these markers) -->
 # Superpowers-ZH 中文增强版
@@ -46,35 +43,15 @@ Skills 位于 `.claude/skills/` 目录，每个 skill 有独立的 `SKILL.md` �
 如果你认为哪怕只有 1% 的可能性某个 skill 适用于你正在做的事情，你必须调用该 skill 检查。
 <!-- superpowers-zh:end -->
 
----
 
-## Harness 工程配置
 
-> 本节定义 AI Agent 在本项目中必须遵守的架构约束、代码规范和工作流。
 
-### 架构约束（不可违反）
+# 项目概述
 
-- 所有战斗参数必须用 `ScriptableObject`，禁止硬编码数值
-- 状态机使用 HFSM 模式（继承 `StateMachine` 基类），禁止在 `MonoBehaviour.Update` 中写 switch-case
-- 模块间通信走 `CombatEvents` 事件系统，禁止直接引用其他模块
-- 弹刀判定用 `Physics.OverlapSphere` 每帧检测，不用 `OnTriggerEnter`
-- `Player/` 和 `Boss/` 模块不能直接互相引用，只能通过事件通信
+复刻只狼战斗系统 | 一场经典boss战：苇名弦一郎
+> 引擎：Unity 2022 LTS + URP | 用途：秋招作品集
 
-### 代码规范
-
-- 命名规则：类名 `PascalCase`，方法名 `PascalCase`，私有字段 `_camelCase`
-- 每个公开方法必须有 XML 文档注释（`/// <summary>`）
-- 单个脚本文件不超过 300 行
-- 一次提交只做一件事（原子性）
-
-### 测试要求
-
-- 新增数值逻辑 → 必须配套 EditMode 单元测试
-- 新增状态转换 → 必须配套 PlayMode 集成测试
-- 修改已有逻辑前 → 先运行现有测试确保不回归
-- 测试运行方式：Unity Editor → Window → General → Test Runner
-
-### 文档加载指引
+# 文档加载指引
 
 当 Agent 接到任务时，根据任务类型加载对应文档（每文件 15-30 行，只读精确需要的）：
 
@@ -107,7 +84,7 @@ Skills 位于 `.claude/skills/` 目录，每个 skill 有独立的 `SKILL.md` �
 | 代码结构 | `DOCS/architecture/code-structure.md` |
 | 测试计划 | `DOCS/testing/test-plan.md` |
 
-### 工作流（TDD 强制）
+# 工作流（TDD 强制）
 
 1. 读取相关规格文档（参考上方指引表）
 2. 编写测试（定义"完成"的标准）

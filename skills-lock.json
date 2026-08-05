@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "unity": {
+      "source": "mindrally/skills",
+      "sourceType": "github",
+      "skillPath": "unity/SKILL.md",
+      "computedHash": "55ab9fb1d0809ef1d0fd3d70258195e7eb28a67e1c84543cf3cba6325033ad87"
+    }
+  }
+}
