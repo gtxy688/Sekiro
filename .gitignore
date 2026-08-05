@@ -110,5 +110,8 @@ InitTestScene*.unity*
 **/Voice/
 **/声音/
 
-# 美术资源（体积大，通过网盘分享）
+# 美术资源（体积大，通过网盘分享，不上传云端）
 Assets/Resources/
+# 场景美术源文件（Blender 等，本地使用，不上传云端）
+Assets/Scenes/简洁/
+Assets/Scenes/简洁.meta
