@@ -37,3 +37,16 @@
 2. `targetState.Enter()`：设置 applyRootMotion → CrossFade(animName, 0.1s) → 重置参数
 3. `targetState.Update()`：更新 Blend Tree / 事件检查
 4. `targetState.Exit()`：applyRootMotion=false → 清理监听
+
+## 验收清单
+
+- [ ] 操作：打开 GameScene，玩家按 WASD
+      预期：角色平滑移动，Blend Tree 在 moveX/moveZ/speed 间平滑过渡
+- [ ] 操作：玩家按左键攻击
+      预期：攻击动画用 Root Motion，位移符合招式
+- [ ] 操作：玩家按右键弹刀
+      预期：弹刀动画 + 可被完美弹刀打断
+- [ ] 操作：玩家闪避/识破/喝药
+      预期：对应动画为 Root Motion
+- [ ] 操作：观察 Animator 面板
+      预期：EnableHitbox/OnAttackHit 等 Animation Event 在正确帧触发

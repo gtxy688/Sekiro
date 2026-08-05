@@ -1,3 +1,6 @@
+> **参考来源**：只狼游戏原始 Lua 行为分析（反编译）。这是 Boss AI 设计的**素材来源**，不是实现规格。实现以 `Docs/specs/boss/boss-ai-decision.md` 为准。
+>
+
 # 天守阁弦一郎AI
 
 
