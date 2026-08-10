@@ -20,7 +20,7 @@ public abstract class BrainBase : MonoBehaviour
         ProcessCommandBuffer();
     }
 
-    // ★ 供子类调用的缓冲方法
+    // 供子类调用的缓冲方法
     // duration 就是《只狼》里的预输入窗口期，动作游戏通常设为 0.2 秒左右
     protected void BufferCommand(ICommand cmd, float duration = 0.2f)
     {
