@@ -1,5 +1,6 @@
 using UnityEngine;
 
+// 处理指令预输入
 [RequireComponent(typeof(CharacterBody))]
 public abstract class BrainBase : MonoBehaviour
 {

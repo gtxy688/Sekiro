@@ -39,9 +39,11 @@ public class BTBrain : MonoBehaviour
     {
         float attackRange = 3.0f; // 攻击距离
 
+        // 下面只是简单例子,不代表具体实现方案 
+        
         // 【战术 1】：近战攻击逻辑 (如果在攻击范围内，就执行一次攻击)
         Sequence meleeAttackSequence = new Sequence(new List<Node>
-        {
+        {   
             // 条件节点：距离 <= attackRange 吗？
             new ConditionNode(() => 
             {
@@ -51,6 +53,8 @@ public class BTBrain : MonoBehaviour
             
             // 动作节点：执行轻攻击 (发送 Command)
             new BT_Attack(body, false)
+
+            // 只有前面的条件满足，才会执行后面的攻击指令
         });
 
         // 【战术 2】：追击逻辑 (生成 MoveCommand 靠近玩家)
