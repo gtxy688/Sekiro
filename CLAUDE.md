@@ -55,18 +55,10 @@ AI 辅助开发，**用户负责测试与验收（按模块）**。AI 每完成�
 
 # 架构约束（可判定红线，违反即打回）
 
-1. **战斗参数必须用 ScriptableObject**。`.cs` 中不得出现：`new AttackData{...}`、`private const` 战斗数值、`static readonly` 权重表、内联伤害/时长数值。参数一律来自 `.asset` 资产。
-2. **状态机继承 `StateMachine` 基类**。禁止在 `MonoBehaviour.Update` 中写 switch-case 状态机。
-3. **模块间通信走 `CombatEvents` 事件总线**。`Player/` 与 `Boss/` 目录类禁止直接引用对方类型，禁止 `FindObjectOfType` 跨模块获取。
-4. **命中判定用 `Physics.OverlapSphere`**。禁止 `OnTriggerEnter/OnTriggerStay/OnCollisionEnter` 做攻击判定。
-5. **单一输入系统**。禁止新旧输入系统混用（新 Input System 资产 + `UnityEngine.Input.*` 不得并存）。
 
 # 代码规范
 
-- 类名/方法名 `PascalCase`，私有字段 `_camelCase`
-- 每个公开方法必须有 `/// <summary>` XML 注释
-- 单文件 ≤ 300 行
-- 一次提交只做一件事（原子提交）
+
 
 # 工作流（AI 实现 → 用户验收）
 
@@ -84,36 +76,7 @@ AI 辅助开发，**用户负责测试与验收（按模块）**。AI 每完成�
 
 # 文档加载指引
 
-当 Agent 接到任务时，根据任务类型加载对应文档（每文件 15-30 行，只读精确需要的）：
 
-| 任务类型 | 必读文档 |
-|---------|---------|
-| 弹刀判定 | `Docs/specs/deflect/deflect-mechanics.md` |
-| 抖刀惩罚/加成链 | `Docs/specs/deflect/deflect-penalties.md` |
-| 弹刀参数/验收 | `Docs/specs/deflect/deflect-params.md` |
-| 架势条规则 | `Docs/specs/posture/posture-rules.md` |
-| 架势参数/验收 | `Docs/specs/posture/posture-params.md` |
-| Boss 状态机 | `Docs/specs/boss/boss-state-machine.md` |
-| Boss AI 决策+权重表 | `Docs/specs/boss/boss-ai-decision.md` |
-| Boss 招式表 | `Docs/specs/boss/boss-attacks.md` |
-| Boss 弹刀 AI | `Docs/specs/boss/boss-deflect.md` |
-| Boss 数值/验收 | `Docs/specs/boss/boss-params.md` |
-| 危字类型+提示 | `Docs/specs/danger/danger-types.md` |
-| 识破+踩头判定 | `Docs/specs/danger/mikiri-stomp.md` |
-| 危字参数/验收 | `Docs/specs/danger/danger-params.md` |
-| 输入优先级+打断 | `Docs/specs/input/input-priority.md` |
-| 输入缓冲 | `Docs/specs/input/input-buffer.md` |
-| 帧冻结 | `Docs/specs/input/hitstop.md` |
-| 回血系统 | `Docs/specs/input/healing.md` |
-| 动画策略+事件 | `Docs/specs/animation/animation-strategy.md` |
-| 动画参数/验收 | `Docs/specs/animation/animation-params.md` |
-| UI 布局+元素 | `Docs/specs/ui/ui-overview.md` |
-| UI 事件映射 | `Docs/specs/ui/ui-events.md` |
-| 伤害数字 | `Docs/specs/ui/ui-damage-numbers.md` |
-| HFSM 框架 | `Docs/architecture/state-machine.md` |
-| 数据层 | `Docs/architecture/data-layer.md` |
-| 代码结构 | `Docs/architecture/code-structure.md` |
-| 测试计划 | `Docs/testing/test-plan.md` |
 
 # 测试要求
 
