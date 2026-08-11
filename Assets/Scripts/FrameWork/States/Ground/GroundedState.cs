@@ -13,7 +13,7 @@ public class GroundedState : HierarchicalState
         // 踩空掉落（这属于物理环境变化,不需要去判断能否执行,不属于Command，所以保留在Update里）
         if (!body.IsGrounded)
         {
-            body.MainStateMachine.ChangeState(new AirborneState(body,false));
+            body.MainStateMachine.ChangeState(new AirState(body,false));
             return;
         }
 
@@ -27,7 +27,7 @@ public class GroundedState : HierarchicalState
         if (cmd is JumpCommand)
         {
             // 无论子状态是 Idle 还是 Move，父类直接掐断，强切大状态！
-            body.MainStateMachine.ChangeState(new AirborneState(body, true));
+            body.MainStateMachine.ChangeState(new AirState(body, true));
             return true; // 报告大脑：跳跃指令已执行！
         }
 

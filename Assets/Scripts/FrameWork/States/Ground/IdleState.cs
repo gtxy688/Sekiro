@@ -20,11 +20,6 @@ public class IdleState : BaseState
         body.MoveDirection = Vector2.zero;
     }
 
-    public override void OnUpdate()
-    {
-        
-    }
-
     // 处理传递到底层的命令 传下来的命令可能是 MoveCommand 
     public override bool HandleCommand(ICommand cmd)
     {

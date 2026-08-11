@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// 继承自 BaseState，作为 GroundedState (地面父状态) 的子叶子节点
+// 移动状态
 public class MoveState : BaseState
 {
     private HierarchicalState parent;

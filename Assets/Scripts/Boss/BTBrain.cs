@@ -39,7 +39,7 @@ public class BTBrain : MonoBehaviour
     {
         float attackRange = 3.0f; // 攻击距离
 
-        // 下面只是简单例子,不代表具体实现方案 
+        // 注意: 下面只是简单例子,不代表具体实现方案 
         
         // 【战术 1】：近战攻击逻辑 (如果在攻击范围内，就执行一次攻击)
         Sequence meleeAttackSequence = new Sequence(new List<Node>

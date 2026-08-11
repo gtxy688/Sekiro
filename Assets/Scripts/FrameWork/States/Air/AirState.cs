@@ -1,19 +1,25 @@
 using UnityEngine;
 
 
-public class AirborneState : HierarchicalState
+public class AirState : HierarchicalState
 {
     private bool isJumping;
 
-    public AirborneState(CharacterBody body, bool isJumping) : base(body) 
+    public AirState(CharacterBody body, bool isJumping) : base(body) 
     {
         this.isJumping = isJumping;
     }
 
     protected override BaseState GetInitialSubState()
     {
-        if (isJumping) return new JumpState(body, this);
-        else return new FallState(body, this);
+        if (isJumping) 
+        {
+            return new JumpState(body, this);
+        }
+        else 
+        {
+            return new FallState(body, this);
+        }
     }
 
     public override void OnUpdate()
