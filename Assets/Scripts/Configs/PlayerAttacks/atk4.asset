@@ -19,4 +19,4 @@ MonoBehaviour:
   StateDuration: 0.8
   ComboWindowStart: 0.3
   ComboWindowEnd: 0.7
-  NextCombo: {fileID: 0}
+  NextCombo: {fileID: 11400000, guid: 4e787a5e568ddf44b91c9c968d2639a4, type: 2}

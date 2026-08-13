@@ -19,6 +19,9 @@ public class CharacterBody : MonoBehaviour
     // 4. 物理状态 (Body 负责检测，State 读取)
     public bool IsGrounded { get; private set; }
 
+    // 5. 受击硬直时长（数据暂存于此，后续随角色配置一起迁进 SO）
+    public float stunDuration = 0.5f;
+
     [Header("环境检测设置")]
     public Transform groundCheckPoint;
     public float groundCheckRadius = 0.2f;
@@ -86,28 +89,23 @@ public class CharacterBody : MonoBehaviour
     // 接收外界物理碰撞传来的打击
     public void ReceiveHit(CharacterBody attacker, int healthDmg, float postureDmg, Vector3 hitPoint)
     {
-        // // 1. 询问当前的状态：你现在能被砍吗？你在弹反吗？
-        // // 这就是 HFSM 强大的地方，不需要写一堆 if(isDeflecting)
-        // if (MainStateMachine.CurrentState is GroundedState ground && 
-        //     ground.SubStateMachine.CurrentState is DeflectState)
-        // {
-        //     // 当前处于完美弹反状态！
-        //     HandlePerfectParry(attacker, hitPoint);
-        //     return; // 拦截伤害，直接 return
-        // }
+        // 1. 【待办 A3】查询当前状态层级：弹反拦截 / 闪避免疫
+        //    注意：DeflectState/DodgeState 都在 GroundedState 的"子"状态机里，
+        //    必须逐层查，直接判顶层永远为 false（层级查询基建还没建）
+        //    if (MainStateMachine.CurrentState is GroundedState g &&
+        //        g.SubStateMachine.CurrentState is DeflectState)
+        //    { HandlePerfectParry(attacker, hitPoint); return; }
+        //    if (MainStateMachine.CurrentState is GroundedState g &&
+        //        g.SubStateMachine.CurrentState is DodgeState)
+        //    { return; } // 无敌帧免疫
 
-        // if (MainStateMachine.CurrentState is DodgeState)
-        // {
-        //     // 当前处于无敌帧（闪避状态）
-        //     return; // 闪避成功，免疫伤害
-        // }
+        // 2. 【待办 A5】伤害/架势结算
+        //    TakeDamage(healthDmg, postureDmg);
 
-        // // 2. 没防住，真挨揍了
-        // TakeDamage(healthDmg, postureDmg);
-
-        // // 3. 强制打断当前行为，切入受击硬直状态！
-        // // 这属于环境/物理强制覆写，不走 Command，直接强切 HFSM
-        // MainStateMachine.ChangeState(new StunnedState(this));
+        // 3. 强制打断当前行为，切入受击父状态
+        //    这属于环境/物理强制覆写，不走 Command，直接强切顶层状态机。
+        //    无论当前在地面还是空中，都由 StunnedState 内部按 IsGrounded 分派受击子状态
+        MainStateMachine.ChangeState(new StunnedState(this));
     }
 
     private void HandlePerfectParry(CharacterBody attacker, Vector3 hitPoint)

@@ -52,7 +52,7 @@ public class BTBrain : MonoBehaviour
             }),
             
             // 动作节点：执行轻攻击 (发送 Command)
-            new BT_Attack(body, false)
+            new BT_Attack(body)
 
             // 只有前面的条件满足，才会执行后面的攻击指令
         });

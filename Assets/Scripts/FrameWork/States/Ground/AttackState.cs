@@ -16,27 +16,36 @@ public class AttackState : BaseState
 
     public override void OnEnter()
     {
+        // 空配置保护：没有 AttackConfig 的 AttackState 无意义，立刻退回 Idle
+        if (config == null)
+        {
+            parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+            return;
+        }
+
         stateTimer = 0f;
         hasBufferedNextHit = false;
 
-        // 无脑读取配置播放动画
         body.Animator.CrossFade(config.AnimName, config.TransitionDuration);
     }
 
     public override void OnUpdate()
     {
+        if (config == null) return;
+
         stateTimer += Time.deltaTime;
 
         // 动作彻底结束
         if (stateTimer >= config.StateDuration)
         {
-            // 如果是空中动作，你可以在配置里加个 bool isAirAction 来判断切回哪
-            parent.SubStateMachine.ChangeState(new IdleState(body, parent)); 
+            parent.SubStateMachine.ChangeState(new IdleState(body, parent));
         }
     }
 
     public override bool HandleCommand(ICommand cmd)
     {
+        if (config == null) return false;
+
         if (cmd is AttackCommand)
         {
             // 1. 判断策划有没有配置下一段连招

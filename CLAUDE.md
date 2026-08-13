@@ -53,34 +53,77 @@ Skills 位于 `.claude/skills/` 目录，每个 skill 有独立的 `SKILL.md` �
 
 AI 辅助开发，**用户负责测试与验收（按模块）**。AI 每完成一个模块，交付「验收清单」供用户逐条验证，验收通过才算完成。
 
-# 架构约束（可判定红线，违反即打回）
+# 架构约束
 
+1. **HFSM 顶层只装 HierarchicalState**：GroundedState/AirState/StunnedState 是父状态。叶子状态（Idle/Move/Attack/Deflect/Dodge/Mikiri）永远在父状态 SubStateMachine 内。
+2. **禁止直接判顶层状态类型**：`MainStateMachine.CurrentState is DodgeState` 永远 false，禁止。查状态必须走 OnHitReceived/IsInState 层级查询。
+3. **命中判定不用 OnTrigger**：用动画事件 + Physics.BoxCast/SphereCast（上一帧位置→当前帧位置扫描）。
+4. **伤害数据归属 AttackConfig（SO）**：不在 WeaponHitbox 等其他地方重复硬编码伤害值。
+5. **战斗数值全部走 SO**：不硬编码在 .cs 里。角色属性 → CharacterConfig，招式属性 → AttackConfig。
+6. **Hit 结算走 CombatManager 中间层**：Hitbox 扫到 Hurtbox → 报告 CombatManager → CombatManager 调 target.ReceiveHit。不直接调。
+7. **Command 路由规范**：Command 来自 Brain（输入/AI），Hit 来自物理碰撞，都走状态机路由。环境/物理强制切换（受击）不走 Command，直接 ChangeState。
+8. **表现层只用事件总线**：UI/相机/音效订阅 CombatEventBus，禁止每帧轮询。
 
 # 代码规范
 
+## 命名
+- 公开成员 PascalCase，私有 camelCase（Unity 习惯，不用 m_ 前缀）
+- 命令 struct 命名 `<动作>Command`（MoveCommand/AttackCommand/HealCommand）
+- 状态类命名 `<区域><动作>State`（GroundStunnedState/AirStunnedState）
 
+## 文件组织
+- 状态机：`Assets/Scripts/FrameWork/States/<区域>/`
+- 战斗：`Assets/Scripts/Combat/`
+- 配置：`Assets/Scripts/Configs/`
+- 大脑：`Assets/Scripts/Player/Brain/`、`Assets/Scripts/Boss/`
+- 表现：`Assets/Scripts/UI/`、`Assets/Scripts/Audio/`、`Assets/Scripts/Camera/`
+- 管理器：`Assets/Scripts/Mgr/`
+- 命名空间不强制，保持现有风格（无命名空间）
+
+## 数据结构
+- 配置数据用 ScriptableObject（AttackConfig/CharacterConfig），带 `[CreateAssetMenu]`
+- 命令/Hit 数据用 struct（值类型，避免引用语义）
+- 状态是纯 C# 类（非 MonoBehaviour），CharacterBody 是 MonoBehaviour
+
+## 注释
+- 中文注释，解释"为什么"而非"是什么"
+- 占位动画名（如 "Hurt_Ground"）注明「M8 接动画前为占位名」
 
 # 工作流（AI 实现 → 用户验收）
 
-1. 收到任务 → 按「文档加载指引」读对应 spec，只读需要的章节
+1. 收到任务 → 按「文档加载指引」读对应架构文档 + spec，只读需要的章节
 2. 实现代码 → 不自己宣称"完成"
 3. 在交付说明中附「验收清单」：操作步骤 + 预期结果（供用户在 Unity 中逐条验证）
 4. 用户验收通过 → 提交；验收不通过 → 修正后重新交付
 
 # 文档访问纪律（硬规则）
 
-1. 收到任务 → 在下方加载指引表定位对应 spec，**只读该文件**，禁止通读 `Docs/` 下所有文档
-2. 禁止跨模块引用其他 spec（改弹刀就读 deflect 相关，不读 boss/ui）
-3. 文档与代码冲突 → **停下报告，不自行选边**（如：specs 说 HFSM 而代码是 FSM）
-4. 遇到缺失的 spec 或字段 → 停下询问用户，不臆造
+1. 收到任务 → 在下方加载指引表定位对应架构文档，**只读该文件**，禁止通读 `Docs/` 下所有文档
+2. 禁止跨模块引用其他文档（改弹刀就读 01-states，不读 06-presentation）
+3. **动手前先声明**：先说出"本任务要读哪份文档"，再开始读取，让用户确认找对了文档
+4. 文档与代码冲突 → **停下报告，不自行选边**（如：架构文档说 HFSM 而代码是 FSM）
+5. 遇到缺失的文档或字段 → 停下询问用户，不臆造
 
 # 文档加载指引
+
+架构文档在 `Docs/architecture/`，每个模块配 `XX-xxx.md`（架构）+ `XX-xxx-test.md`（验收）。AI 只读与本任务相关的文件。
+
+| 任务类型 | 读这个 |
+|---------|--------|
+| 状态机/受击/弹反/闪避/处决 | `Docs/architecture/01-states.md` |
+| 属性/架势/葫芦/复活 | `Docs/architecture/02-combat-data.md` |
+| 命中判定/危字攻击 | `Docs/architecture/03-hit-detection.md` |
+| 行为树/Boss AI | `Docs/architecture/04-behavior-tree-ai.md` |
+| 输入/锁定 | `Docs/architecture/05-input-lockon.md` |
+| 相机/UI/音效 | `Docs/architecture/06-presentation.md` |
+| 动画事件 | `Docs/architecture/07-anim-events.md` |
+| 项目总览/模块依赖 | `Docs/architecture/00-overview.md` |
+| 用户决策记录 | `Docs/total.md`（用户视角，AI 不当规范用） |
+
+> 总原则：先读 `Docs/architecture/00-overview.md` 定位模块，再读对应架构文档，最后对照 `XX-xxx-test.md` 验收。
 
 
 
 # 测试要求
 
-- 新增数值逻辑 → 必须配套 EditMode 单元测试（Assets/Tests/EditMode）
-- 新增状态转换 → 必须配套 PlayMode 集成测试（Assets/Tests/PlayMode）
-- 修改已有逻辑前 → 先运行现有测试确保不回归
-- 测试运行方式：Unity Editor → Window → General → Test Runner
+本项目不做自动化测试。验证方式：AI 交付时附「验收清单」（`Docs/architecture/0X-xxx-test.md`），用户在 Unity 中手动逐条验收。

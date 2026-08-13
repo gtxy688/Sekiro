@@ -2,8 +2,7 @@ using UnityEngine;
 public class AirIdleState : BaseState
 {
     private HierarchicalState parent;
-    private AttackConfig config; // 核心：当前状态正在使用的数据配置
-    public AirIdleState(CharacterBody body, HierarchicalState parent) : base(body) 
+    public AirIdleState(CharacterBody body, HierarchicalState parent) : base(body)
     {
         this.parent = parent;
     }
@@ -29,7 +28,7 @@ public class AirIdleState : BaseState
         if (cmd is AttackCommand)
         {
             // 收到相同的攻击指令，但我目前在空中,所以会切到 AirAttackState！
-            parent.SubStateMachine.ChangeState(new AttackState(body, parent,config));
+            parent.SubStateMachine.ChangeState(new AttackState(body, parent, null));
             return true;
         }
         
