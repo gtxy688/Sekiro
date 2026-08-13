@@ -5,13 +5,18 @@ public class MoveState : BaseState
 {
     private HierarchicalState parent;
     
-    // 移动和转身速度，实战中这些参数通常写在 CharacterBody 或一个独立的 ScriptableObject 配置文件中
-    private float moveSpeed = 6f; 
-    private float rotationSpeed = 15f; 
+    // 移动/转身速度从 CharacterConfig(SO) 读取，禁止硬编码（容错给默认值）
+    private float moveSpeed = 4f;
+    private float rotationSpeed = 720f;
 
     public MoveState(CharacterBody body, HierarchicalState parent) : base(body) 
     {
         this.parent = parent;
+        if (body.Config != null)
+        {
+            moveSpeed = body.Config.MoveSpeed;
+            rotationSpeed = body.Config.RotationSpeed;
+        }
     }
 
     // 1. 生命周期：进入跑动
@@ -43,8 +48,8 @@ public class MoveState : BaseState
             // 计算目标旋转四元数
             Quaternion targetRotation = Quaternion.LookRotation(lookDirection, Vector3.up);
             
-            // 利用 Slerp (球面插值) 实现平滑转身，避免人物像平移木偶一样瞬间回头
-            body.transform.rotation = Quaternion.Slerp(body.transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
+            // 用 RotateTowards 按 度/秒 平滑转身，避免人物像平移木偶一样瞬间回头
+            body.transform.rotation = Quaternion.RotateTowards(body.transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
         }
     }
 

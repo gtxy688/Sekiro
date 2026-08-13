@@ -13,12 +13,13 @@
 OnWeaponDeflected(Vector3 hitPoint, DeflectType type)   // 打铁
 OnTakeDamage(CharacterBody victim, int dmg, int hp)      // 受伤
 
-// 新增（M2 定义）
-OnPostureChanged(CharacterBody)
-OnPostureBroken(CharacterBody)
-OnGourdUsed(CharacterBody)
-OnDeath(CharacterBody)
-OnReviveAvailable(CharacterBody)
+// 新增（M2 定义）——事件携带完整数据，表现层不读 CharacterBody 内部字段
+OnHPChanged(CharacterBody c, int hp, int maxHp)         // 血条（含最大值算比例）
+OnPostureChanged(CharacterBody c, float posture, float maxPosture)  // 架势
+OnPostureBroken(CharacterBody c)
+OnGourdUsed(CharacterBody c, int remaining)
+OnDeath(CharacterBody c)
+OnReviveAvailable(CharacterBody c)
 
 // 新增（M3/M17）
 OnPerilousAttack(PerilousType type)   // 危字提示
@@ -27,6 +28,8 @@ OnPerilousAttack(PerilousType type)   // 危字提示
 OnFinisherTriggered(Vector3 pos)      // 忍杀
 OnCameraShake(float intensity)        // 震屏
 ```
+
+> 为什么事件带完整数据：M2（CharacterConfig）还没实现时表现层也能独立编译运行，不依赖读取 CharacterBody 内部字段。
 
 ## 二、相机（M12，Cinemachine）
 
@@ -71,11 +74,13 @@ OnCameraShake(float intensity)        // 震屏
 ```csharp
 // 只暴露视觉接口，不持有业务逻辑
 BossStatusView     : SetLifeDots(int count) / SetHP(float ratio) / SetName(string)
-BossPostureBarView : SetPosture(float ratio)  // 中心双向
+BossPostureBarView : SetPosture(float ratio) / SetDanger(bool)  // 中心双向 + 快满高亮
 PlayerStatusView   : SetReviveDots(int) / SetHP(float) / SetPosture(float)
 ItemSlotView       : SetGourdIcon(Sprite) / SetGourdCount(int)
 LockOnIndicatorView: SetLocked(bool) / SetFinisherReady(bool)  // 世界空间，挂 Boss
-PerilousWarningView: ShowWarning(PerilousType)  // "危"字动画
+PerilousWarningView: ShowWarning(PerilousType)  // "危"字动画，播完自动隐藏
+
+// 所有 View 继承 UIView 基类：Show()/Hide()/OnViewInit()
 ```
 
 ### Controller 层
@@ -83,23 +88,35 @@ PerilousWarningView: ShowWarning(PerilousType)  // "危"字动画
 ```csharp
 public class CombatUIController : MonoBehaviour
 {
-    // 订阅 CombatEventBus 所有战斗事件
-    // 事件 → 调对应 View 接口更新
-    void OnEnable() { /* 订阅 */ }
+    [SerializeField] private CharacterBody playerBody;  // 区分事件属于玩家还是 Boss
+    [SerializeField] private CharacterBody bossBody;
+    [SerializeField] private BossStatusView bossStatusView;  // 以及其余 View 引用
+
+    // 订阅 CombatEventBus 所有战斗事件 → 调对应 View 接口更新
+    void OnEnable()  { /* 订阅 */ }
     void OnDisable() { /* 取消订阅 */ }
 
-    void HandlePostureBroken(CharacterBody c) { LockOnIndicatorView.SetFinisherReady(true); }
-    void HandlePerilous(PerilousType t)       { PerilousWarningView.ShowWarning(t); }
+    // 按 CharacterBody 区分路由，不做每帧轮询
+    void HandlePostureChanged(CharacterBody c, float posture, float maxPosture)
+    {
+        float ratio = posture / maxPosture;
+        if (c == playerBody) playerStatusView?.SetPosture(ratio);
+        else if (c == bossBody) { bossPostureBarView?.SetPosture(ratio); bossPostureBarView?.SetDanger(ratio > 0.8f); }
+    }
+    void HandlePerilous(PerilousType t) { perilousWarningView?.ShowWarning(t); }
     // ...
 }
 ```
 
-### 特殊动画（DoTween）
+### 特殊动画（DoTween，已实现）
 
-- 架势条快满（>80%）：颜色变亮 + 边缘尖刺
-- 忍杀红点：脉动（scale + 透明度 loop）
-- "危"字：放大淡入 + 红光泛晕
-- 葫芦使用：数字闪烁
+- 架势条快满（>80%）：颜色变亮 + 边缘尖刺脉动（`BossPostureBarView.SetDanger`）
+- 忍杀红点：放大 + 红色脉动（`LockOnIndicatorView.SetFinisherReady`）
+- "危"字：放大淡入 + 红光泛晕，播完自动隐藏（`PerilousWarningView.ShowWarning`，序列代替原 timer/Update）
+- 葫芦使用：数字闪烁（待接）
+
+> 动画全部通过 `DOKill()` 清理残留 tween，防止事件连续触发时动画叠加。
+> `PerilousType` 枚举在 `Assets/Scripts/Configs/PerilousType.cs`（跨系统共享，不放 PlayerAttacks）。
 
 ## 四、音效（M15）
 
@@ -114,11 +131,15 @@ public class AudioManager : MonoBehaviour
     public AudioClip perilousSfx;     // 危字
     public AudioClip finisherSfx;     // 处决
     public AudioClip deathSfx;        // 死亡
+    public AudioClip gourdSfx;        // 喝葫芦
 
-    void OnEnable()  { CombatEventBus.OnWeaponDeflected += PlayDeflect; /* 等 */ }
+    void OnEnable()  { CombatEventBus.OnWeaponDeflected += HandleWeaponDeflected; /* 等 */ }
     void OnDisable() { /* 取消 */ }
+    // 处理函数里判断 DeflectType：Perfect → 叮，Normal → 笃
 }
 ```
+
+> 实现细节：Awake 里自动补 AudioSource（`GetComponent` 失败则 `AddComponent`），`PlayOneShot` 播放不打断其他音效。
 
 ## 涉及文件
 

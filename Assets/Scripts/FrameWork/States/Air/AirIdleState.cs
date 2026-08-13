@@ -27,8 +27,8 @@ public class AirIdleState : BaseState
     {
         if (cmd is AttackCommand)
         {
-            // 收到相同的攻击指令，但我目前在空中,所以会切到 AirAttackState！
-            parent.SubStateMachine.ChangeState(new AttackState(body, parent, null));
+            // 收到攻击指令，我目前在空中，切到 AirAttackState（空配置由 AirAttackState 内部保护回退）
+            parent.SubStateMachine.ChangeState(new AirAttackState(body, parent, null));
             return true;
         }
         

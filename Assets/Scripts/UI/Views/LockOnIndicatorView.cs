@@ -1,3 +1,4 @@
+using DG.Tweening;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -14,19 +15,27 @@ public class LockOnIndicatorView : UIView
         dot.enabled = isLocked;
     }
 
-    // 处决可用（架势崩解）→ 变大红点
+    // 处决可用（架势崩解）→ 变大红点脉动提示
     public void SetFinisherReady(bool ready)
     {
+        // 先杀掉残留动画，避免连续触发时叠加
+        if (dot != null) dot.DOKill();
+        if (dot != null) dot.transform.DOKill();
+
         if (ready)
         {
-            // TODO(DoTween): 放大 + 红色脉动 + 高光
-            dot.color = Color.red;
-            dot.transform.localScale = Vector3.one * 3f;
+            dot.enabled = true;
+            // 放大 + 红色脉动 + 高光
+            dot.transform.DOScale(Vector3.one * 3f, 0.15f).SetEase(Ease.OutBack);
+            dot.DOColor(Color.red, 0.3f)
+                .SetLoops(-1, LoopType.Yoyo)
+                .SetEase(Ease.InOutSine);
         }
         else
         {
-            dot.color = new Color(1, 1, 1, 0.5f);
-            dot.transform.localScale = Vector3.one;
+            // 回到默认半透明白点
+            dot.transform.DOScale(Vector3.one, 0.15f);
+            dot.DOColor(new Color(1, 1, 1, 0.5f), 0.15f);
         }
     }
 }

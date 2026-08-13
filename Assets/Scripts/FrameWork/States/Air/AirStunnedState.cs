@@ -19,7 +19,7 @@ public class AirStunnedState : BaseState
     {
         stunTimer += Time.deltaTime;
 
-        if (stunTimer >= body.stunDuration)
+        if (stunTimer >= body.StunDuration)
         {
             // 硬直结束时看物理状态：落地回地面，没落地继续下落
             if (body.IsGrounded)

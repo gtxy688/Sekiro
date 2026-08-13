@@ -19,7 +19,7 @@ public class GroundStunnedState : BaseState
     {
         stunTimer += Time.deltaTime;
 
-        if (stunTimer >= body.stunDuration)
+        if (stunTimer >= body.StunDuration)
         {
             // 硬直结束，退出受击父状态，回到地面
             body.MainStateMachine.ChangeState(new GroundedState(body));
