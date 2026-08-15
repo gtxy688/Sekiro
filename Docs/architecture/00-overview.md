@@ -27,10 +27,11 @@
 | 模块 | 内容 | 文档 |
 |------|------|------|
 | M3 | 命中判定：BoxCast Hitbox/Hurtbox + CombatManager | `03-hit-detection.md` |
-| M4 | 受击/弹反/闪避：各状态 OnHitReceived 实现 | `01-states.md` |
+| M4 | 受击/盾反：各状态 OnHitReceived 实现 | `01-states.md` |
 | M9 | 架势系统：Posture 累积/崩解 | `02-combat-data.md` |
 | M10 | 处决/忍杀：忍杀动画 + 清命 | `01-states.md` |
-| M17 | 危字攻击：PerilousType + Mikiri 识破 | `03-hit-detection.md` |
+
+> M17（危字攻击 + Mikiri 识破）、闪避（垫步）已移除：无对应动画资源，不在本项目范围内。
 
 ### 控制层（依赖 M1）
 | 模块 | 内容 | 文档 |
@@ -44,7 +45,7 @@
 | M12 | 相机：Cinemachine 锁定 + 震屏 | `06-presentation.md` |
 | M13 | UI：MVC 布局 | `06-presentation.md` |
 | M14 | 复活：1 次回生回满血 | `02-combat-data.md` |
-| M15 | 音效：打铁/危字/受击/处决 | `06-presentation.md` |
+| M15 | 音效：打铁/受击/处决 | `06-presentation.md` |
 | M16 | 葫芦：10 次回血 | `02-combat-data.md` |
 
 ### AI 层（依赖 M5/M3）
@@ -60,7 +61,7 @@
 ## 依赖图
 
 ```
-M1 ─┬─→ M2 ──→ M3 ──→ M4 ──→ M9 ──→ M10 ──→ M17
+M1 ─┬─→ M2 ──→ M3 ──→ M4 ──→ M9 ──→ M10
     │         │
     │         └─→ M6 ──→ M11
     │

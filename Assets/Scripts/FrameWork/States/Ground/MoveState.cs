@@ -1,12 +1,11 @@
 using UnityEngine;
 
-// 移动状态
+// 移动状态（全权根运动：位移由 Run 动画 Root 曲线驱动，这里只负责转身）
 public class MoveState : BaseState
 {
     private HierarchicalState parent;
-    
-    // 移动/转身速度从 CharacterConfig(SO) 读取，禁止硬编码（容错给默认值）
-    private float moveSpeed = 4f;
+
+    // 转身速度从 CharacterConfig(SO) 读取，禁止硬编码（容错给默认值）
     private float rotationSpeed = 720f;
 
     public MoveState(CharacterBody body, HierarchicalState parent) : base(body) 
@@ -14,7 +13,6 @@ public class MoveState : BaseState
         this.parent = parent;
         if (body.Config != null)
         {
-            moveSpeed = body.Config.MoveSpeed;
             rotationSpeed = body.Config.RotationSpeed;
         }
     }
@@ -22,22 +20,19 @@ public class MoveState : BaseState
     // 1. 生命周期：进入跑动
     public override void OnEnter() 
     { 
-        // 0.1秒淡入跑动动画，显得平滑
-        body.Animator.CrossFade("Run", 0.1f); 
+        // 0.1秒淡入行走动画，显得平滑
+        body.Animator.CrossFade("Walk", 0.1f); 
     }
 
 
-    // 2. 生命周期：执行真正的位移与转身
+    // 2. 生命周期：转身（位移完全交给 OnAnimatorMove 的根运动桥接）
     public override void OnUpdate()
     {
         // 从 Body 的黑板数据中获取当前最新的意图方向
         Vector2 inputDir = body.MoveDirection;
 
-        // 【位移】：将 2D 的输入方向转换为 3D 的世界速度向量，保留 Y 轴原本的重力下落速度
-        Vector3 targetVelocity = new Vector3(inputDir.x * moveSpeed, body.Rb.velocity.y, inputDir.y * moveSpeed);
-        
-        // 赋予刚体真正的物理速度
-        body.Rb.velocity = targetVelocity;
+        // 【位移】：不再直接设置速度！跑动位移来自 Run 动画的 Root 曲线
+        // （CharacterBody.OnAnimatorMove 会把动画位移转成物理速度）
 
         // 【转身】：如果当前有明确的方向输入，就让角色平滑地转过去
         if (inputDir.sqrMagnitude > 0.01f)
@@ -81,6 +76,27 @@ public class MoveState : BaseState
             
             // 无论如何，移动指令已被消化
             return true; 
+        }
+
+        // M6：移动中按攻击 → 直接进 AttackState（攻击中会原地停住，由 AttackState 接管）
+        if (cmd is AttackCommand)
+        {
+            parent.SubStateMachine.ChangeState(new AttackState(body, parent, body.LightAttack));
+            return true;
+        }
+
+        // M6：移动中按防御 → 进弹反/防御姿态
+        if (cmd is DeflectCommand)
+        {
+            parent.SubStateMachine.ChangeState(new DeflectState(body, parent));
+            return true;
+        }
+
+        // M6：移动中按闪避 → 垫步
+        if (cmd is DodgeCommand)
+        {
+            parent.SubStateMachine.ChangeState(new DodgeState(body, parent));
+            return true;
         }
         return false;
     }

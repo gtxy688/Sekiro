@@ -25,7 +25,6 @@
 
 | 文件 | 职责 |
 |------|------|
-| `Assets/Scripts/Configs/PerilousType.cs` | 危字攻击类型枚举（None/Thrust/Sweep/Grab），跨系统共享 |
 | `Assets/Scripts/Mgr/CombatEventBus.cs` | 事件总线扩展：+9 个表现层事件，**携带完整数据**（hp/maxHp、posture/maxPosture） |
 | `Assets/Scripts/UI/Views/UIView.cs` | MVC View 基类：`Show()/Hide()/OnViewInit()` |
 | `Assets/Scripts/UI/Views/BossStatusView.cs` | 左上：忍杀灯 + Boss 血条 + 名称 |
@@ -33,14 +32,14 @@
 | `Assets/Scripts/UI/Views/PlayerStatusView.cs` | 玩家血条 + 架势 + 回生 |
 | `Assets/Scripts/UI/Views/ItemSlotView.cs` | 葫芦槽位（图标 + 数量） |
 | `Assets/Scripts/UI/Views/LockOnIndicatorView.cs` | 世界空间锁定点（崩解变红点脉动） |
-| `Assets/Scripts/UI/Views/PerilousWarningView.cs` | "危"字（放大淡入 + 红光，自动隐藏） |
 | `Assets/Scripts/UI/CombatUIController.cs` | MVC Controller：订阅事件 → 按 player/boss 路由到 View |
-| `Assets/Scripts/Audio/AudioManager.cs` | 音效：订阅事件播 AudioClip（叮/笃/受击/危/处决/死亡/葫芦） |
+| `Assets/Scripts/Audio/AudioManager.cs` | 音效：订阅事件播 AudioClip（叮/笃/受击/处决/死亡/葫芦） |
 
 **DoTween 动画**（已实现，替换了 TODO 占位）：
 - Boss 架势条 > 80%：颜色变亮 + 边缘尖刺脉动
 - 忍杀红点：放大 + 红色脉动
-- "危"字：放大淡入 + 红光泛晕，播完自动隐藏
+
+> 已移除：`PerilousType.cs`（危字枚举）、`PerilousWarningView.cs`（"危"字 UI）——M17 不在本项目范围。
 
 > 注意：M13/M15 只搭了**框架**，还需在 Unity 场景里建 UI 组件、把引用拖到 Controller/View 上（验收清单见 `06-presentation-test.md`）。
 
@@ -70,9 +69,11 @@
 | `FrameWork/States/Base/HierarchicalState.cs` | 父状态（HFSM 层级节点） |
 | `FrameWork/States/StateMachine.cs` | 状态机驱动器 |
 | `FrameWork/States/Command.cs` | Command 接口 + MoveCommand 等 |
-| `FrameWork/States/Ground/` | GroundedState + Idle/Move/Attack/Deflect/Dodge/GroundStunned |
-| `FrameWork/States/Air/` | AirState + AirIdle/AirAttack/AirDeflect/AirStunned/Fall/Jump |
-| `FrameWork/States/StunnedState.cs` | 顶层受击父状态（按 IsGrounded 分派子状态） |
+| `FrameWork/States/Ground/` | GroundedState + Idle/Move/Attack/Deflect/GroundStunned |
+| `FrameWork/States/Air/` | AirState + AirIdleState（跳跃/下落共用） |
+| `FrameWork/States/StunnedState.cs` | 顶层受击父状态（统一进 GroundStunnedState） |
+
+> 已移除（无动画资源）：DodgeState（垫步）、AirAttackState/AirDeflectState（空中攻击/格挡）、JumpState/FallState（并入 AirIdleState）、AirStunnedState（空中受击）。
 
 ### ✅ 输入/Boss 基础（早期，未完整）
 
@@ -81,7 +82,7 @@
 | `Player/Brain/PlayerBrain.cs` + `BrainBase.cs` + `PlayerInputActions.cs` | 移动已通；**Attack/Jump/Defend 等按键未绑定 Command**（待 M6） |
 | `Boss/BehaviourTree/`（Node/Selector/Sequence/ConditionNode/BT_Attack/BT_MoveToTarget） | 行为树骨架已建 |
 | `Boss/BTBrain.cs` | 简单追近 + 攻击树 |
-| `Combat/WeaponHitbox.cs` | **仍是 OnTrigger 方式**，待 M3 改为动画事件 + BoxCast |
+| `Combat/Hitbox.cs` | M3：动画事件/脚本开启 + SphereCast 扫描（已替换 OnTrigger 版） |
 | `Mgr/FXManager.cs` | 打铁火花特效（订阅事件） |
 
 ---
@@ -90,20 +91,21 @@
 
 | 顺序 | 模块 | 内容 | 依赖 |
 |------|------|------|------|
-| 1 | **M1 受击路由** | `ReceiveHit` 里 A3 待办：弹反拦截/闪避免疫的层级查询（`OnHitReceived`） | M2 已完成 |
-| 2 | **M3 命中判定** | WeaponHitbox 改动画事件 + BoxCast，引入 CombatManager 中间层，Hurtbox | M1/M2 |
+| 1 | **M1 受击路由** | `ReceiveHit` 里 A3 待办：防御拦截/二次受击的层级查询（`OnHitReceived`） | M2 已完成 |
+| 2 | **M3 命中判定** | WeaponHitbox 改 SphereCast，引入 CombatManager 中间层，Hurtbox | M1/M2 |
 | 3 | **M9 架势** | 崩解 → EndureState 切换（数据层已就绪，只差状态） | M1/M2 |
 | 4 | **M6 输入** | PlayerBrain 绑定 Attack/Jump/Defend 按键 → Command | 输入系统已接入 |
-| 5 | **M4 弹反/闪避** | DeflectState/DodgeState 逻辑细化 | M1/M3 |
-| 6 | **M8 动画事件** | 配置攻击动画帧事件（用户有动画文件） | 依赖动画配置 |
+| 5 | **M4 盾反** | DeflectState 盾反窗口/普通格挡逻辑细化 | M1/M3 |
+| 6 | **M8 动画事件** | 配置攻击动画帧事件 | 依赖动画配置 |
 | 7 | **M10 处决** | 忍杀：崩解窗口 → 清命 → 动画 | M3/M9 |
 | 8 | **M14 复活** | 数据层已好，接 UI 提示 + R 键确认 | M6/M13 |
 | 9 | **M16 葫芦** | 数据层已好，接 HealCommand + 喝药状态 | M6 |
 | 10 | **M11 锁定** | LockOnManager：锁定目标切换 | M6 |
 | 11 | **M12 相机** | Cinemachine（包已装）：FreeLook 自由 + TargetGroup 锁定 + Impulse 震屏 | M11 |
-| 12 | **M17 危字/识破** | 危字攻击 + Mikiri 判定 | M1/M3 |
-| 13 | **M5 行为树完善** | 黑板 + Running 记忆 | — |
-| 14 | **M7 弦一郎 Boss AI** | 三层结构（主动/交锋/变招防御），参考 `Docs/references/sekiro-genichiro-ai.md` | **最后做**，依赖 M5/M3 及大部分战斗系统 |
+| 12 | **M5 行为树完善** | 黑板 + Running 记忆 | — |
+| 13 | **M7 弦一郎 Boss AI** | 三层结构（主动/交锋/变招防御），参考 `Docs/references/sekiro-genichiro-ai.md` | **最后做**，依赖 M5/M3 及大部分战斗系统 |
+
+> 已移除：M17 危字/识破（无动画资源）。
 
 ---
 

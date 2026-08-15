@@ -20,4 +20,12 @@ public abstract class BaseState
     { 
         return false; 
     }
+
+    // 受击响应（M1）：镜像 Command 路由，让受击结算能查到"当前在弹反吗/闪避吗/受击中吗"。
+    // 返回 true  = 状态拦截住了（弹反成功 / 无敌帧 / 二次受击），不扣血。
+    // 返回 false = 不拦截，由上层扣血并切入受击父状态。
+    public virtual bool OnHitReceived(HitData hit)
+    {
+        return false;
+    }
 }

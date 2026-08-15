@@ -61,18 +61,9 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "Avoid",
+                    "name": "Dodge",
                     "type": "Button",
                     "id": "a61ebe74-492a-4aeb-8cca-563e303cb404",
-                    "expectedControlType": "",
-                    "processors": "",
-                    "interactions": "",
-                    "initialStateCheck": false
-                },
-                {
-                    "name": "Crouch",
-                    "type": "Button",
-                    "id": "d1f19e75-b58a-47ab-8431-d92a3451b954",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -307,7 +298,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "Avoid",
+                    "action": "Dodge",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },
@@ -318,29 +309,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "Avoid",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
-                    "id": "310cb4af-bc79-4064-bc40-302cfed834b1",
-                    "path": "<Keyboard>/ctrl",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "Crouch",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
-                    "id": "cd12a3b1-f9b1-40a7-8220-d2a761039870",
-                    "path": "<XInputController>/leftStickPress",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "Crouch",
+                    "action": "Dodge",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

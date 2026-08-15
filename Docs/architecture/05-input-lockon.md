@@ -18,7 +18,6 @@ InputAction 已定义 8 个动作（`Assets/Scripts/Player/Input/`）。当前 P
 | Defend | 鼠标右键/K | DeflectCommand | DeflectState |
 | Heal | R | HealCommand（新增） | GroundedState 拦截 → 葫芦 |
 | Focus | 中键 | LockOnCommand（新增） | LockOnManager |
-| Avoid | Shift | DodgeCommand（新增） | DodgeState |
 | Crouch | Ctrl | （暂不实现） | - |
 
 ### Command.cs 新增
@@ -26,8 +25,9 @@ InputAction 已定义 8 个动作（`Assets/Scripts/Player/Input/`）。当前 P
 ```csharp
 public struct HealCommand : ICommand { }
 public struct LockOnCommand : ICommand { }
-public struct DodgeCommand : ICommand { }
 ```
+
+> 已移除：`DodgeCommand`（垫步，无动画资源）。
 
 ### PlayerBrain 实现
 
@@ -43,7 +43,8 @@ protected override void Awake()
     inputActions.Player.Attack.started += _ => BufferCommand(new AttackCommand());
     inputActions.Player.Jump.started += _ => BufferCommand(new JumpCommand());
     inputActions.Player.Defend.started += _ => BufferCommand(new DeflectCommand());
-    inputActions.Player.Avoid.started += _ => BufferCommand(new DodgeCommand());
+    // 松手发 IdleCommand，让 DeflectState 退出（防御按住不放的语义）
+    inputActions.Player.Defend.canceled += _ => BufferCommand(new IdleCommand());
     inputActions.Player.Heal.started += _ => BufferCommand(new HealCommand());
     inputActions.Player.Focus.started += _ => BufferCommand(new LockOnCommand());
 }
@@ -85,7 +86,6 @@ public class LockOnManager : MonoBehaviour
    }
    ```
 2. **相机**：锁定模式由 M12（Cinemachine）处理。
-3. **Mikiri 识破**：锁定中 + 朝敌方向闪避 → 触发识破（M17）。
 
 ### 锁定点 UI
 

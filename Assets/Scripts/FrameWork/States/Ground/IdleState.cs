@@ -39,6 +39,28 @@ public class IdleState : BaseState
             // 如果力度小没切状态，返回 true 可以让大脑清空缓冲，避免堆积。
             return true; 
         }
+
+        // M6：待机时按攻击 → 用默认招式配置进入 AttackState
+        // 配置为空时 AttackState 内部有保护，会直接退回 Idle，不会崩
+        if (cmd is AttackCommand)
+        {
+            parent.SubStateMachine.ChangeState(new AttackState(body, parent, body.LightAttack));
+            return true;
+        }
+
+        // M6：待机时按防御 → 进入弹反/防御姿态（弹反窗口逻辑 M4 细化）
+        if (cmd is DeflectCommand)
+        {
+            parent.SubStateMachine.ChangeState(new DeflectState(body, parent));
+            return true;
+        }
+
+        // M6：待机时按闪避 → 垫步（位移由动画根运动驱动，无敌帧 M4 细化）
+        if (cmd is DodgeCommand)
+        {
+            parent.SubStateMachine.ChangeState(new DodgeState(body, parent));
+            return true;
+        }
         
         return false; 
     }

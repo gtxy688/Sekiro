@@ -8,19 +8,19 @@ public class StunnedState : HierarchicalState
 
     protected override BaseState GetInitialSubState()
     {
-        // 进受击那一刻看物理状态，分派到不同的受击子状态
-        if (body.IsGrounded)
-        {
-            return new GroundStunnedState(body, this);
-        }
-        else
-        {
-            return new AirStunnedState(body, this);
-        }
+        // 空中受击状态已移除（无 Hurt_Air 动画），受击统一播地面受击
+        // 空中被打：硬直结束后由 GroundStunnedState 切回地面（可能轻微穿地，接受）
+        return new GroundStunnedState(body, this);
     }
 
     // 受击期间吞掉所有命令，防止硬直里还能还手/跑动
     protected override bool OnParentHandleCommand(ICommand cmd)
+    {
+        return true;
+    }
+
+    // 受击期间二次受击：全部拦截，防止硬直被刷新（M1）
+    protected override bool OnParentHandleHit(HitData hit)
     {
         return true;
     }

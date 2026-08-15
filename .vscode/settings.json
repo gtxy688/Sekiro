@@ -49,7 +49,29 @@
     "Obj/": true,
     "ProjectSettings/": true,
     "temp/": true,
-    "Temp/": true
+    "Temp/": true,
+    "Logs/": true,
+    "UserSettings/": true,
+    "Assets/Resources/": true,
+    "Assets/Legacy/": true
+  },
+  "files.watcherExclude": {
+    "**/Library/**": true,
+    "**/Temp/**": true,
+    "**/Logs/**": true,
+    "**/UserSettings/**": true,
+    "**/obj/**": true,
+    "**/Build/**": true,
+    "**/Assets/Resources/**": true
+  },
+  "search.exclude": {
+    "Library/": true,
+    "Temp/": true,
+    "Logs/": true,
+    "UserSettings/": true,
+    "obj/": true,
+    "Build/": true,
+    "Assets/Resources/": true
   },
   "dotnet.defaultSolution": "ARPG.sln"
 }

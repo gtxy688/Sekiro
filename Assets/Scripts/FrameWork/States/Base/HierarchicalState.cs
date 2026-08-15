@@ -55,4 +55,29 @@ public abstract class HierarchicalState : BaseState
     { 
         return false; 
     }
+
+    // 受击路由转发（M1）：先问父状态要不要拦截，再往下抛给当前子状态。
+    // 这样 DeflectState 即使在 GroundedState 的"子"状态机里，也能被查问到。
+    public override bool OnHitReceived(HitData hit)
+    {
+        // 第一步：父状态先看看要不要拦截？（如 StunnedState 受击期间二次受击）
+        if (OnParentHandleHit(hit))
+        {
+            return true;
+        }
+
+        // 第二步：抛给当前正在运行的子状态
+        if (SubStateMachine.CurrentState != null)
+        {
+            return SubStateMachine.CurrentState.OnHitReceived(hit);
+        }
+
+        return false;
+    }
+
+    // 留给具体父状态去实现受击拦截逻辑
+    protected virtual bool OnParentHandleHit(HitData hit)
+    {
+        return false;
+    }
 }

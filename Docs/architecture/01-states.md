@@ -13,19 +13,21 @@ MainStateMachine（顶层，只装 HierarchicalState）
 │     ├─ IdleState
 │     ├─ MoveState
 │     ├─ AttackState
-│     ├─ DeflectState       ← 弹反
-│     ├─ DodgeState         ← 闪避
-│     └─ MikiriCounterState ← 识破（M17）
+│     ├─ DeflectState       ← 防御/盾反
+│     ├─ DodgeState         ← 垫步（突刺危字时触发识破）
+│     └─ MikiriCounterState ← 识破（M17：突刺 + 垫步 → 踩刀）
 ├─ AirState（父状态）
 │  └─ SubStateMachine
-│     ├─ JumpState / FallState
-│     ├─ AirAttackState
-│     └─ AirDeflectState
+│     └─ AirIdleState       ← 跳跃/下落共用一个状态（Jump/Fall 两个动画切换）
 └─ StunnedState（父状态）
    └─ SubStateMachine
-      ├─ GroundStunnedState（地面受击）
-      └─ AirStunnedState（空中受击）
+      └─ GroundStunnedState ← 受击统一播地面受击（无空中受击，空中被打也用它）
 ```
+
+> **移动方式：全权根运动**。位移完全由动画 Root 曲线驱动（Animator.applyRootMotion = true），
+> `CharacterBody.OnAnimatorMove` 把动画位移转成 Rigidbody 水平速度（Y 保留重力），
+> 代码只负责朝向（RotateTowards）与状态切换，不再直接设置速度。
+> **已移除的状态**（无对应动画资源）：AirAttackState、AirDeflectState、AirStunnedState、JumpState、FallState（跳跃/下落共用 AirIdleState）。
 
 **红线**：顶层只装 HierarchicalState。叶子状态永远在父状态 SubStateMachine 内。
 **红线**：`MainStateMachine.CurrentState is DodgeState` 永远为 false，禁止这样查。
@@ -41,9 +43,9 @@ Brain (输入/AI) → body.TryExecuteCommand(cmd) → MainStateMachine.HandleCom
 - 返回 true = 消耗，清空缓冲池
 - 返回 false = 拒收，留在缓冲池等 0.2s 超时
 
-## 三、Hit 路由（M1，待实现）
+## 三、Hit 路由（M1，已实现）
 
-镜像 Command 路由，让受击结算能查到"当前在弹反吗/闪避吗"。
+镜像 Command 路由，让受击结算能查到"当前在防御吗/受击中吗"。
 
 ### HitData 定义
 
@@ -54,8 +56,6 @@ public struct HitData
     public int healthDmg;            // 血量伤害
     public float postureDmg;         // 架势伤害
     public Vector3 hitPoint;         // 命中点
-    public bool isPerilous;          // 是否危字攻击（M17）
-    public PerilousType perilousType; // 危字类型（M17）
 }
 ```
 
@@ -101,25 +101,17 @@ public void ReceiveHit(CharacterBody attacker, int healthDmg, float postureDmg, 
 
 ## 四、各状态 OnHitReceived 实现（M4）
 
-### DeflectState（地面弹反）
+### DeflectState（防御/盾反）
 ```csharp
 public override bool OnHitReceived(HitData hit)
 {
-    if (IsInDeflectWindow)  // 弹反窗口内
+    if (IsInDeflectWindow)  // 盾反窗口内（按下瞬间）
     {
-        HandlePerfectParry(hit); // 触发弹反：涨对方架势 + 事件总线发"叮"声
+        HandlePerfectParry(hit); // 触发盾反：涨对方架势 + 事件总线发"叮"声
         return true;
     }
-    return false; // 窗口过了 → 硬吃
-}
-```
-
-### DodgeState（闪避）
-```csharp
-public override bool OnHitReceived(HitData hit)
-{
-    if (IsInvincibleFrames) return true;  // 无敌帧吞掉
-    return false;
+    // 窗口过了但仍在防御 → 普通格挡：减伤/掉自己架势（M4 细化）
+    return false; // 暂定硬吃
 }
 ```
 
@@ -133,8 +125,7 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 
 ## 五、StunnedState 设计（已有，M4 收尾）
 
-- 顶层 HierarchicalState，`GetInitialSubState()` 按 `body.IsGrounded` 分派到 Ground/Air 受击。
-- 空中受击结束：仍按 IsGrounded 决定去向。
+- 顶层 HierarchicalState，`GetInitialSubState()` 统一进入 GroundStunnedState（空中受击已移除，空中被打也播地面受击）。
 - 受击期间 `OnParentHandleCommand` 返回 true 吞掉所有命令。
 
 ## 六、处决/忍杀（M10）
@@ -150,5 +141,4 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 - 修改：`Assets/Scripts/FrameWork/States/Base/HierarchicalState.cs`
 - 修改：`Assets/Scripts/FrameWork/Body/CharacterBody.cs`（ReceiveHit 实现）
 - 修改：`Assets/Scripts/FrameWork/States/Ground/DeflectState.cs`
-- 修改：`Assets/Scripts/FrameWork/States/Ground/DodgeState.cs`
 - 修改：`Assets/Scripts/FrameWork/States/StunnedState.cs`

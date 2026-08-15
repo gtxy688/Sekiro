@@ -81,7 +81,7 @@ public class CombatManager : MonoBehaviour
 EnableHitbox (动画事件)
   → Hitbox.isActive = true
   → 每帧:
-      BoxCast(从 lastCastPos 到 当前 position)
+      SphereCast(从 lastCastPos 到 当前 position)
         → 命中 Hurtbox → CombatManager.ReportHit
         → 命中 Hitbox → CombatManager.ReportClash (拼刀)
   → DisableHitbox (动画事件) → isActive = false
@@ -89,52 +89,19 @@ EnableHitbox (动画事件)
 
 ## 四、M17 危字攻击
 
-### AttackConfig 增加
-
-```csharp
-public enum PerilousType
-{
-    None = 0,
-    Thrust,  // 突刺 → 玩家可识破(Mikiri)，不可防御
-    Sweep,   // 横扫 → 玩家必须起跳，不可防御
-    Grab     // 抓取 → 玩家必须闪避，不可防御/弹反
-}
-
-// AttackConfig 加字段
-public PerilousType perilousType = PerilousType.None;
-```
-
-### 危字标记的作用
-
-- Boss AI 选到危字招式 → 发事件 `CombatEventBus.TriggerPerilousAttack(type)` → UI 弹"危"
-- 玩家对突刺：朝敌人方向按闪避 → 触发 MikiriCounterState（识破踩刀）
-- 玩家对横扫：跳起（跳跃本身有下段判定无敌）
-- 玩家对抓取：闪避
-
-### MikiriCounterState（识破）
-
-- 叶子状态，放 GroundedState.SubStateMachine
-- 触发：锁定中 + 敌人突刺 + 玩家朝敌方向闪避
-- 播踩刀动画 → 动画事件检测 → 成功踩到则大幅涨敌架势 → 回 Idle
-- 失败（没踩到）→ 取消闪避，照常受伤
-
-### 危字伤害通过 HitData 传递
-
-```csharp
-// HitData 增加
-public bool isPerilous;
-public PerilousType perilousType;
-
-// ReceiveHit 里：
-// 危字攻击走 OnHitReceived 之前先检查玩家的应对
-// 防御（DeflectState）对危字无效 —— 弹反不了突刺/横扫/抓取
-```
+- `AttackConfig.Perilous`（PerilousType：None/Thrust/Sweep/Grab）：招式带危字标记
+- Boss AI 选到危字招式 → 发事件 `CombatEventBus.TriggerPerilousAttack(type)` → UI 弹"危" + 警示音
+- 危字标记随 `HitData.isPerilous/perilousType` 传递（CombatManager 从 AttackConfig 读出传入 ReceiveHit）
+- 防御（DeflectState）对危字无效
+- **识破（Mikiri）**：突刺（Thrust）+ 玩家垫步 → `DodgeState.OnHitReceived` 拦截 → 切 `MikiriCounterState`
+  （播踩刀动画、涨攻击者架势 `Config.MikiriPostureGain`、Perfect 打铁事件）→ 回 Idle
 
 ## 涉及文件
 
 - 新建：`Assets/Scripts/Combat/Hitbox.cs`
 - 新建：`Assets/Scripts/Combat/Hurtbox.cs`
 - 新建：`Assets/Scripts/Combat/CombatManager.cs`
-- 修改：`Assets/Scripts/Configs/AttackConfig.cs`（PerilousType）
-- 修改：`Assets/Scripts/FrameWork/States/Command.cs`（HitData 加危字字段）
 - 新建：`Assets/Scripts/FrameWork/States/Ground/MikiriCounterState.cs`
+- 修改：`Assets/Scripts/SO/AttackConfig.cs`（Perilous）
+- 修改：`Assets/Scripts/FrameWork/States/Command.cs`（HitData 危字字段）
+- 修改：`Assets/Scripts/FrameWork/States/Ground/DodgeState.cs`（识破触发）

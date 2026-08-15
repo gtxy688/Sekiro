@@ -21,6 +21,15 @@ public class PlayerBrain : BrainBase
 
         // B. 绑定离散输入 (动作按键，带有输入缓冲)
         // started: 按下按键的第一帧。我们生成对应的 Command 并丢进基类的缓冲池
+        inputActions.Player.Attack.started += _ => BufferCommand(new AttackCommand());
+        inputActions.Player.Jump.started += _ => BufferCommand(new JumpCommand());
+        inputActions.Player.Defend.started += _ => BufferCommand(new DeflectCommand());
+        // 松手时发 IdleCommand，让 DeflectState 退出回待机（防御按住不放的语义）
+        inputActions.Player.Defend.canceled += _ => BufferCommand(new IdleCommand());
+        inputActions.Player.Dodge.started += _ => BufferCommand(new DodgeCommand());
+        inputActions.Player.Heal.started += _ => BufferCommand(new HealCommand());
+        // M11 LockOnManager 接入前，Focus 命令暂时无人消费（缓冲池超时会自动丢弃，无害）
+        inputActions.Player.Focus.started += _ => BufferCommand(new LockOnCommand());
     }
 
     protected override void Update()

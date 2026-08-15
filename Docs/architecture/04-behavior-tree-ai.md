@@ -108,13 +108,13 @@ Selector 同理，遇到 Success 记住索引；Running 记住索引。
 ```
 Selector（优先级从高到低）:
 ├─ 距离条件 → BT_Combo（近战连段，内部维护第几刀）
-├─ 距离条件 → BT_Thrust（危字突刺，冷却）
-├─ 距离条件 → BT_Sweep（危字横扫，冷却）
 ├─ 距离条件 → BT_BowShot（射箭）
 ├─ 距离 > 7 → BT_MoveToTarget（追击）
 └─ 防御反制组
    └─ Sequence: 玩家连续攻击 → BT_Deflect（招架）
 ```
+
+> 已移除：`BT_Thrust`（危字突刺）/`BT_Sweep`（危字横扫）——M17 不在本项目范围，Boss 不设计危字招式。
 
 ### 黑板数据
 
@@ -129,10 +129,11 @@ blackboard["lastComboIndex"]     = 连段当前第几刀
 ### 新增 BT 节点（Boss 专用）
 
 - `BT_Combo`：近战连段，内部维护第几刀，每刀间隔 0.3-0.5s
-- `BT_Thrust` / `BT_Sweep`：危字攻击，带冷却
 - `BT_BowShot`：后跳射箭
 - `BT_Deflect`：玩家连续攻击时招架
 - `BT_MoveToTarget`（已有）
+
+> 已移除：`BT_Thrust` / `BT_Sweep`（危字攻击，M17 移除）。
 
 ### 冷却机制
 
@@ -142,7 +143,7 @@ blackboard["lastComboIndex"]     = 连段当前第几刀
 
 - Boss 2 条命（忍杀 2 次）
 - 无脱衣/巴流阶段
-- 招式表：近战连段、危字突刺/横扫、射箭、飞渡符舟（可选）
+- 招式表：近战连段、射箭、飞渡符舟（可选；危字突刺/横扫已移除）
 
 ## 涉及文件
 
@@ -153,8 +154,6 @@ blackboard["lastComboIndex"]     = 连段当前第几刀
 - 修改：`Assets/Scripts/Boss/BehaviourTree/BT/BT_MoveToTarget.cs`（黑板）
 - 修改：`Assets/Scripts/Boss/BehaviourTree/BT/BT_Attack.cs`（黑板）
 - 新建：`Assets/Scripts/Boss/BehaviourTree/BT/BT_Combo.cs`
-- 新建：`Assets/Scripts/Boss/BehaviourTree/BT/BT_Thrust.cs`
-- 新建：`Assets/Scripts/Boss/BehaviourTree/BT/BT_Sweep.cs`
 - 新建：`Assets/Scripts/Boss/BehaviourTree/BT/BT_BowShot.cs`
 - 新建：`Assets/Scripts/Boss/BehaviourTree/BT/BT_Deflect.cs`
 - 修改：`Assets/Scripts/Boss/BTBrain.cs`（黑板注入 + 完整树）

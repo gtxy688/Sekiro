@@ -13,7 +13,7 @@ public class GroundedState : HierarchicalState
         // 踩空掉落（这属于物理环境变化,不需要去判断能否执行,不属于Command，所以保留在Update里）
         if (!body.IsGrounded)
         {
-            body.MainStateMachine.ChangeState(new AirState(body,false));
+            body.MainStateMachine.ChangeState(new AirState(body));
             return;
         }
 
@@ -27,8 +27,17 @@ public class GroundedState : HierarchicalState
         if (cmd is JumpCommand)
         {
             // 无论子状态是 Idle 还是 Move，父类直接掐断，强切大状态！
-            body.MainStateMachine.ChangeState(new AirState(body, true));
+            // 跳跃位移由 Jump 动画 Root 曲线驱动（全权根运动）
+            body.MainStateMachine.ChangeState(new AirState(body));
             return true; // 报告大脑：跳跃指令已执行！
+        }
+
+        // M6：拦截葫芦指令 → 直接结算回血（数据层 M2 已就绪）
+        // M16 再接喝药动画/硬直状态，目前是"即喝即回"
+        if (cmd is HealCommand)
+        {
+            body.UseGourd();
+            return true; // 无论是否生效都消耗（防止按住 R 反复刷缓冲）
         }
 
         return false; // 不是跳跃，抛给子状态(Idle/Move)去处理。

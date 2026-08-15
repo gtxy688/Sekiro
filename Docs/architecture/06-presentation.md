@@ -21,13 +21,12 @@ OnGourdUsed(CharacterBody c, int remaining)
 OnDeath(CharacterBody c)
 OnReviveAvailable(CharacterBody c)
 
-// 新增（M3/M17）
-OnPerilousAttack(PerilousType type)   // 危字提示
-
 // 新增（表现）
 OnFinisherTriggered(Vector3 pos)      // 忍杀
 OnCameraShake(float intensity)        // 震屏
 ```
+
+> 已移除：`OnPerilousAttack`（危字提示，M17 移除）。
 
 > 为什么事件带完整数据：M2（CharacterConfig）还没实现时表现层也能独立编译运行，不依赖读取 CharacterBody 内部字段。
 
@@ -78,7 +77,7 @@ BossPostureBarView : SetPosture(float ratio) / SetDanger(bool)  // 中心双向 
 PlayerStatusView   : SetReviveDots(int) / SetHP(float) / SetPosture(float)
 ItemSlotView       : SetGourdIcon(Sprite) / SetGourdCount(int)
 LockOnIndicatorView: SetLocked(bool) / SetFinisherReady(bool)  // 世界空间，挂 Boss
-PerilousWarningView: ShowWarning(PerilousType)  // "危"字动画，播完自动隐藏
+// 已移除：PerilousWarningView（"危"字，M17 移除）
 
 // 所有 View 继承 UIView 基类：Show()/Hide()/OnViewInit()
 ```
@@ -103,7 +102,6 @@ public class CombatUIController : MonoBehaviour
         if (c == playerBody) playerStatusView?.SetPosture(ratio);
         else if (c == bossBody) { bossPostureBarView?.SetPosture(ratio); bossPostureBarView?.SetDanger(ratio > 0.8f); }
     }
-    void HandlePerilous(PerilousType t) { perilousWarningView?.ShowWarning(t); }
     // ...
 }
 ```
@@ -112,11 +110,10 @@ public class CombatUIController : MonoBehaviour
 
 - 架势条快满（>80%）：颜色变亮 + 边缘尖刺脉动（`BossPostureBarView.SetDanger`）
 - 忍杀红点：放大 + 红色脉动（`LockOnIndicatorView.SetFinisherReady`）
-- "危"字：放大淡入 + 红光泛晕，播完自动隐藏（`PerilousWarningView.ShowWarning`，序列代替原 timer/Update）
 - 葫芦使用：数字闪烁（待接）
 
 > 动画全部通过 `DOKill()` 清理残留 tween，防止事件连续触发时动画叠加。
-> `PerilousType` 枚举在 `Assets/Scripts/Configs/PerilousType.cs`（跨系统共享，不放 PlayerAttacks）。
+> 已移除：`PerilousWarningView`（"危"字 UI，M17 移除）。
 
 ## 四、音效（M15）
 
@@ -128,7 +125,6 @@ public class AudioManager : MonoBehaviour
     public AudioClip deflectSfx;      // "叮"
     public AudioClip blockSfx;        // "笃"
     public AudioClip hitSfx;          // 受击
-    public AudioClip perilousSfx;     // 危字
     public AudioClip finisherSfx;     // 处决
     public AudioClip deathSfx;        // 死亡
     public AudioClip gourdSfx;        // 喝葫芦

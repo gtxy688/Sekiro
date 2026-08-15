@@ -10,8 +10,8 @@ public class CharacterBody : MonoBehaviour
     public Animator Animator { get; private set; }
     public Rigidbody Rb { get; private set; }
 
-    // 武器的碰撞盒
-    public WeaponHitbox Weapon { get; private set; }
+    // 武器的碰撞盒（M3：BoxCast 版 Hitbox，不再用 OnTrigger）
+    public Hitbox Weapon { get; private set; }
 
     // 3. 移动意图：无论是手柄摇杆推的，还是 Boss AI 寻路计算的，都写到这里
     public Vector3 MoveDirection { get; set; }
@@ -19,10 +19,18 @@ public class CharacterBody : MonoBehaviour
     // 4. 物理状态 (Body 负责检测，State 读取)
     public bool IsGrounded { get; private set; }
 
+    // 全权根运动：位移由动画 Root 曲线驱动（Animator.applyRootMotion = true）
+    // 代码不再直接设置水平速度，只负责朝向与状态切换
+    public bool UseRootMotion = true;
+
     // ===== 战斗属性（M2）=====
 
     // 角色配置（SO）：玩家/Boss 各配一份，数值全部从这里读
     public CharacterConfig Config;
+
+    // 默认攻击招式根节点（SO）：AttackCommand 不携带配置，状态机从这里取连招起点
+    // （用户决策：轻重击通过不同 AttackConfig 区分，不通过 Command 字段）
+    public AttackConfig LightAttack;
 
     // 运行时状态
     public int CurrentHP { get; private set; }
@@ -44,6 +52,9 @@ public class CharacterBody : MonoBehaviour
     public float groundCheckRadius = 0.2f;
     public LayerMask groundLayer;
 
+    [Tooltip("接地判定迟滞帧数：连续 N 帧结果一致才翻转，防物理抖动（默认 2）")]
+    public int groundHysteresisFrames = 2;
+
     private void Awake()
     {
         Animator = GetComponent<Animator>();
@@ -51,6 +62,13 @@ public class CharacterBody : MonoBehaviour
 
         // 实例化纯 C# 的状态机引擎
         MainStateMachine = new StateMachine();
+
+        // 查找武器 Hitbox（挂在手部骨骼上，所以用 GetComponentInChildren）
+        Weapon = GetComponentInChildren<Hitbox>();
+        if (Weapon != null)
+        {
+            Weapon.Initialize(this);
+        }
 
         // 从 Config 初始化战斗属性（M2）
         InitCombat();
@@ -75,6 +93,23 @@ public class CharacterBody : MonoBehaviour
         MainStateMachine.Update();
     }
 
+    // 根运动桥接（关键）：Animator.applyRootMotion = true 时每帧回调这里。
+    // 把动画的位移（deltaPosition）转成 Rigidbody 水平速度，Y 保留重力。
+    // 这样位移由动画驱动（跑/攻/跳/垫步的突进都来自 Root 曲线），物理碰撞/重力仍正常。
+    // 注意：实现 OnAnimatorMove 后 Unity 不再自动应用 root 旋转——转身完全交给代码 RotateTowards，
+    //      避免动画 root 旋转和代码转向打架。
+    private void OnAnimatorMove()
+    {
+        if (!UseRootMotion || Animator == null || Rb == null) return;
+
+        Vector3 delta = Animator.deltaPosition;
+        Vector3 v = Rb.velocity;
+        v.x = delta.x / Time.deltaTime;
+        v.z = delta.z / Time.deltaTime;
+        // v.y 保留：重力由物理处理，跳跃/落地的 Y 来自物理
+        Rb.velocity = v;
+    }
+
     // 接收大脑 (Brain) 传来的指令
     public bool TryExecuteCommand(ICommand cmd)
     {
@@ -85,17 +120,38 @@ public class CharacterBody : MonoBehaviour
     }
 
     // --- 物理环境检测 ---
+    private bool groundedHysteresis;     // 上一帧接地结果
+    private int groundedChangeFrames;    // 连续"与上一帧相反"的帧数
+
     private void UpdateEnvironmentalChecks()
     {
+        bool check;
         if (groundCheckPoint != null)
         {
-            // 这里用简单的球形检测举例，实战中也可以用胶囊体 Cast
-            IsGrounded = Physics.CheckSphere(groundCheckPoint.position, groundCheckRadius, groundLayer);
+            check = Physics.CheckSphere(groundCheckPoint.position, groundCheckRadius, groundLayer);
         }
         else
         {
-            IsGrounded = true; // 容错
+            check = true; // 容错
         }
+
+        // 迟滞防抖：结果必须连续 N 帧保持一致才翻转 IsGrounded。
+        // 否则球边缘蹭到地面时，物理步进会让 true/false 每帧抖动，
+        // 导致 GroundedState(Idle) ↔ AirState(Jump) 反复横跳（"莫名其妙的待机+跳跃动画"）
+        if (check == groundedHysteresis)
+        {
+            groundedChangeFrames = 0;
+        }
+        else
+        {
+            groundedChangeFrames++;
+            if (groundedChangeFrames >= groundHysteresisFrames)
+            {
+                groundedHysteresis = check;
+                groundedChangeFrames = 0;
+            }
+        }
+        IsGrounded = groundedHysteresis;
     }
 
     // --- 供 State 调用的公共方法举例 ---
@@ -122,6 +178,21 @@ public class CharacterBody : MonoBehaviour
         }
         CurrentPosture = 0f;
         IsPostureBroken = false;
+    }
+
+    // 开启武器判定（M3/M8）：攻击状态/动画事件调用。绑定本招式的伤害配置
+    public void EnableWeaponHit(AttackConfig config)
+    {
+        if (Weapon == null || config == null) return;
+        Weapon.SetConfig(config);
+        Weapon.Enable();
+    }
+
+    // 关闭武器判定（M3/M8）
+    public void DisableWeaponHit()
+    {
+        if (Weapon == null) return;
+        Weapon.Disable();
     }
 
     // 受击结算：扣血 + 涨架势。由 ReceiveHit（物理）或外部调用。
@@ -231,19 +302,30 @@ public class CharacterBody : MonoBehaviour
     }
 
     // 接收外界物理碰撞传来的打击
-    public void ReceiveHit(CharacterBody attacker, int healthDmg, float postureDmg, Vector3 hitPoint)
+    public void ReceiveHit(CharacterBody attacker, int healthDmg, float postureDmg, Vector3 hitPoint,
+                           bool isPerilous = false, PerilousType perilousType = PerilousType.None)
     {
-        // 1. 【待办 A3】查询当前状态层级：弹反拦截 / 闪避免疫
-        //    注意：DeflectState/DodgeState 都在 GroundedState 的"子"状态机里，
-        //    必须逐层查，直接判顶层永远为 false（层级查询基建还没建）
-        //    if (MainStateMachine.CurrentState is GroundedState g &&
-        //        g.SubStateMachine.CurrentState is DeflectState)
-        //    { HandlePerfectParry(attacker, hitPoint); return; }
-        //    if (MainStateMachine.CurrentState is GroundedState g &&
-        //        g.SubStateMachine.CurrentState is DodgeState)
-        //    { return; } // 无敌帧免疫
+        // 打包成值类型，供状态机做层级查询（M1）
+        HitData hit = new HitData
+        {
+            attacker = attacker,
+            healthDmg = healthDmg,
+            postureDmg = postureDmg,
+            hitPoint = hitPoint,
+            isPerilous = isPerilous,           // M17 危字攻击标记
+            perilousType = perilousType
+        };
 
-        // 2. 伤害/架势结算（M2）：扣血 + 涨架势 + 死亡判定
+        // 1. 先问当前状态层级：能拦截吗？（防御/垫步/识破/受击期间）
+        //    MainStateMachine 顶层只装 HierarchicalState，OnHitReceived 会逐层下钻到叶子状态
+        //    （如 DeflectState/DodgeState/MikiriCounterState），不用直接判顶层状态类型（那条路永远 false）
+        if (MainStateMachine.CurrentState != null &&
+            MainStateMachine.CurrentState.OnHitReceived(hit))
+        {
+            return; // 被状态拦截了（盾反成功 / 垫步无敌 / 识破 / 二次受击）
+        }
+
+        // 2. 没拦住 → 伤害/架势结算（M2）：扣血 + 涨架势 + 死亡判定
         TakeDamage(healthDmg, postureDmg);
 
         // 3. 强制打断当前行为，切入受击父状态

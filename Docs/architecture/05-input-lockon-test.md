@@ -1,38 +1,38 @@
-# 05 玩家输入 / 锁定 - 验收清单
+# 05 玩家输入 - 验收清单（M6 输入绑定）
 
-> 配合 `05-input-lockon.md` 使用。
+> 配合 `05-input-lockon.md` 使用。当前验收范围：**M6 输入绑定**（M11 锁定待后续模块）。
 
 ## 前置准备
 
-1. 玩家挂 `PlayerBrain` + `CharacterBody` + `LockOnManager`。
-2. InputAction 资源已生成（`PlayerInputActions`）。
-3. 场景有敌人（带 CharacterBody + Hurtbox），在锁定视野范围内。
+- Player 挂 `PlayerBrain` 组件（全部按键已在代码里绑定，无需手动配）
+- InputAction 资源 `PlayerInputActions`（已生成，PlayerBrain 自动创建并 Enable）
+- Animator 状态名已配好（见 `01-states-test.md` 第 3 节：Idle/Walk/Hurt_Ground/Jump + 攻击状态）
+- `CharacterBody.Light Attack` 槽已拖入 atk1.asset（攻击要有配置才切状态）
 
-## M6：输入绑定
-
-| # | 操作 | 预期 |
-|---|------|------|
-| 1 | 按 WASD | 角色移动，切 MoveState |
-| 2 | 按攻击键 | 切 AttackState，播攻击动画 |
-| 3 | 攻击中快速按攻击键 | 连招缓冲生效（0.2s 预输入） |
-| 4 | 按空格 | 跳跃，切 AirState |
-| 5 | 按防御键 | 切 DeflectState |
-| 6 | 按闪避键 (Shift) | 切 DodgeState |
-| 7 | 按 Heal (R) | 葫芦使用，回血 + 数量减 1 |
-| 8 | 按键时正在受击硬直 | 指令进缓冲池，硬直结束立即执行（预输入窗口） |
-
-## M11：锁定
+## M6 验收（键盘/鼠标直接操作）
 
 | # | 操作 | 预期 |
 |---|------|------|
-| 9 | 按 Focus 键 | 锁定最近的敌人，身上出现白点（M13） |
-| 10 | 锁定中按 WASD 移动 | 角色面向始终朝向目标，位移按摇杆方向 |
-| 11 | 再按 Focus | 解锁，白点消失 |
-| 12 | 锁定中目标死亡 | 自动解锁 |
-| 13 | 锁定中敌人跑出范围 | 自动解锁 |
+| 1 | 按 WASD | 角色移动（切 MoveState），位移由 Walk 动画根运动驱动 |
+| 2 | 鼠标左键 | 切 AttackState，播 `atk1.asset` 的 AnimName 动画 |
+| 3 | 攻击中快速连按左键 | 连招预输入：在 `ComboWindowStart~End` 窗口内按下 → 切到 `NextCombo` 配置的下一段（需要 atk1.asset 的 NextCombo 链配好） |
+| 4 | 按空格 | 跳起切 AirState：先播 `Jump`（起跳，上升由动画 Root 驱动），过最高点自动切 `Fall`（下落） |
+| 5 | 鼠标右键**按住** | 进 DeflectState（防御/盾反姿态）；**松手** → 自动回待机（PlayerBrain 在松手时发 IdleCommand） |
+| 6 | 按 Shift | 垫步：位移由垫步动画 Root 驱动，`Config.DodgeDuration` 秒后回待机 |
+| 7 | 按 R（血量不满时） | 葫芦生效：回血 `Config.HealAmount` + 葫芦数量减 1 |
+| 8 | 受击硬直中按攻击 | 命令进缓冲池（0.2s），硬直结束**立即执行**（预输入） |
+| 9 | 受击硬直中按移动/攻击/跳 | 全部被吞（StunnedState 拦截），硬直内不能动 |
+
+> 按键映射速查：WASD=移动、左键=攻击、空格=跳、右键按住=防御、Shift=垫步、R=葫芦、中键=锁定（M11 未实现，暂无效）。
 
 ## 常见问题
 
-- **按键无反应**：确认 PlayerBrain 里按键绑定写了，且 InputAction 资源已 Enable。
-- **锁定不动**：LockOnManager 的 FindTarget 逻辑（最近敌人）没写或没找到。
-- **锁定中还能转身**：MoveState 里面向目标的分支没生效。
+- **按键无反应**：确认 PlayerBrain 挂在角色上；Console 无报错；`PlayerInputActions` 资源没被误删
+- **攻击键切不了状态**：`Light Attack` 槽位是否为空（空配置会安全回退 Idle）；Animator 里攻击状态名是否与 atk1.asset 的 AnimName 一致
+- **防御松手不退**：DeflectState 是否收到 IdleCommand（PlayerBrain 的 Defend.canceled 已绑定）
+- **跳跃没跳起来**：`Config.JumpSpeed` 是否 > 0
+- **连招不生效**：atk1.asset 的 `NextCombo` 是否指向 atk2，且 `ComboWindowStart < ComboWindowEnd`
+
+## 暂不验收（后续模块）
+
+- M11：#9-#13 锁定系统（Focus 键已绑定输入，但 LockOnManager 未实现）
