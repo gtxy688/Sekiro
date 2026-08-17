@@ -47,7 +47,7 @@ public void OnDrinkGourdAnimEvent() { /* 补血动作完成时回调 */ }
 
 | 动画 | 事件 |
 |------|------|
-| 玩家轻击 atk1-atk4 | EnableHitbox / DisableHitbox |
+| 玩家 5 段连招 Attack1-5 | 代码驱动（AttackState 按配置时间开/关判定） |
 | 玩家连段每段 | 同上 |
 | Boss 近战连段 | EnableHitbox / DisableHitbox |
 | Boss 突刺 (Thrust) | EnableHitbox / DisableHitbox |
@@ -59,6 +59,7 @@ public void OnDrinkGourdAnimEvent() { /* 补血动作完成时回调 */ }
 
 ## 五、注意事项
 
+- **M8 起攻击 Hitbox 开关改为代码驱动**（AttackConfig 加判定时间字段，AttackState 按计时开关），动画事件只保留一次性回调：处决命中帧、喝药完成帧、射箭生成帧。
 - 动画事件调用的方法必须在挂 Hitbox 的 GameObject 或引用到的对象上。
 - 若 Hitbox 不在 Animator 所在对象上，事件里 `GetComponent` 拿不到 → 让 Hitbox 直接持有 Animator 或由 CharacterBody 转发。
 - 事件名要和方法名完全一致（区分大小写）。

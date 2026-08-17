@@ -26,7 +26,7 @@ OnFinisherTriggered(Vector3 pos)      // 忍杀
 OnCameraShake(float intensity)        // 震屏
 ```
 
-> 已移除：`OnPerilousAttack`（危字提示，M17 移除）。
+> 保留：`OnPerilousAttack`（危字提示，M17 保留）。
 
 > 为什么事件带完整数据：M2（CharacterConfig）还没实现时表现层也能独立编译运行，不依赖读取 CharacterBody 内部字段。
 
@@ -77,7 +77,7 @@ BossPostureBarView : SetPosture(float ratio) / SetDanger(bool)  // 中心双向 
 PlayerStatusView   : SetReviveDots(int) / SetHP(float) / SetPosture(float)
 ItemSlotView       : SetGourdIcon(Sprite) / SetGourdCount(int)
 LockOnIndicatorView: SetLocked(bool) / SetFinisherReady(bool)  // 世界空间，挂 Boss
-// 已移除：PerilousWarningView（"危"字，M17 移除）
+PerilousWarningView  : SetPerilous(PerilousType)        // "危"字（世界空间投影，M17 保留）
 
 // 所有 View 继承 UIView 基类：Show()/Hide()/OnViewInit()
 ```
@@ -113,7 +113,7 @@ public class CombatUIController : MonoBehaviour
 - 葫芦使用：数字闪烁（待接）
 
 > 动画全部通过 `DOKill()` 清理残留 tween，防止事件连续触发时动画叠加。
-> 已移除：`PerilousWarningView`（"危"字 UI，M17 移除）。
+> PerilousWarningView（"危"字 UI）保留（M17）。
 
 ## 四、音效（M15）
 

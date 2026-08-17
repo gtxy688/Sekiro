@@ -37,15 +37,32 @@ public class MoveState : BaseState
         // 【转身】：如果当前有明确的方向输入，就让角色平滑地转过去
         if (inputDir.sqrMagnitude > 0.01f)
         {
-            // 将 2D 向量转为 3D 前方向量
-            Vector3 lookDirection = new Vector3(inputDir.x, 0, inputDir.y);
-            
+            Vector3 moveDir;
+            if (IsLockedOnTarget())
+            {
+                // M11：锁定中 → 面向 Boss（位移仍由根运动驱动，形成绕圈效果）
+                Vector3 toBoss = LockOnManager.Instance.Target.position - body.transform.position;
+                toBoss.y = 0f;
+                moveDir = toBoss.normalized;
+            }
+            else
+            {
+                moveDir = body.InputToWorldDir(inputDir);
+            }
+
             // 计算目标旋转四元数
-            Quaternion targetRotation = Quaternion.LookRotation(lookDirection, Vector3.up);
+            Quaternion targetRotation = Quaternion.LookRotation(moveDir, Vector3.up);
             
             // 用 RotateTowards 按 度/秒 平滑转身，避免人物像平移木偶一样瞬间回头
             body.transform.rotation = Quaternion.RotateTowards(body.transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
         }
+    }
+
+    // 是否锁定中且目标有效（M11）
+    private bool IsLockedOnTarget()
+    {
+        return LockOnManager.Instance != null && LockOnManager.Instance.IsLockedOn
+            && LockOnManager.Instance.Target != null;
     }
 
     // 3. 生命周期：退出跑动
@@ -81,7 +98,7 @@ public class MoveState : BaseState
         // M6：移动中按攻击 → 直接进 AttackState（攻击中会原地停住，由 AttackState 接管）
         if (cmd is AttackCommand)
         {
-            parent.SubStateMachine.ChangeState(new AttackState(body, parent, body.LightAttack));
+            parent.SubStateMachine.ChangeState(new AttackState(body, parent, body.GetAttackConfig()));
             return true;
         }
 

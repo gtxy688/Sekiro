@@ -1,16 +1,21 @@
 using UnityEngine;
 
 // 受击状态（顶层父状态）：被打时强制打断一切行为，
-// 进入时按物理状态分派到地面/空中受击子状态
+// 受击动画由 HurtContext 决定（受击表现接口，动画名映射在 CharacterConfig）
 public class StunnedState : HierarchicalState
 {
-    public StunnedState(CharacterBody body) : base(body) { }
+    private readonly HurtContext context;
+
+    public StunnedState(CharacterBody body, HurtContext context = HurtContext.Normal) : base(body)
+    {
+        this.context = context;
+    }
 
     protected override BaseState GetInitialSubState()
     {
         // 空中受击状态已移除（无 Hurt_Air 动画），受击统一播地面受击
         // 空中被打：硬直结束后由 GroundStunnedState 切回地面（可能轻微穿地，接受）
-        return new GroundStunnedState(body, this);
+        return new GroundStunnedState(body, this, context);
     }
 
     // 受击期间吞掉所有命令，防止硬直里还能还手/跑动

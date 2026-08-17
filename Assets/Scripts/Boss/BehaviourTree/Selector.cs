@@ -1,10 +1,27 @@
 using System.Collections.Generic;
 public class Selector : Node
 {
+    // Running 记忆（M5）：记住正在运行（Running）的子节点索引，下一帧优先看它是否还在跑；
+    // 一旦它结束（成功/失败），重新从头按优先级遍历——保证高优先级分支随时可抢占
+    private int runningChildIndex = -1;
+
     public Selector(List<Node> children) : base(children) { }
 
     public override NodeState Evaluate()
     {
+        // 1. 记忆续跑：上次 Running 的子节点还在跑就继续它
+        if (runningChildIndex >= 0)
+        {
+            NodeState resume = children[runningChildIndex].Evaluate();
+            if (resume == NodeState.Running)
+            {
+                state = NodeState.Running;
+                return state;
+            }
+            runningChildIndex = -1; // 它结束了，从头重选
+        }
+
+        // 2. 按优先级顺序遍历
         foreach (Node node in children)
         {
             switch (node.Evaluate())

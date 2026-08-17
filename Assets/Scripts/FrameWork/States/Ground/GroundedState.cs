@@ -1,10 +1,17 @@
 public class GroundedState : HierarchicalState
 {
-    public GroundedState(CharacterBody body) : base(body) { }
+    // 强制切入时指定的初始子状态（被弹反硬直/崩解倒地/喝药等物理覆写场景）
+    // null 则走默认 Idle
+    private readonly BaseState forcedInitialSubState;
+
+    public GroundedState(CharacterBody body, BaseState forcedInitialSubState = null) : base(body)
+    {
+        this.forcedInitialSubState = forcedInitialSubState;
+    }
 
     protected override BaseState GetInitialSubState()
     {
-        return new IdleState(body, this); // 默认待机
+        return forcedInitialSubState ?? new IdleState(body, this);
     }
 
     // 负责处理父层级的状态切换,内部层级切换交由子状态去处理
@@ -32,12 +39,20 @@ public class GroundedState : HierarchicalState
             return true; // 报告大脑：跳跃指令已执行！
         }
 
-        // M6：拦截葫芦指令 → 直接结算回血（数据层 M2 已就绪）
-        // M16 再接喝药动画/硬直状态，目前是"即喝即回"
+        // M16：拦截葫芦指令 → 切喝药状态（播动画 + 可被打断硬直）
         if (cmd is HealCommand)
         {
-            body.UseGourd();
-            return true; // 无论是否生效都消耗（防止按住 R 反复刷缓冲）
+            SubStateMachine.ChangeState(new HealState(body, this));
+            return true;
+        }
+
+        // M10：拦截攻击指令时先查处决机会（Boss 崩解 + 距离近 → 处决优先于普通攻击）
+        if (cmd is AttackCommand)
+        {
+            if (CombatManager.Instance != null && CombatManager.Instance.TryExecuteFinisher(body))
+            {
+                return true; // 触发处决，消耗指令
+            }
         }
 
         return false; // 不是跳跃，抛给子状态(Idle/Move)去处理。

@@ -44,7 +44,7 @@ public class IdleState : BaseState
         // 配置为空时 AttackState 内部有保护，会直接退回 Idle，不会崩
         if (cmd is AttackCommand)
         {
-            parent.SubStateMachine.ChangeState(new AttackState(body, parent, body.LightAttack));
+            parent.SubStateMachine.ChangeState(new AttackState(body, parent, body.GetAttackConfig()));
             return true;
         }
 

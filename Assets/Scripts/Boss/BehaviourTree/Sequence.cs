@@ -1,30 +1,33 @@
 using System.Collections.Generic;
 public class Sequence : Node
 {
+    // Running 记忆（M5）：子节点返回 Running 时记住索引，下一帧从同一索引继续
+    private int currentChildIndex = 0;
+
     public Sequence(List<Node> children) : base(children) { }
 
     public override NodeState Evaluate()
     {
-
-        foreach (Node node in children)
+        while (currentChildIndex < children.Count)
         {
-            switch (node.Evaluate())
+            switch (children[currentChildIndex].Evaluate())
             {
                 case NodeState.Failure:
+                    currentChildIndex = 0; // 重置，下次重跑
                     state = NodeState.Failure;
-                    return state; // 遇到失败，立刻停止遍历，向父节点报告失败！
+                    return state;
 
                 case NodeState.Success:
-                    continue; // 当前小弟成功了，继续检查下一个小弟
+                    currentChildIndex++; // 下一个
+                    break;
 
                 case NodeState.Running:
-                    // 注意：标准的 Sequence 遇到 Running，也会立刻返回 Running，等待下一帧
-                    state = NodeState.Running; 
-                    return state; 
+                    state = NodeState.Running; // 记住索引，下帧继续
+                    return state;
             }
         }
 
-        // 如果全部遍历完都没被 return 掉，说明全绿通过了！
+        currentChildIndex = 0;
         state = NodeState.Success;
         return state;
     }

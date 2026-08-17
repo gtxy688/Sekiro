@@ -1,18 +1,20 @@
 using UnityEngine;
 
 // 闪避（垫步）状态：全权根运动，位移由垫步动画 Root 曲线驱动，代码只计时退出
-// 无敌帧（OnHitReceived 拦截）M4 细化
+// 无敌帧（M4）：前 DodgeIFrame 秒内普通攻击打不中（危字突刺除外 → 识破优先）
 public class DodgeState : BaseState
 {
     private HierarchicalState parent;
     private float dodgeTimer;
     private float dodgeDuration;
+    private float iFrameDuration;
 
     public DodgeState(CharacterBody body, HierarchicalState parent) : base(body)
     {
         this.parent = parent;
-        // 垫步持续时长从 Config 读（容错默认值）
+        // 垫步持续时长/无敌帧从 Config 读（容错默认值）
         dodgeDuration = body.Config != null ? body.Config.DodgeDuration : 0.5f;
+        iFrameDuration = body.Config != null ? body.Config.DodgeIFrame : 0.3f;
     }
 
     public override void OnEnter()
@@ -39,14 +41,20 @@ public class DodgeState : BaseState
         return true;
     }
 
-    // 受击拦截（M1/M17）：
-    //   突刺危字 + 垫步 → 触发识破（踩刀），拦截伤害
-    //   普通攻击 → 垫步无敌帧（M4 细化，暂不拦截）
+    // 受击拦截（M1/M17/M4）：
+    //   突刺危字 + 垫步 → 触发识破（踩刀），拦截伤害（优先于无敌帧）
+    //   普通攻击 + 无敌帧内 → 躲过（拦截伤害）
     public override bool OnHitReceived(HitData hit)
     {
         if (hit.isPerilous && hit.perilousType == PerilousType.Thrust)
         {
             parent.SubStateMachine.ChangeState(new MikiriCounterState(body, parent, hit));
+            return true;
+        }
+
+        // 无敌帧内：普通攻击打不中
+        if (dodgeTimer <= iFrameDuration)
+        {
             return true;
         }
         return false;

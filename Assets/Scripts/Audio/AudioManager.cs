@@ -13,6 +13,8 @@ public class AudioManager : MonoBehaviour
     public AudioClip finisherSfx;     // 忍杀处决
     public AudioClip deathSfx;        // 玩家死亡
     public AudioClip gourdSfx;        // 喝葫芦
+    public AudioClip reviveSfx;       // 回生（M14）
+    public AudioClip victorySfx;      // 胜利（M10）
 
     private AudioSource audioSource;
 
@@ -36,6 +38,8 @@ public class AudioManager : MonoBehaviour
         CombatEventBus.OnFinisherTriggered += HandleFinisherTriggered;
         CombatEventBus.OnDeath += HandleDeath;
         CombatEventBus.OnGourdUsed += HandleGourdUsed;
+        CombatEventBus.OnReviveAvailable += HandleReviveAvailable;
+        CombatEventBus.OnVictory += HandleVictory;
     }
 
     // 取消订阅
@@ -47,6 +51,8 @@ public class AudioManager : MonoBehaviour
         CombatEventBus.OnFinisherTriggered -= HandleFinisherTriggered;
         CombatEventBus.OnDeath -= HandleDeath;
         CombatEventBus.OnGourdUsed -= HandleGourdUsed;
+        CombatEventBus.OnReviveAvailable -= HandleReviveAvailable;
+        CombatEventBus.OnVictory -= HandleVictory;
     }
 
     // ===== 事件处理 =====
@@ -102,6 +108,22 @@ public class AudioManager : MonoBehaviour
         if (gourdSfx != null)
         {
             audioSource.PlayOneShot(gourdSfx);
+        }
+    }
+
+    private void HandleReviveAvailable(CharacterBody c)
+    {
+        if (reviveSfx != null)
+        {
+            audioSource.PlayOneShot(reviveSfx);
+        }
+    }
+
+    private void HandleVictory(CharacterBody c)
+    {
+        if (victorySfx != null)
+        {
+            audioSource.PlayOneShot(victorySfx);
         }
     }
 }

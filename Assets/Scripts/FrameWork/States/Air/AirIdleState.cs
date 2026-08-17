@@ -28,11 +28,11 @@ public class AirIdleState : BaseState
             body.Animator.CrossFade("Fall", 0.1f);
         }
 
-        // 空中转向（可选）：按住方向键时朝输入方向转身，位移由动画 Root 驱动
+        // 空中转向（相机相对，与地面移动一致）：按住方向键时朝输入方向转身
         Vector2 inputDir = body.MoveDirection;
         if (inputDir.sqrMagnitude > 0.01f && body.Config != null)
         {
-            Vector3 lookDirection = new Vector3(inputDir.x, 0, inputDir.y);
+            Vector3 lookDirection = body.InputToWorldDir(inputDir);
             Quaternion targetRotation = Quaternion.LookRotation(lookDirection, Vector3.up);
             body.transform.rotation = Quaternion.RotateTowards(
                 body.transform.rotation, targetRotation, body.Config.RotationSpeed * Time.deltaTime);
@@ -43,6 +43,26 @@ public class AirIdleState : BaseState
     {
         // 空中攻击/格挡已移除（无对应动画资源）
         // 攻击/防御指令在空中不被消费，会留在缓冲池 0.2s 后自动丢弃，落地前按的不会带下来
+        return false;
+    }
+
+    // 受击拦截（M17 横扫跳踩）：
+    //   空中被横扫危字扫到 → 跳踩反制：涨攻击者架势 + Perfect 事件，自身不掉血
+    //   （普通攻击在空中 → 放行硬吃）
+    public override bool OnHitReceived(HitData hit)
+    {
+        if (hit.isPerilous && hit.perilousType == PerilousType.Sweep)
+        {
+            if (hit.attacker != null)
+            {
+                float gain = body.Config != null ? body.Config.MikiriPostureGain : 30f;
+                hit.attacker.AccumulatePosture(gain);
+                hit.attacker.ForceParryStun(); // 被踩硬直（复用被弹反硬直）
+            }
+            CombatEventBus.TriggerWeaponDeflected(hit.hitPoint, DeflectType.Perfect);
+            CombatManager.Instance?.HitStop();
+            return true;
+        }
         return false;
     }
 }

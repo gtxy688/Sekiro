@@ -1,18 +1,23 @@
 using UnityEngine;
 
 // 地面受击子状态：双脚着地被打的硬直，结束后回地面
+// 受击动画按 HurtContext 从 CharacterConfig 映射（受击表现接口，留空回退普通受击）
 public class GroundStunnedState : BaseState
 {
     private float stunTimer;
+    private readonly HurtContext context;
 
-    public GroundStunnedState(CharacterBody body, HierarchicalState parent) : base(body) { }
+    public GroundStunnedState(CharacterBody body, HierarchicalState parent, HurtContext context) : base(body)
+    {
+        this.context = context;
+    }
 
     public override void OnEnter()
     {
         stunTimer = 0f;
 
-        // 播地面受击动画（M5 接动画前为占位名）
-        body.Animator.CrossFade("Hurt_Ground", 0.05f);
+        // 受击动画：按语境解析（Normal/Heavy 击飞/Guard 格挡/Deflected 被弹反）
+        body.Animator.CrossFade(body.ResolveHurtAnim(context), 0.05f);
     }
 
     public override void OnUpdate()

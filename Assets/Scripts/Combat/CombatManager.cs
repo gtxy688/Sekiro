@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 // 命中判定中间层（单例）：Hitbox 扫到 Hurtbox → 报告这里 → 统一查全局规则 → 调 target.ReceiveHit
@@ -9,6 +10,14 @@ public class CombatManager : MonoBehaviour
     [Header("拼刀参数")]
     [Tooltip("拼刀时双方架势增长系数（默认 1 = 按对方招式 PostureDamage 全额涨）")]
     public float clashPostureMultiplier = 1f;
+
+    [Header("打击感")]
+    public bool enableHitStop = true;   // 命中/弹反顿帧开关
+    public float hitStopDuration = 0.05f;
+
+    [Header("处决（M10）")]
+    public float finisherRange = 2f;        // 处决触发距离
+    public CharacterBody BossRef;           // 场景里拖 Boss（单 Boss 战）
 
     private void Awake()
     {
@@ -38,10 +47,14 @@ public class CombatManager : MonoBehaviour
 
         // 2. 全局规则扩展位（后续：减伤 Buff、全场无敌、友军伤害开关等）
 
-        // 3. 伤害数据来自 AttackConfig（SO），这里只做转发（含危字标记，M17）
+        // 3. 伤害数据来自 AttackConfig（SO），这里只做转发（含危字标记 M17 / 击退强度）
         if (hitbox.Config == null) return;
         target.ReceiveHit(attacker, hitbox.Config.BaseDamage, hitbox.Config.PostureDamage, hitPoint,
-                          hitbox.Config.Perilous != PerilousType.None, hitbox.Config.Perilous);
+                          hitbox.Config.Perilous != PerilousType.None, hitbox.Config.Perilous,
+                          hitbox.Config.Knockback);
+
+        // 命中顿帧（打击感）
+        HitStop();
     }
 
     // 双方 Hitbox 相交 → 拼刀：只狼里拼刀双方都涨架势，不打伤害
@@ -57,5 +70,36 @@ public class CombatManager : MonoBehaviour
 
         // 表现层事件：打铁音效/火花（M13/M15 订阅）
         CombatEventBus.TriggerWeaponDeflected(point, DeflectType.Normal);
+    }
+
+    // ===== 顿帧（打击感）：短暂减速全局时间，营造命中重量感 =====
+    public void HitStop(float duration = -1f)
+    {
+        if (!enableHitStop) return;
+        if (duration < 0f) duration = hitStopDuration;
+
+        StopAllCoroutines();
+        StartCoroutine(HitStopRoutine(duration));
+    }
+
+    private IEnumerator HitStopRoutine(float duration)
+    {
+        Time.timeScale = 0.05f;
+        yield return new WaitForSecondsRealtime(duration);
+        Time.timeScale = 1f;
+    }
+
+    // ===== 处决触发（M10）：玩家按攻击键时由 GroundedState 拦截调用 =====
+    // Boss 崩解中 + 玩家距离近 → 玩家进 FinisherState（处决动画），消耗该次攻击指令
+    public bool TryExecuteFinisher(CharacterBody player)
+    {
+        if (BossRef == null || player == null) return false;
+        if (!BossRef.IsPostureBroken) return false;
+
+        float dist = Vector3.Distance(player.transform.position, BossRef.transform.position);
+        if (dist > finisherRange) return false;
+
+        player.MainStateMachine.ChangeState(new GroundedState(player, new FinisherState(player, BossRef)));
+        return true;
     }
 }

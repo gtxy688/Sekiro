@@ -1,3 +1,4 @@
+using DG.Tweening;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -38,5 +39,27 @@ public class PlayerStatusView : UIView
             postureLeftFill.fillAmount = ratio;
         if (postureRightFill != null)
             postureRightFill.fillAmount = ratio;
+    }
+
+    // 架势条快满高亮（M9 表现）：颜色变亮脉动（同 Boss 架势条样式）
+    public void SetDanger(bool isDanger)
+    {
+        if (postureLeftFill != null) postureLeftFill.DOKill();
+        if (postureRightFill != null) postureRightFill.DOKill();
+
+        if (isDanger)
+        {
+            postureLeftFill.DOColor(new Color(1f, 0.55f, 0.2f), 0.25f)
+                .SetLoops(-1, LoopType.Yoyo)
+                .SetEase(Ease.InOutSine);
+            postureRightFill.DOColor(new Color(1f, 0.55f, 0.2f), 0.25f)
+                .SetLoops(-1, LoopType.Yoyo)
+                .SetEase(Ease.InOutSine);
+        }
+        else
+        {
+            postureLeftFill.DOColor(Color.white, 0.2f);
+            postureRightFill.DOColor(Color.white, 0.2f);
+        }
     }
 }

@@ -16,7 +16,8 @@ InputAction 已定义 8 个动作（`Assets/Scripts/Player/Input/`）。当前 P
 | Attack | 鼠标左键/J | AttackCommand | AttackState |
 | Jump | 空格 | JumpCommand | GroundedState 拦截 |
 | Defend | 鼠标右键/K | DeflectCommand | DeflectState |
-| Heal | R | HealCommand（新增） | GroundedState 拦截 → 葫芦 |
+| Dodge | 左 Shift | DodgeCommand | DodgeState |
+| Heal | E | HealCommand（新增） | GroundedState 拦截 → 葫芦 |
 | Focus | 中键 | LockOnCommand（新增） | LockOnManager |
 | Crouch | Ctrl | （暂不实现） | - |
 
@@ -27,7 +28,7 @@ public struct HealCommand : ICommand { }
 public struct LockOnCommand : ICommand { }
 ```
 
-> 已移除：`DodgeCommand`（垫步，无动画资源）。
+> 保留：`DodgeCommand`（垫步，左 Shift）。
 
 ### PlayerBrain 实现
 

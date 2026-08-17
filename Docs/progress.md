@@ -2,88 +2,96 @@
 
 > 复刻只狼弦一郎 Boss 战 | Unity 2022 LTS + URP | 秋招作品集
 > 更新日期：2026-08-13
-> 本文档记录「已完成的代码模块」与「待办模块」，供快速查阅。详细设计与验收见 `Docs/architecture/` 各模块文档。
+> 本文档记录「已完成的代码模块」与「待办模块」，供快速查阅。设计总纲见 `../策划案.md`，模块细节见 `Docs/architecture/`。
 
 ---
 
 ## 总览
 
 ```
-战斗核心（M1/M2/M3） ──► 战斗数据（M2/M9/M16/M14）
-        │                       │
-        ▼                       ▼
+战斗核心（M1/M2/M3 已完成） ──► 战斗完整（M4/M9/M10/M17）
+        │                              │
+        ▼                              ▼
   表现层（M12相机/M13UI/M15音效）   Boss AI（M5/M7）
 ```
 
-**当前阶段**：战斗数据层（M2）已完成，表现层框架（UI/音效）已搭好，接下来进入受击路由（M1）与命中判定（M3）。
+**当前阶段**：战斗闭环 + Boss AI + 表现层（UI/音效/震屏）**代码全部完成**。剩余：M8 动画事件接线、M12 相机完善、场景装配（Canvas 布局/挂 View）、调参与全流程验收。
 
 ---
 
-## 已完成的模块
+## 已完成的模块（代码级）
 
-### ✅ 表现层框架（M13 UI + M15 音效，框架级）
+### ✅ 战斗闭环代码（2026-08-17 批次，全部待验收）
+
+| 模块 | 内容 |
+|------|------|
+| M8 接线 | `AttackState` 进出开关 `EnableWeaponHit/DisableWeaponHit` + 危字事件 |
+| M4 弹反/格挡 | `DeflectState` 重写：短按弹反/长按格挡/抖刀惩罚/危字放行；`ParriedState` 被弹开硬直 |
+| M9 架势 | 非线性回复（`PostureDecayInverse`）+ 格挡回复×5 + 崩解 `StaggerBrokenState`（玩家倒地/Boss 处决窗口） |
+| M17 横扫 | `AirIdleState` 跳踩反制（Sweep 危字）；`DodgeState` 无敌帧 0.3s |
+| M10 处决 | `CombatManager.TryExecuteFinisher` + `FinisherState`（清命，2 命后胜利事件） |
+| M16 葫芦 | `HealState` 喝药动画 + 可被打断 |
+| M14 复活 | `DeadState`（回生待机/游戏结束）+ 按攻击键复活/重开场景 |
+| M11 锁定 | `LockOnManager` + `MoveState` 锁定面向 Boss |
+| M5/M7 AI | `Blackboard` + Sequence/Selector Running 记忆 + `BT_Combo/BT_Deflect/BT_BowShot` + 三层 Boss AI 树 |
+| 打击感 | `CombatManager.HitStop` 顿帧 |
+| 受击接口 | `HurtContext`（Normal/Heavy/Guard/Deflected）+ `CharacterConfig` 受击动画名映射 + `AttackConfig.Knockback` |
+| 输入 | 双 Control Scheme（KeyboardMouse/Gamepad）+ Player Input Auto-Switch + 每帧 ReadValue |
+| M13 UI | `RevivePromptView/GameOverView/VictoryView` 新增；`CombatUIController` 补全事件（清命/复活/锁定/胜利/死亡）；`PlayerStatusView.SetDanger` 架势高亮；事件总线补 `OnLifeCleared/OnRevived/OnLockOnChanged` |
+| M15 音效 | `AudioManager` 补 revive/victory 音效 |
+| M12 表现 | `CameraShake`（DoTween 震屏，订阅 OnCameraShake）；弹反/崩解/处决触发 |
+
+### ✅ M1 HFSM 受击路由（代码完成，待验收）
 
 | 文件 | 职责 |
 |------|------|
-| `Assets/Scripts/Mgr/CombatEventBus.cs` | 事件总线扩展：+9 个表现层事件，**携带完整数据**（hp/maxHp、posture/maxPosture） |
-| `Assets/Scripts/UI/Views/UIView.cs` | MVC View 基类：`Show()/Hide()/OnViewInit()` |
-| `Assets/Scripts/UI/Views/BossStatusView.cs` | 左上：忍杀灯 + Boss 血条 + 名称 |
-| `Assets/Scripts/UI/Views/BossPostureBarView.cs` | 顶部 Boss 架势条（中心双向 + 高亮动画） |
-| `Assets/Scripts/UI/Views/PlayerStatusView.cs` | 玩家血条 + 架势 + 回生 |
-| `Assets/Scripts/UI/Views/ItemSlotView.cs` | 葫芦槽位（图标 + 数量） |
-| `Assets/Scripts/UI/Views/LockOnIndicatorView.cs` | 世界空间锁定点（崩解变红点脉动） |
-| `Assets/Scripts/UI/CombatUIController.cs` | MVC Controller：订阅事件 → 按 player/boss 路由到 View |
-| `Assets/Scripts/Audio/AudioManager.cs` | 音效：订阅事件播 AudioClip（叮/笃/受击/处决/死亡/葫芦） |
+| `FrameWork/States/Base/BaseState.cs` | 基类 + `OnHitReceived(HitData)` 虚方法 |
+| `FrameWork/States/Base/HierarchicalState.cs` | 父状态：`OnHitReceived` 转发（父拦截 → 子状态）+ `OnParentHandleHit` |
+| `FrameWork/States/StunnedState.cs` | 受击期间二次受击全拦截（防硬直刷新） |
+| `FrameWork/Body/CharacterBody.cs` | `ReceiveHit`：打包 HitData → 问 `OnHitReceived` → 未拦截则扣血 + 切 StunnedState |
 
-**DoTween 动画**（已实现，替换了 TODO 占位）：
-- Boss 架势条 > 80%：颜色变亮 + 边缘尖刺脉动
-- 忍杀红点：放大 + 红色脉动
-
-> 已移除：`PerilousType.cs`（危字枚举）、`PerilousWarningView.cs`（"危"字 UI）——M17 不在本项目范围。
-
-> 注意：M13/M15 只搭了**框架**，还需在 Unity 场景里建 UI 组件、把引用拖到 Controller/View 上（验收清单见 `06-presentation-test.md`）。
-
-### ✅ M2 战斗数据层（属性/架势/葫芦/复活 的数据基础）
+### ✅ M2 战斗数据（代码完成，待验收）
 
 | 文件 | 职责 |
 |------|------|
-| `Assets/Scripts/Configs/CharacterConfig.cs` | 角色配置 SO：血量/架势/硬直/移动/葫芦/复活，玩家和 Boss 各配一份 |
-| `Assets/Scripts/FrameWork/Body/CharacterBody.cs` | 战斗属性 + 全部结算方法 |
+| `SO/CharacterConfig.cs` | 角色配置 SO：血量/架势/硬直/移动/葫芦/复活 |
+| `SO/AttackConfig.cs` | 招式配置 SO：伤害/架势伤害/连招窗口/危字标记 |
+| `FrameWork/Body/CharacterBody.cs` | `TakeDamage`/`AccumulatePosture`/`UseGourd`/`Revive`/`ClearLife`/`UpdatePostureDecay` |
 
-**CharacterBody 新增能力**：
-- `TakeDamage()`：扣血 + 涨架势 + 触发事件 + 死亡判定（已死不重复结算）
-- `AccumulatePosture()`：涨架势，满则崩解（`IsPostureBroken`）+ 触发事件
-- `UpdatePostureDecay()`：停止受击超延迟秒后架势自然回复（崩解中不回复）
-- `UseGourd()`：葫芦（有次数且没满血才生效）
-- `Revive()`：复活（回满血 + 架势清零）
-- `ClearLife()`：处决后清一条命（M10 用）
-- `StunDuration`：从 Config 读，容错默认值
-
-> 硬直时长已从 CharacterBody 硬编码迁入 SO（AirStunnedState/GroundStunnedState 同步改为 `body.StunDuration`）。
-
-### ✅ 状态机框架（早期基础，未含受击路由）
+### ✅ M3 命中判定（代码完成，待验收）
 
 | 文件 | 职责 |
 |------|------|
-| `FrameWork/States/Base/BaseState.cs` | 状态基类：OnEnter/OnUpdate/OnExit/HandleCommand |
-| `FrameWork/States/Base/HierarchicalState.cs` | 父状态（HFSM 层级节点） |
-| `FrameWork/States/StateMachine.cs` | 状态机驱动器 |
-| `FrameWork/States/Command.cs` | Command 接口 + MoveCommand 等 |
-| `FrameWork/States/Ground/` | GroundedState + Idle/Move/Attack/Deflect/GroundStunned |
-| `FrameWork/States/Air/` | AirState + AirIdleState（跳跃/下落共用） |
-| `FrameWork/States/StunnedState.cs` | 顶层受击父状态（统一进 GroundStunnedState） |
+| `Combat/Hitbox.cs` | SphereCast 扫描（上一帧→当前帧）+ 去重 + 拼刀检测 |
+| `Combat/Hurtbox.cs` | 受击盒标记 |
+| `Combat/CombatManager.cs` | 中间层单例：`ReportHit`（转发伤害）+ `ReportClash`（拼刀） |
 
-> 已移除（无动画资源）：DodgeState（垫步）、AirAttackState/AirDeflectState（空中攻击/格挡）、JumpState/FallState（并入 AirIdleState）、AirStunnedState（空中受击）。
+### ✅ M6 输入（代码完成，待验收）
 
-### ✅ 输入/Boss 基础（早期，未完整）
-
-| 文件 | 状态 |
+| 文件 | 职责 |
 |------|------|
-| `Player/Brain/PlayerBrain.cs` + `BrainBase.cs` + `PlayerInputActions.cs` | 移动已通；**Attack/Jump/Defend 等按键未绑定 Command**（待 M6） |
-| `Boss/BehaviourTree/`（Node/Selector/Sequence/ConditionNode/BT_Attack/BT_MoveToTarget） | 行为树骨架已建 |
-| `Boss/BTBrain.cs` | 简单追近 + 攻击树 |
-| `Combat/Hitbox.cs` | M3：动画事件/脚本开启 + SphereCast 扫描（已替换 OnTrigger 版） |
-| `Mgr/FXManager.cs` | 打铁火花特效（订阅事件） |
+| `Player/Brain/PlayerBrain.cs` | 全按键绑定：Move/Attack/Jump/Deflect/Dodge/Heal/LockOn |
+| `Player/Brain/BrainBase.cs` | 指令缓冲池（0.2s 预输入窗口） |
+| `Resources/Input/PlayerInputActions.cs` | Input System 自动生成（键鼠+手柄双绑定） |
+
+### ✅ 状态机框架（早期基础，已验收）
+
+`BaseState` / `HierarchicalState` / `StateMachine` / `Command` + 叶子状态 Idle/Move/Attack/Deflect/Dodge/MikiriCounter + 父状态 Grounded/Air/Stunned。
+
+### ✅ 表现层框架（M13 UI + M15 音效，框架级，待建场景）
+
+`CombatEventBus`（+11 个事件）+ `UIView` 基类 + 各 View + `CombatUIController` + `AudioManager`。DoTween 动画已实现（架势条高亮/忍杀红点脉动）。
+
+### ✅ M17 危字/识破（代码已完整，**确认保留**）
+
+| 文件 | 职责 |
+|------|------|
+| `Configs/PerilousType.cs` | 危字类型枚举 |
+| `FrameWork/States/Ground/DodgeState.cs` | 垫步 + 突刺危字→识破触发（`OnHitReceived`） |
+| `FrameWork/States/Ground/MikiriCounterState.cs` | 识破（踩刀）状态：涨攻击者架势 |
+| `UI/Views/PerilousWarningView.cs` | "危"字提示 |
+
+> 注：早期文档曾写「已移除」，经确认**保留**（用户已解包对应动画）。横扫危字（跳踩反制）尚未实现，见待办。
 
 ---
 
@@ -91,21 +99,18 @@
 
 | 顺序 | 模块 | 内容 | 依赖 |
 |------|------|------|------|
-| 1 | **M1 受击路由** | `ReceiveHit` 里 A3 待办：防御拦截/二次受击的层级查询（`OnHitReceived`） | M2 已完成 |
-| 2 | **M3 命中判定** | WeaponHitbox 改 SphereCast，引入 CombatManager 中间层，Hurtbox | M1/M2 |
-| 3 | **M9 架势** | 崩解 → EndureState 切换（数据层已就绪，只差状态） | M1/M2 |
-| 4 | **M6 输入** | PlayerBrain 绑定 Attack/Jump/Defend 按键 → Command | 输入系统已接入 |
-| 5 | **M4 盾反** | DeflectState 盾反窗口/普通格挡逻辑细化 | M1/M3 |
-| 6 | **M8 动画事件** | 配置攻击动画帧事件 | 依赖动画配置 |
-| 7 | **M10 处决** | 忍杀：崩解窗口 → 清命 → 动画 | M3/M9 |
-| 8 | **M14 复活** | 数据层已好，接 UI 提示 + R 键确认 | M6/M13 |
-| 9 | **M16 葫芦** | 数据层已好，接 HealCommand + 喝药状态 | M6 |
-| 10 | **M11 锁定** | LockOnManager：锁定目标切换 | M6 |
-| 11 | **M12 相机** | Cinemachine（包已装）：FreeLook 自由 + TargetGroup 锁定 + Impulse 震屏 | M11 |
-| 12 | **M5 行为树完善** | 黑板 + Running 记忆 | — |
-| 13 | **M7 弦一郎 Boss AI** | 三层结构（主动/交锋/变招防御），参考 `Docs/references/sekiro-genichiro-ai.md` | **最后做**，依赖 M5/M3 及大部分战斗系统 |
-
-> 已移除：M17 危字/识破（无动画资源）。
+| 1 | **M8 攻击接线** | `AttackState` 接 `EnableWeaponHit/DisableWeaponHit`（当前攻击打不出伤害，硬伤） | M3 |
+| 2 | **M4 弹反/格挡** | 方案 B 输入（短按弹反/长按格挡）+ 0.3s 窗口 + 抖刀惩罚 + 弹开硬直 + 独立弹反动画 | M1/M3 |
+| 3 | **M9 架势** | 非线性回复（格挡 ×5 / Boss 反函数）+ 击飞倒地 + 崩解窗口 | M1/M2 |
+| 4 | **M17 横扫** | 横扫危字 + 跳踩反制 | M1/M3 |
+| 5 | **M10 处决** | 2 命处决 + 走近按键触发 + 5s 窗口 | M3/M9 |
+| 6 | **M16 葫芦** | 喝药动画 + 硬直（会被打断）+ 回满血 | M6 |
+| 7 | **M14 复活** | 回生动画 + 无敌帧 + 死亡重开 | M6/M13 |
+| 8 | **M11 锁定** | LockOnManager（手动锁定/解锁，单 Boss 不切目标） | M6 |
+| 9 | **M12 相机** | Cinemachine FreeLook + TargetGroup + Impulse 震屏 | M11 |
+| 10 | **M5 行为树补全** | 黑板 + Running 记忆 | — |
+| 11 | **M7 弦一郎 AI** | 三层 AI + 射箭 + 飞渡符舟 + Boss 弹反玩家 | M5/M3 |
+| 12 | **打击感** | hitstop + 打铁火花（火花 FX 已有，补停顿） | M3/M4 |
 
 ---
 
@@ -113,12 +118,12 @@
 
 | 文档 | 内容 |
 |------|------|
-| `Docs/total.md` | 用户视角决策记录（框架决策 1-11） |
+| `Docs/策划案.md` | **设计总纲（权威）**：玩法/机制/数值/范围 |
+| `Docs/total.md` | 用户视角决策记录 |
 | `Docs/architecture/00-overview.md` | 模块总览 + 依赖图 |
 | `Docs/architecture/01-07-*.md` | 各模块架构设计 |
-| `Docs/architecture/0X-xxx-test.md` | 各模块验收清单（用户在 Unity 中逐条验证） |
-| `Docs/README.md` | 文档导航（待补模块总表） |
-| `CLAUDE.md` | 架构约束 + 代码规范 + 文档加载指引 |
+| `Docs/architecture/0X-xxx-test.md` | 各模块验收清单 |
+| `Docs/README.md` | 文档导航 |
 
 ---
 
@@ -127,14 +132,16 @@
 | 模块 | 代码状态 | 用户验收状态 |
 |------|---------|-------------|
 | 状态机框架 | ✅ 完成 | ✅ 已验收 |
-| 表现层框架（UI/音效） | ✅ 完成 | ⬜ 待验收（需建场景） |
-| M2 战斗数据层 | ✅ 完成 | ⬜ 待验收（见下方） |
+| M1 受击路由 | ✅ 完成 | ⬜ 待验收 |
+| M2 战斗数据 | ✅ 完成 | ⬜ 待验收 |
+| M3 命中判定 | ✅ 完成 | ⬜ 待验收 |
+| M6 输入 | ✅ 完成 | ⬜ 待验收 |
+| M17 危字/识破 | ✅ 完成 | ⬜ 待验收 |
+| 表现层框架（UI/音效） | ✅ 框架 | ⬜ 待验收（需建场景） |
 | 其余模块 | ⬜ 未做 | — |
-
-**M2 验收清单**（`Docs/architecture/02-combat-data-test.md`）：需在 Project 建 PlayerConfig/GenichiroConfig 两个 SO 资源 → 拖进对应 CharacterBody 的 Config 槽 → 逐条验证属性初始化/架势/葫芦/复活。
 
 ---
 
 ## 下一步建议
 
-**M1 受击路由**：把 `CharacterBody.ReceiveHit()` 里的 A3 待办实现掉——`BaseState.OnHitReceived` + `HierarchicalState` 转发，DeflectState/DodgeState 重写拦截。这是战斗核心的入口，其余模块都依赖它。
+**M8 攻击判定接线**：把 `AttackState` 的攻击帧接上 `EnableWeaponHit/DisableWeaponHit`，让攻击真正能打出伤害——这是当前唯一让游戏"打不出伤害"的硬伤，也是跑通可玩闭环的第一步。

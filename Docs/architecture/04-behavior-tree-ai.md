@@ -114,7 +114,7 @@ Selector（优先级从高到低）:
    └─ Sequence: 玩家连续攻击 → BT_Deflect（招架）
 ```
 
-> 已移除：`BT_Thrust`（危字突刺）/`BT_Sweep`（危字横扫）——M17 不在本项目范围，Boss 不设计危字招式。
+> 保留：Boss 有危字招式 `BT_Thrust`（突刺，识破反制）/`BT_Sweep`（横扫，跳踩反制），M7 实现时补进树（招式细节暂缓）。
 
 ### 黑板数据
 
@@ -133,7 +133,7 @@ blackboard["lastComboIndex"]     = 连段当前第几刀
 - `BT_Deflect`：玩家连续攻击时招架
 - `BT_MoveToTarget`（已有）
 
-> 已移除：`BT_Thrust` / `BT_Sweep`（危字攻击，M17 移除）。
+> 保留：`BT_Thrust`（突刺危字）/`BT_Sweep`（横扫危字）。
 
 ### 冷却机制
 
@@ -143,7 +143,7 @@ blackboard["lastComboIndex"]     = 连段当前第几刀
 
 - Boss 2 条命（忍杀 2 次）
 - 无脱衣/巴流阶段
-- 招式表：近战连段、射箭、飞渡符舟（可选；危字突刺/横扫已移除）
+- 招式表：近战连段、突刺（危字/识破）、横扫（危字/跳踩）、射箭、飞渡符舟（完整动画）
 
 ## 涉及文件
 

@@ -33,6 +33,14 @@ public static class CombatEventBus
     public static event Action<CharacterBody> OnDeath;
     // 复活可用（角色）—— 弹出回生提示
     public static event Action<CharacterBody> OnReviveAvailable;
+    // 胜利（Boss 命数清空）—— M10 处决完最后一条命触发
+    public static event Action<CharacterBody> OnVictory;
+    // 清命（角色, 剩余命数）—— 忍杀灯熄灭一个（M10 UI）
+    public static event Action<CharacterBody, int> OnLifeCleared;
+    // 复活成功（角色）—— 隐藏回生提示（M14 UI）
+    public static event Action<CharacterBody> OnRevived;
+    // 锁定状态变化（是否锁定）—— 锁定点 UI（M11）
+    public static event Action<bool> OnLockOnChanged;
 
     // 1c. 战斗表现事件
     // 危字攻击（M17 触发）—— UI 弹"危"
@@ -82,6 +90,26 @@ public static class CombatEventBus
     public static void TriggerReviveAvailable(CharacterBody c)
     {
         OnReviveAvailable?.Invoke(c);
+    }
+
+    public static void TriggerVictory(CharacterBody c)
+    {
+        OnVictory?.Invoke(c);
+    }
+
+    public static void TriggerLifeCleared(CharacterBody c, int remainingLives)
+    {
+        OnLifeCleared?.Invoke(c, remainingLives);
+    }
+
+    public static void TriggerRevived(CharacterBody c)
+    {
+        OnRevived?.Invoke(c);
+    }
+
+    public static void TriggerLockOnChanged(bool isLocked)
+    {
+        OnLockOnChanged?.Invoke(isLocked);
     }
 
     public static void TriggerPerilousAttack(PerilousType type)

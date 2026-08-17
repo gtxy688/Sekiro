@@ -27,6 +27,19 @@ public class AttackState : BaseState
         hasBufferedNextHit = false;
 
         body.Animator.CrossFade(config.AnimName, config.TransitionDuration);
+
+        // M8 攻击接线：进入即绑定本招式配置并开启武器判定（伤害能打出去了）
+        // 动画事件版（EnableHitbox/DisableHitbox 精确帧）后续可覆盖，入口不变
+        body.EnableWeaponHit(config);
+
+        // Boss AI 反制判定标记（M7 用，避免查状态类型）
+        body.IsAttacking = true;
+
+        // 危字攻击：发事件 → UI 弹"危"字提示（M17）
+        if (config.Perilous != PerilousType.None)
+        {
+            CombatEventBus.TriggerPerilousAttack(config.Perilous);
+        }
     }
 
     public override void OnUpdate()
@@ -35,11 +48,21 @@ public class AttackState : BaseState
 
         stateTimer += Time.deltaTime;
 
+        // 位移不在此处理：突进/前移完全由攻击动画的 Root 曲线驱动（全权根运动），
+        // 代码只负责状态时长与连招窗口判定
+
         // 动作彻底结束
         if (stateTimer >= config.StateDuration)
         {
             parent.SubStateMachine.ChangeState(new IdleState(body, parent));
         }
+    }
+
+    public override void OnExit()
+    {
+        // M8：退出攻击状态 → 关闭武器判定，防止判定残留
+        body.DisableWeaponHit();
+        body.IsAttacking = false;
     }
 
     public override bool HandleCommand(ICommand cmd)
