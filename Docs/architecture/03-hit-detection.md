@@ -17,9 +17,20 @@
 
 BoxCast 用"上一帧位置 → 当前帧位置"扫一段，防止高速挥砍穿透。
 
+### 场景接线（漏判的常见根因，必做）
+
+| 对象 | 要求 |
+|------|------|
+| 玩家 `Hitbox` | 挂在**武器中央**（刃中段的子空物体，随刀动）。挂在根/柄/手骨上，第一刀碰巧扫到、第二刀弧线不同就会漏。 |
+| Boss `Hurtbox` 碰撞体 | **包住身体**（胶囊/盒与体型相当）。过小则只有部分挥砍能扫到，连招第二刀尤其明显。 |
+| `Hitbox.targetLayers` | 含对方 Hurtbox 所在层 |
+| 刀网格 | **不要**另挂会挡扫描的 Collider；Hitbox 只是扫描点 |
+
+代码侧：进入 `AttackState` 即开判定、退出即关。开判定时已重叠的目标先不算，等刀离开再扫进（连招防秒中）；每帧 SphereCast + OverlapSphere。
+
 ## 二、组件拆分
 
-### Hitbox（挂在武器骨骼上）
+### Hitbox（挂在武器中央）
 
 ```csharp
 public class Hitbox : MonoBehaviour
@@ -78,13 +89,14 @@ public class CombatManager : MonoBehaviour
 ## 三、判定流程
 
 ```
-EnableHitbox (动画事件)
+进入 AttackState → EnableWeaponHit
   → Hitbox.isActive = true
+  → 开判定时已重叠的目标先屏蔽，等刀离开再扫进才算新的一刀
   → 每帧:
-      SphereCast(从 lastCastPos 到 当前 position)
+      SphereCast(从 lastCastPos 到 当前 position) + OverlapSphere（内部重叠 SphereCast 会漏）
         → 命中 Hurtbox → CombatManager.ReportHit
         → 命中 Hitbox → CombatManager.ReportClash (拼刀)
-  → DisableHitbox (动画事件) → isActive = false
+退出 AttackState → DisableWeaponHit → isActive = false
 ```
 
 ## 四、M17 危字攻击

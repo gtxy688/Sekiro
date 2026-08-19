@@ -3,7 +3,7 @@ public class AttackState : BaseState
 {
     private HierarchicalState parent;
     private AttackConfig config; // 核心：当前状态正在使用的数据配置
-    
+
     private float stateTimer;
     private bool hasBufferedNextHit;
 
@@ -28,8 +28,7 @@ public class AttackState : BaseState
 
         body.Animator.CrossFade(config.AnimName, config.TransitionDuration);
 
-        // M8 攻击接线：进入即绑定本招式配置并开启武器判定（伤害能打出去了）
-        // 动画事件版（EnableHitbox/DisableHitbox 精确帧）后续可覆盖，入口不变
+        // 进攻击就开判定，刀碰到就算；退出时 OnExit 关
         body.EnableWeaponHit(config);
 
         // Boss AI 反制判定标记（M7 用，避免查状态类型）
@@ -60,7 +59,6 @@ public class AttackState : BaseState
 
     public override void OnExit()
     {
-        // M8：退出攻击状态 → 关闭武器判定，防止判定残留
         body.DisableWeaponHit();
         body.IsAttacking = false;
     }
@@ -68,6 +66,29 @@ public class AttackState : BaseState
     public override bool HandleCommand(ICommand cmd)
     {
         if (config == null) return false;
+
+        // 前摇取消仍看 HitStartTime（与判定开关脱钩）：时间内可格挡/垫步，过后本刀锁死
+        bool inCancelWindow = stateTimer < config.HitStartTime;
+
+        if (cmd is DeflectCommand)
+        {
+            if (inCancelWindow)
+            {
+                parent.SubStateMachine.ChangeState(new DeflectState(body, parent));
+                return true;
+            }
+            return false;
+        }
+
+        if (cmd is DodgeCommand)
+        {
+            if (inCancelWindow)
+            {
+                parent.SubStateMachine.ChangeState(new DodgeState(body, parent));
+                return true;
+            }
+            return false;
+        }
 
         if (cmd is AttackCommand)
         {
@@ -80,16 +101,16 @@ public class AttackState : BaseState
                     if (!hasBufferedNextHit)
                     {
                         hasBufferedNextHit = true;
-                        
+
                         // 神级闭环：把下一段的配置塞给一个新的 ActionState！
                         parent.SubStateMachine.ChangeState(new AttackState(body, parent, config.NextCombo));
                         return true;
                     }
                 }
             }
-            return false; 
+            return false;
         }
-        
+
         return false;
     }
 }

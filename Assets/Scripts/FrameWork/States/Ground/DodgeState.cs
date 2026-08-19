@@ -31,13 +31,28 @@ public class DodgeState : BaseState
 
         if (dodgeTimer >= dodgeDuration)
         {
-            parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+            if (body.MoveDirection.sqrMagnitude > 0.01f)
+            {
+                bool locked = LockOnManager.Instance != null && LockOnManager.Instance.IsLockedOn
+                    && LockOnManager.Instance.Target != null;
+                // 锁定下没有 DodgeToStrafe，直接进四向循环
+                string enter = locked ? null : "DodgeToWalk";
+                parent.SubStateMachine.ChangeState(new MoveState(body, parent, enter));
+            }
+            else
+            {
+                parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+            }
         }
     }
 
-    // 处理传递到底层的命令：垫步期间吞掉所有命令（不可打断）
+    // 垫步不可打断；仍更新移动意图，结束时才能接 DodgeToWalk
     public override bool HandleCommand(ICommand cmd)
     {
+        if (cmd is MoveCommand moveCmd)
+        {
+            body.MoveDirection = moveCmd.Direction;
+        }
         return true;
     }
 

@@ -33,9 +33,7 @@ public class AirIdleState : BaseState
         if (inputDir.sqrMagnitude > 0.01f && body.Config != null)
         {
             Vector3 lookDirection = body.InputToWorldDir(inputDir);
-            Quaternion targetRotation = Quaternion.LookRotation(lookDirection, Vector3.up);
-            body.transform.rotation = Quaternion.RotateTowards(
-                body.transform.rotation, targetRotation, body.Config.RotationSpeed * Time.deltaTime);
+            body.RotateYaw(lookDirection, body.Config.RotationSpeed);
         }
     }
 

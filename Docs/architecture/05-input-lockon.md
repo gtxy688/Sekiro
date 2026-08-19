@@ -86,12 +86,12 @@ public class LockOnManager : MonoBehaviour
        // 面向 dir，位移仍按摇杆输入
    }
    ```
-2. **相机**：锁定模式由 M12（Cinemachine）处理。
+2. **相机**：`OnLockOnChanged` 驱动 M12 `CameraController` 切 VCam（FreeLook ↔ 锁定第三人称跟随），见 `06-presentation.md`。
 
 ### 锁定点 UI
 
-- 世界空间白点挂在 Target 身上（M13）
-- 架势崩解 → 红点高亮
+- 世界空间钉在 Boss `Spine1`，Overlay 相机画在最前，不被模型挡住
+- 架势崩解 → 切到 `Finsher`
 
 ## 涉及文件
 

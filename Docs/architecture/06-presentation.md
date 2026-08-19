@@ -24,6 +24,7 @@ OnReviveAvailable(CharacterBody c)
 // 新增（表现）
 OnFinisherTriggered(Vector3 pos)      // 忍杀
 OnCameraShake(float intensity)        // 震屏
+OnLockOnChanged(bool isLocked)        // 锁定点 UI + 相机 VCam 切换（M11 触发）
 ```
 
 > 保留：`OnPerilousAttack`（危字提示，M17 保留）。
@@ -34,22 +35,39 @@ OnCameraShake(float intensity)        // 震屏
 
 ### 自由模式
 
-- Cinemachine FreeLook 相机，跟随玩家，旋转跟随鼠标/摇杆。
+- Cinemachine FreeLook。**Follow 和 Look At 都是 `CameraFollowTarget`**（独立空物体，位置硬贴玩家胸口，旋转 identity），**不要拖玩家根**：根运动步伐晃和角色 yaw 都会进镜头。
+- 三个 Rig 的 Aim = **Hard Look At**（不用 Composer + DeadZone 跟步伐拉锯）。
+- Body X/Y/Z Damping = **0**。Heading = Position Delta，**Velocity Filter = 0**（Cinemachine 2.10 的 Heading 没有 World 项）。
+- Binding Mode = **World Space**。未锁定走位相对相机；朝向只跟鼠标。
+- 鼠标环绕由 `CinemachineOrbitInput` 驱动（关掉 `CinemachineInputProvider`；FreeLook Axis Max Speed = 0）。
 
-### 锁定模式
+### 锁定模式（只狼第三人称跟随）
 
-- Cinemachine TargetGroup：玩家 + 锁定目标
-- 相机围绕两者中点旋转，视线保持两者连线
+- 第二台 `CinemachineVirtualCamera`（`LockOn Camera`），**不用 FreeLook 继续独立环绕**。
+- Follow = 同一个 `CameraFollowTarget`（锁定时脚本 `SetYawTarget(Boss)`，机位架在人-敌轴背后）。**不要 Follow 玩家根。**
+- LookAt = Boss；Aim 看胸口高度；Body = Transposer，`LockToTargetWithWorldUp`，阻尼 0。
+- 角色仍由 MoveState 面朝 Boss、围着目标 strafe。
+- 不用 TargetGroup 中点构图：那会把两人居中，不像只狼「架在角色背后看向敌人」。
 
 ### 锁定切换
 
-- LockOnManager（M11）`IsLockedOn` 变化 → 切换 Cinemachine brain 的 virtual camera 优先级
-  - 解锁：FreeLook priority 高
-  - 锁定：TargetGroup camera priority 高
+- `LockOnManager` 触发 `CombatEventBus.OnLockOnChanged` → `CameraController` 改两台 VCam 的 Priority（**不做每帧轮询**）。
+  - 解锁：FreeLook priority 高（默认 10），锁定 VCam = 0；恢复鼠标环绕；跟随点取消 yaw
+  - 锁定：锁定 VCam priority 高（默认 20），FreeLook = 0；关掉环绕输入
+- CinemachineBrain：Update Method = Late Update；Default Blend = **EaseInOut、约 0.6s**（`CameraController.Blend Time`，太短像硬切、太长拖沓）。
+- 两台 VCam 都开 **Inherit Position** + Blend Hint **Cylindrical Position**：从当前机位绕角色滑过去，不走直线穿地。
+- 锁定 VCam 的 FOV 与 FreeLook 相同（避免过渡时突然变焦）；`Standby Update = Always`，混入前机位已就绪。
+- 解锁同样走这套混合，不是瞬间切回。
+
+### 不要用的防抖
+
+- 不要靠调大 Composer DeadZone：人不抖但会离开中央。
+- 不要给 `CameraFollowTarget` 做位置平滑：镜头慢半拍，走路发糊（老花眼）。
+- 发糊先查 Rig X Damping 和 Heading 速度滤波，不是再加阻尼。
 
 ### 震屏
 
-- 订阅 `OnCameraShake` → Cinemachine Impulse 触发
+- 订阅 `OnCameraShake` → `CameraShake`（DoTween 偏移，不依赖 Impulse）
 - 触发点：弹反成功、崩解、处决、受击
 
 ## 三、UI（M13，MVC）
@@ -62,7 +80,7 @@ OnCameraShake(float intensity)        // 震屏
 左上角：    忍杀提示灯（2 红点）+ Boss 血条 + 名称"苇名弦一郎"
 左下角：    回生节点（1 粉花瓣）+ 玩家血条
 右下角：    葫芦槽位（图标 + 数量）
-世界空间：  锁定点（白点挂 Boss 身上）→ 崩解变大红点
+世界空间：  锁定点钉在 Boss Spine1，Overlay 相机画在最前，不被模型挡住
 屏幕中央：  "危"字（玩家头顶 World→Canvas 投影）
 ```
 
@@ -76,7 +94,7 @@ BossStatusView     : SetLifeDots(int count) / SetHP(float ratio) / SetName(strin
 BossPostureBarView : SetPosture(float ratio) / SetDanger(bool)  // 中心双向 + 快满高亮
 PlayerStatusView   : SetReviveDots(int) / SetHP(float) / SetPosture(float)
 ItemSlotView       : SetGourdIcon(Sprite) / SetGourdCount(int)
-LockOnIndicatorView: SetLocked(bool) / SetFinisherReady(bool)  // 世界空间，挂 Boss
+LockOnIndicatorView: SetLocked(bool) / SetFinisherReady(bool)  // 世界空间跟 Spine1，Overlay 相机不被挡
 PerilousWarningView  : SetPerilous(PerilousType)        // "危"字（世界空间投影，M17 保留）
 
 // 所有 View 继承 UIView 基类：Show()/Hide()/OnViewInit()
@@ -109,7 +127,7 @@ public class CombatUIController : MonoBehaviour
 ### 特殊动画（DoTween，已实现）
 
 - 架势条快满（>80%）：颜色变亮 + 边缘尖刺脉动（`BossPostureBarView.SetDanger`）
-- 忍杀红点：放大 + 红色脉动（`LockOnIndicatorView.SetFinisherReady`）
+- 忍杀图标：崩解时显示 `Finsher`（`LockOnIndicatorView.SetFinisherReady`）
 - 葫芦使用：数字闪烁（待接）
 
 > 动画全部通过 `DOKill()` 清理残留 tween，防止事件连续触发时动画叠加。
@@ -139,7 +157,9 @@ public class AudioManager : MonoBehaviour
 
 ## 涉及文件
 
-- 新建：`Assets/Scripts/Camera/CameraController.cs`（或场景里配 Cinemachine）
+- 新建：`Assets/Scripts/Camera/CameraController.cs`（订阅 OnLockOnChanged 切 VCam）
+- 新建：`Assets/Scripts/Camera/CameraFollowTarget.cs`、`CinemachineOrbitInput.cs`
+- 编辑器：`Assets/Editor/LockOnCameraBuilder.cs`（菜单 Tools/战斗/生成锁定相机）
 - 新建：`Assets/Scripts/UI/Views/*.cs`
 - 新建：`Assets/Scripts/UI/CombatUIController.cs`
 - 新建：`Assets/Scripts/Audio/AudioManager.cs`

@@ -31,7 +31,7 @@
 |---|------|------|
 | 7 | 玩家受点伤，调 `UseGourd()` | GourdRemaining 减 1，CurrentHP 回复到上限封顶 |
 | 8 | 葫芦用完（GourdRemaining=0）再调 | 返回 false，不加血 |
-| 9 | HP 已满时调 | 返回 false，不浪费葫芦 |
+| 9 | HP 已满时调 | 仍返回 true：扣 1 次葫芦，HP 保持上限 |
 
 ## M14：复活
 
@@ -44,5 +44,5 @@
 ## 常见问题
 
 - **数值没生效**：确认 CharacterConfig 资源已拖进 CharacterBody.Config 槽，且 InitCombat 在 Awake 调用。
-- **葫芦没用但次数减少**：UseGourd 里 HP 已满时 return false 没写。
+- **满血喝药没动画**：旧逻辑在满血时 `return false`，已改为有药就能喝。
 - **架势不回复**：检查 postureDecayDelay 计时逻辑。

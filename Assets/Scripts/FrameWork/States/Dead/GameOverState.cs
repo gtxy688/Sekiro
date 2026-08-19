@@ -1,25 +1,50 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-// 游戏结束状态（M14）：真死。按攻击键重开当前场景（策划案：按键重开/重新加载场景）
+// 游戏结束（M14）：真死。未倒地则先 Dead 再 Deading；已躺着则直接 Deading。
+// 按攻击键重开当前场景
 public class GameOverState : BaseState
 {
     private HierarchicalState parent;
+    private readonly bool alreadyDowned;
+    private float fallTimer;
+    private float fallDuration = 1.2f;
+    private bool lying;
 
-    public GameOverState(CharacterBody body, HierarchicalState parent) : base(body)
+    public GameOverState(CharacterBody body, HierarchicalState parent, bool alreadyDowned = false) : base(body)
     {
         this.parent = parent;
+        this.alreadyDowned = alreadyDowned;
     }
 
     public override void OnEnter()
     {
-        // 倒地动画（占位名，M8 接动画前）
-        body.Animator.CrossFade("Death", 0.1f);
+        fallTimer = 0f;
+        if (alreadyDowned)
+        {
+            lying = true;
+            body.Animator.CrossFade("Deading", 0.05f);
+        }
+        else
+        {
+            lying = false;
+            body.Animator.CrossFade("Dead", 0.1f);
+        }
     }
 
-    public override void OnUpdate() { }
+    public override void OnUpdate()
+    {
+        if (lying) return;
 
-    // 按攻击键 → 重新加载场景
+        fallTimer += Time.deltaTime;
+        var info = body.Animator.GetCurrentAnimatorStateInfo(0);
+        if ((AnimUtil.IsPlaying(info, "Dead") && info.normalizedTime >= 0.95f) || fallTimer >= fallDuration)
+        {
+            lying = true;
+            body.Animator.CrossFade("Deading", 0.05f);
+        }
+    }
+
     public override bool HandleCommand(ICommand cmd)
     {
         if (cmd is AttackCommand)
@@ -27,6 +52,6 @@ public class GameOverState : BaseState
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
             return true;
         }
-        return true; // 其余命令全吞
+        return true;
     }
 }

@@ -30,9 +30,10 @@ public class IdleState : BaseState
             {
                 // 把移动方向写入 Body 黑板，供 MoveState 读取
                 body.MoveDirection = moveCmd.Direction;
-                
-                // 通知父节点，把当前的子状态切为 MoveState
-                parent.SubStateMachine.ChangeState(new MoveState(body, parent));
+                bool locked = LockOnManager.Instance != null && LockOnManager.Instance.IsLockedOn
+                    && LockOnManager.Instance.Target != null;
+                string enter = locked ? "IdleToStrafe" : "IdleToWalk";
+                parent.SubStateMachine.ChangeState(new MoveState(body, parent, enter));
             }
             
             // 无论力度大小，只要是移动指令，Idle 状态就宣称“我处理完了”。

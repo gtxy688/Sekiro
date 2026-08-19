@@ -2,7 +2,7 @@ using UnityEngine;
 
 // 锁定系统（M11）：单 Boss 战，手动按键锁定/解锁（策划案：中键锁定，不做切目标）
 // 挂玩家身上。目标固定 = CombatManager.BossRef。
-// M12 相机接入前：只影响角色面向（移动/攻击时面朝 Boss），相机锁定后补
+// 锁定变化走 CombatEventBus.OnLockOnChanged：UI 准星 + M12 CameraController 切 VCam，不在这里改相机
 public class LockOnManager : MonoBehaviour
 {
     public static LockOnManager Instance { get; private set; }

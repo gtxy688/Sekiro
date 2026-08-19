@@ -59,7 +59,7 @@ public void OnDrinkGourdAnimEvent() { /* 补血动作完成时回调 */ }
 
 ## 五、注意事项
 
-- **M8 起攻击 Hitbox 开关改为代码驱动**（AttackConfig 加判定时间字段，AttackState 按计时开关），动画事件只保留一次性回调：处决命中帧、喝药完成帧、射箭生成帧。
+- **M8 起攻击 Hitbox 由 `AttackState` 开关**：进入攻击即开、退出即关。`HitStartTime` 只作前摇取消窗口。动画事件只保留一次性回调：处决命中帧、喝药完成帧、射箭生成帧。
 - 动画事件调用的方法必须在挂 Hitbox 的 GameObject 或引用到的对象上。
 - 若 Hitbox 不在 Animator 所在对象上，事件里 `GetComponent` 拿不到 → 让 Hitbox 直接持有 Animator 或由 CharacterBody 转发。
 - 事件名要和方法名完全一致（区分大小写）。

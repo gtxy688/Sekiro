@@ -17,6 +17,10 @@ public class AttackConfig : ScriptableObject
     // 危字攻击不可被普通防御/弹反抵挡，玩家必须用对应方式应对
     public PerilousType Perilous = PerilousType.None;
 
+    [Header("取消窗口")]
+    [Tooltip("进招后多少秒内可用格挡/垫步取消。判定从进攻击就开，与此无关。0 = 进招不可取消")]
+    public float HitStartTime = 0.2f;
+
     [Header("连招窗口期")]
     public float StateDuration = 1.633f;  // 这个动作总共持续多久
     public float ComboWindowStart = 0f; // 挥刀多久后允许按键

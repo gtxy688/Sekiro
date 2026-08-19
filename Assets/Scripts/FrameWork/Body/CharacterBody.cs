@@ -87,6 +87,8 @@ public class CharacterBody : MonoBehaviour
         // 相机在 LateUpdate(60Hz) 采样时会看到 50Hz 台阶 → 匀速跑动时镜头细微抖动。
         // Interpolate 让渲染位置在物理步进之间插值，把台阶抹平（物理驱动的标准做法）。
         Rb.interpolation = RigidbodyInterpolation.Interpolate;
+        Rb.freezeRotation = true;
+        if (Animator != null) Animator.applyRootMotion = UseRootMotion;
 
         // 实例化纯 C# 的状态机引擎
         MainStateMachine = new StateMachine();
@@ -121,21 +123,7 @@ public class CharacterBody : MonoBehaviour
         MainStateMachine.Update();
     }
 
-    // 根运动桥接（按用户要求注释掉）：不用脚本接管根运动，由 Unity 原生应用 root motion。
-    // 注意：applyRootMotion = true 且无 OnAnimatorMove 时，Unity 会把 root 位移（含 Y）直接加到 transform。
-    //       若角色"自动上升"，请在动画 fbx 导入设置里把 Root Transform Position (Y) 设为 Bake Into Pose
-    //       （把 Y 烘焙进姿势，根骨不再产生 Y 位移），而不是取消本注释。
-    // private void OnAnimatorMove()
-    // {
-    //     if (!UseRootMotion || Animator == null || Rb == null) return;
-
-    //     Vector3 delta = Animator.deltaPosition;
-    //     Vector3 v = Rb.velocity;
-    //     v.x = delta.x / Time.deltaTime;
-    //     v.z = delta.z / Time.deltaTime;
-    //     // v.y 保留：重力由物理处理，跳跃/落地的 Y 来自物理
-    //     Rb.velocity = v;
-    // }
+    // 根运动交回 Animator：不要写 OnAnimatorMove，否则 Unity 不再自动应用 Root。
 
     // 接收大脑 (Brain) 传来的指令
     public bool TryExecuteCommand(ICommand cmd)
@@ -183,13 +171,14 @@ public class CharacterBody : MonoBehaviour
 
     // --- 供 State 调用的公共方法举例 ---
     // 比如在移动状态中，需要让角色转身
-    public void RotateTowards(Vector3 direction, float speed)
+    // 水平转向（度/秒）。刚体冻结旋转后只改 transform，避免和插值抢 yaw
+    public void RotateYaw(Vector3 worldDir, float degreesPerSecond)
     {
-        if (direction.sqrMagnitude > 0.01f)
-        {
-            Quaternion targetRot = Quaternion.LookRotation(direction, Vector3.up);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * speed);
-        }
+        if (worldDir.sqrMagnitude < 0.01f) return;
+        worldDir.y = 0f;
+        if (worldDir.sqrMagnitude < 0.01f) return;
+        Quaternion target = Quaternion.LookRotation(worldDir.normalized, Vector3.up);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, target, degreesPerSecond * Time.deltaTime);
     }
 
     // 摇杆输入 → 世界移动方向（相机相对，原神式）：
@@ -391,11 +380,11 @@ public class CharacterBody : MonoBehaviour
         }
     }
 
-    // 喝葫芦（M16）：有次数且没满血才生效
+    // 喝葫芦（M16）：有次数就能喝；满血也播动画、扣次数，HP 加完仍封顶
     public bool UseGourd()
     {
         if (Config == null) return false;
-        if (GourdRemaining <= 0 || CurrentHP >= Config.MaxHP) return false;
+        if (GourdRemaining <= 0) return false;
 
         GourdRemaining--;
         CurrentHP = Mathf.Min(CurrentHP + Config.HealAmount, Config.MaxHP);
@@ -445,14 +434,13 @@ public class CharacterBody : MonoBehaviour
         CurrentPosture = 0f;
         IsPostureBroken = false;
 
+        CombatEventBus.TriggerLifeCleared(this, LivesRemaining);
+
         if (LivesRemaining <= 0)
         {
             CombatEventBus.TriggerVictory(this);
             return;
         }
-
-        // 还有命：满血续战（Boss 二条命），UI 熄一个忍杀灯
-        CombatEventBus.TriggerLifeCleared(this, LivesRemaining);
         CurrentHP = Config != null ? Config.MaxHP : CurrentHP;
         CombatEventBus.TriggerPostureChanged(this, 0f, Config != null ? Config.MaxPosture : 100f);
         CombatEventBus.TriggerHPChanged(this, CurrentHP, Config != null ? Config.MaxHP : 0);

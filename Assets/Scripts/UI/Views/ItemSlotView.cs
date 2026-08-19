@@ -19,6 +19,6 @@ public class ItemSlotView : UIView
     // 设置剩余数量
     public void SetGourdCount(int count)
     {
-        countText.text = count.ToString();
+        if (countText != null) countText.text = count.ToString();
     }
 }

@@ -2,66 +2,99 @@ using DG.Tweening;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 顶部居中 Boss 架势条：中心向两边双向增长
-// 只负责展示，数值由 CombatUIController 传入
+// 架势条：宽度映射架势。尖刺跟着条一起显示，不跟满条绑定。
+// 从未涨过架势 → 隐藏；涨过后归零，持续 5 秒再隐藏。
 public class BossPostureBarView : UIView
 {
     [Header("架势条")]
-    [SerializeField] private Image leftFill;   // 左半段（从中心向左填充）
-    [SerializeField] private Image rightFill;  // 右半段（从中心向右填充）
-    [SerializeField] private Image spike;      // 高亮时的边缘尖刺装饰（可选）
+    [SerializeField] private Image leftFill;
+    [SerializeField] private Image rightFill;
+    [SerializeField] private Image spike;
+    [SerializeField] private float hideDelay = 5f;
 
-    // 设置架势比例 (0~1)，从中心向两边同时增长
+    private float leftMaxWidth;
+    private float rightMaxWidth;
+    private bool everHadPosture;
+    private float zeroTimer;
+
+    public override void OnViewInit()
+    {
+        if (leftFill != null) leftMaxWidth = leftFill.rectTransform.sizeDelta.x;
+        if (rightFill != null) rightMaxWidth = rightFill.rectTransform.sizeDelta.x;
+        zeroTimer = 0f;
+        everHadPosture = false;
+        HideBar();
+    }
+
+    private void Update()
+    {
+        if (!everHadPosture) return;
+        if (zeroTimer <= 0f) return;
+
+        zeroTimer -= Time.deltaTime;
+        if (zeroTimer <= 0f) HideBar();
+    }
+
     public void SetPosture(float ratio)
     {
         ratio = Mathf.Clamp01(ratio);
+        SetWidth(leftFill, leftMaxWidth * ratio);
+        SetWidth(rightFill, rightMaxWidth * ratio);
 
-        // 双向增长：中心锚点，fillAmount 各占一半
-        if (leftFill != null)
-            leftFill.fillAmount = ratio;
-        if (rightFill != null)
-            rightFill.fillAmount = ratio;
+        if (ratio > 0.001f)
+        {
+            everHadPosture = true;
+            zeroTimer = 0f;
+            ShowBar();
+            return;
+        }
+
+        // 还没涨过架势：保持隐藏。涨过之后归零：开始 5 秒倒计时
+        if (everHadPosture) zeroTimer = hideDelay;
+        else HideBar();
     }
 
-    // 架势条快满时高亮：颜色变亮 + 边缘尖刺脉动
     public void SetDanger(bool isDanger)
     {
-        // 先杀掉残留动画，避免连续触发时叠加
-        leftFill.DOKill();
-        rightFill.DOKill();
-        if (spike != null) spike.DOKill();
+        if (leftFill != null) leftFill.DOKill();
+        if (rightFill != null) rightFill.DOKill();
 
         if (isDanger)
         {
-            // 颜色循环渐变制造"快崩了"的紧张感，来回往复
-            leftFill.DOColor(new Color(1f, 0.55f, 0.2f), 0.25f)
-                .SetLoops(-1, LoopType.Yoyo)
-                .SetEase(Ease.InOutSine);
-            rightFill.DOColor(new Color(1f, 0.55f, 0.2f), 0.25f)
-                .SetLoops(-1, LoopType.Yoyo)
-                .SetEase(Ease.InOutSine);
-
-            if (spike != null)
-            {
-                spike.gameObject.SetActive(true);
-                // 尖刺脉冲放大制造"濒临崩解"的视觉警告
-                spike.transform.DOScale(1.3f, 0.2f)
+            if (leftFill != null)
+                leftFill.DOColor(new Color(1f, 0.55f, 0.2f), 0.25f)
                     .SetLoops(-1, LoopType.Yoyo)
-                    .SetEase(Ease.InOutQuad);
-            }
+                    .SetEase(Ease.InOutSine);
+            if (rightFill != null)
+                rightFill.DOColor(new Color(1f, 0.55f, 0.2f), 0.25f)
+                    .SetLoops(-1, LoopType.Yoyo)
+                    .SetEase(Ease.InOutSine);
         }
         else
         {
-            // 恢复原色
-            leftFill.DOColor(Color.white, 0.2f);
-            rightFill.DOColor(Color.white, 0.2f);
-
-            if (spike != null)
-            {
-                spike.DOKill();
-                spike.transform.DOKill();
-                spike.gameObject.SetActive(false);
-            }
+            if (leftFill != null) leftFill.DOColor(Color.white, 0.2f);
+            if (rightFill != null) rightFill.DOColor(Color.white, 0.2f);
         }
+    }
+
+    private void ShowBar()
+    {
+        gameObject.SetActive(true);
+        if (spike != null) spike.gameObject.SetActive(true);
+    }
+
+    private void HideBar()
+    {
+        zeroTimer = 0f;
+        if (spike != null) spike.gameObject.SetActive(false);
+        gameObject.SetActive(false);
+    }
+
+    private static void SetWidth(Image img, float width)
+    {
+        if (img == null) return;
+        Vector2 size = img.rectTransform.sizeDelta;
+        size.x = width;
+        img.rectTransform.sizeDelta = size;
     }
 }

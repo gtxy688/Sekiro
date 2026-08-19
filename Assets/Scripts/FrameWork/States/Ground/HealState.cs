@@ -1,7 +1,7 @@
 using UnityEngine;
 
-// 喝葫芦状态（M16）：播喝药动画（占位名 Drink_Gourd），
-// 进入时立即结算回血（数据层 M2），动画期间可被打断（OnHitReceived 不拦截 → 被切 Stunned），
+// 喝葫芦状态（M16）：播喝药动画 Drink，
+// 进入时立即扣药回血（满血也可喝，HP 封顶），动画期间可被打断（OnHitReceived 不拦截 → 被切 Stunned），
 // 结束回待机。被打断 = 药已消耗（只狼同款：喝药被砍药水照样没）
 public class HealState : BaseState
 {
@@ -18,7 +18,7 @@ public class HealState : BaseState
     {
         timer = 0f;
 
-        // 先结算（GourdRemaining/HP），失败（没药/满血）直接退回
+        // 先扣药；没药才退回。满血也能喝（播 Drink、扣次数，血量封顶）
         if (!body.UseGourd())
         {
             parent.SubStateMachine.ChangeState(new IdleState(body, parent));
@@ -26,7 +26,7 @@ public class HealState : BaseState
         }
 
         // 播喝药动画（占位名，M8 接动画前）
-        body.Animator.CrossFade("Drink_Gourd", 0.1f);
+        body.Animator.CrossFade("Drink", 0.1f);
     }
 
     public override void OnUpdate()

@@ -10,10 +10,11 @@ public class CombatUIController : MonoBehaviour
 
     [Header("View 引用")]
     [SerializeField] private BossStatusView bossStatusView;        // 左上：红点+血条+名称
-    [SerializeField] private BossPostureBarView bossPostureBarView; // 顶部：Boss 架势条
-    [SerializeField] private PlayerStatusView playerStatusView;     // 左下：玩家血条+架势+回生
+    [SerializeField] private BossPostureBarView bossPostureBarView;   // 顶部：Boss 架势条
+    [SerializeField] private BossPostureBarView playerPostureBarView; // 左下：玩家架势条（与 Boss 同一套宽度映射）
+    [SerializeField] private PlayerStatusView playerStatusView;       // 左下：玩家血条+回生
     [SerializeField] private ItemSlotView itemSlotView;             // 右下：葫芦
-    [SerializeField] private LockOnIndicatorView lockOnIndicatorView; // Boss 身上锁定点
+    [SerializeField] private LockOnIndicatorView lockOnIndicatorView; // 屏幕锁定点，跟随 Boss Spine1
     [SerializeField] private PerilousWarningView perilousWarningView; // "危"字
     [SerializeField] private RevivePromptView revivePromptView;     // 回生提示（M14）
     [SerializeField] private GameOverView gameOverView;             // 死亡提示（M14）
@@ -59,23 +60,47 @@ public class CombatUIController : MonoBehaviour
         // 初始化各 View 的引用（替换 Awake 手动查找）
         bossStatusView?.OnViewInit();
         bossPostureBarView?.OnViewInit();
+        playerPostureBarView?.OnViewInit();
         playerStatusView?.OnViewInit();
         itemSlotView?.OnViewInit();
-        lockOnIndicatorView?.OnViewInit();
+        BindLockOnView();
         perilousWarningView?.OnViewInit();
         revivePromptView?.OnViewInit();
         gameOverView?.OnViewInit();
         victoryView?.OnViewInit();
 
-        // 初始状态
+        // 初始状态（Awake 里 InitCombat 不会发事件，这里把当前数值推到条上，否则开局血条/葫芦是空的）
         bossStatusView?.SetName("苇名弦一郎");
         bossStatusView?.SetLifeDots(bossBody != null && bossBody.Config != null ? bossBody.Config.LifeCount : 2);
         playerStatusView?.SetReviveDots(playerBody != null && playerBody.Config != null ? playerBody.Config.ReviveCount : 1);
+        PushCurrentStats(playerBody, isPlayer: true);
+        PushCurrentStats(bossBody, isPlayer: false);
+        if (playerBody != null)
+            itemSlotView?.SetGourdCount(playerBody.GourdRemaining);
 
         // 提示类视图初始隐藏
         revivePromptView?.Hide();
         gameOverView?.Hide();
         victoryView?.Hide();
+    }
+
+    private void PushCurrentStats(CharacterBody c, bool isPlayer)
+    {
+        if (c == null) return;
+        int maxHp = c.Config != null ? c.Config.MaxHP : 0;
+        float hpRatio = maxHp > 0 ? (float)c.CurrentHP / maxHp : 0f;
+        float maxPosture = c.Config != null ? c.Config.MaxPosture : 100f;
+        float postureRatio = maxPosture > 0f ? c.CurrentPosture / maxPosture : 0f;
+        if (isPlayer)
+        {
+            playerStatusView?.SetHP(hpRatio);
+            playerPostureBarView?.SetPosture(postureRatio);
+        }
+        else
+        {
+            bossStatusView?.SetHP(hpRatio);
+            bossPostureBarView?.SetPosture(postureRatio);
+        }
     }
 
     // ===== 事件处理 =====
@@ -104,8 +129,8 @@ public class CombatUIController : MonoBehaviour
         float ratio = maxPosture > 0f ? posture / maxPosture : 0f;
         if (c == playerBody)
         {
-            playerStatusView?.SetPosture(ratio);
-            playerStatusView?.SetDanger(ratio > 0.8f);
+            playerPostureBarView?.SetPosture(ratio);
+            playerPostureBarView?.SetDanger(ratio > 0.8f);
         }
         else if (c == bossBody)
         {
@@ -192,6 +217,38 @@ public class CombatUIController : MonoBehaviour
 
     private void HandleLockOnChanged(bool isLocked)
     {
+        if (lockOnIndicatorView == null)
+            BindLockOnView();
         lockOnIndicatorView?.SetLocked(isLocked);
+    }
+
+    // 场景里引用常被清空/脚本被关掉，运行时自己找并打开
+    private void BindLockOnView()
+    {
+        if (lockOnIndicatorView == null)
+        {
+            GameObject named = GameObject.Find("LockOnIndicator");
+            if (named != null)
+                lockOnIndicatorView = named.GetComponent<LockOnIndicatorView>();
+        }
+
+        if (lockOnIndicatorView == null)
+        {
+            LockOnIndicatorView[] views = FindObjectsOfType<LockOnIndicatorView>(true);
+            for (int i = 0; i < views.Length; i++)
+            {
+                if (views[i] != null && views[i].gameObject.scene.IsValid())
+                {
+                    lockOnIndicatorView = views[i];
+                    break;
+                }
+            }
+        }
+
+        if (lockOnIndicatorView == null) return;
+        lockOnIndicatorView.enabled = true;
+        lockOnIndicatorView.gameObject.SetActive(true);
+        lockOnIndicatorView.BindFollowTarget(bossBody);
+        lockOnIndicatorView.OnViewInit();
     }
 }

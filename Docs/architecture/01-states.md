@@ -123,12 +123,32 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 ### AttackState（攻击中被打）
 默认 false → 会被打断进 StunnedState（只狼里被打就是打断）。
 
-## 五、StunnedState 设计（已有，M4 收尾）
+## 五、取消规则（攻击前摇 / 格挡连按）
+
+命令仍走叶子 `HandleCommand`，不在 `GroundedState` 父层做取消表。
+
+### 攻击前摇
+
+- Hitbox：**进入 `AttackState` 即 `EnableWeaponHit`，退出即关**。刀碰到就算，不再等 `HitStartTime`。
+- 取消窗口仍用 `AttackConfig.HitStartTime`（秒）：`stateTimer < HitStartTime` 时 `DeflectCommand` → `DeflectState`，`DodgeCommand` → `DodgeState`。
+- 过了取消窗口：本刀锁死，格挡/垫步 `return false`，走 0.2s 输入缓冲。
+- `HitStartTime = 0`：进招不可取消（判定仍然一进攻击就开）。
+
+### 格挡取消
+
+- `DeflectState` 全程（抬刀 / 举刀 / `Deflect_Slash` / `Deflect_Cancel`）：
+  - `DeflectCommand` → 新的 `DeflectState`（重播抬刀、重开弹反窗口）
+  - `DodgeCommand` → `DodgeState`
+- 连按格挡会走 `RegisterDeflectPress` 抖刀惩罚（0.5s 内 ≥3 次，窗口 ×0.75，下限 0.1s）。
+- 垫步本身仍不可被打断。
+- **走着进格挡**：不播原地 `Deflect_Begin`（会掐步伐），约 0.22s 融合到 `Deflect_Walk` / `Deflect_Strafe` 并对齐步伐，抬刀靠这段融合。待机进格挡仍播抬刀，播完再进举刀循环。
+
+## 六、StunnedState 设计（已有，M4 收尾）
 
 - 顶层 HierarchicalState，`GetInitialSubState()` 统一进入 GroundStunnedState（空中受击已移除，空中被打也播地面受击）。
 - 受击期间 `OnParentHandleCommand` 返回 true 吞掉所有命令。
 
-## 六、处决/忍杀（M10）
+## 七、处决/忍杀（M10）
 
 - 架势崩解 → 对方进 EndureState（崩解硬直）。
 - 玩家进入攻击范围 → 交互键触发忍杀。
@@ -141,4 +161,6 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 - 修改：`Assets/Scripts/FrameWork/States/Base/HierarchicalState.cs`
 - 修改：`Assets/Scripts/FrameWork/Body/CharacterBody.cs`（ReceiveHit 实现）
 - 修改：`Assets/Scripts/FrameWork/States/Ground/DeflectState.cs`
+- 修改：`Assets/Scripts/FrameWork/States/Ground/AttackState.cs`（进攻击开判定 + 前摇取消）
+- 修改：`Assets/Scripts/SO/AttackConfig.cs`（`HitStartTime`）
 - 修改：`Assets/Scripts/FrameWork/States/StunnedState.cs`

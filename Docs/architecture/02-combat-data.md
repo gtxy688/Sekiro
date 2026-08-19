@@ -100,7 +100,7 @@ public void AccumulatePosture(float amount)
 ```csharp
 public bool UseGourd()
 {
-    if (GourdRemaining <= 0 || CurrentHP >= Config.maxHP) return false;
+    if (GourdRemaining <= 0) return false;
     GourdRemaining--;
     CurrentHP = Mathf.Min(CurrentHP + healAmount, Config.maxHP);
     CombatEventBus.TriggerGourdUsed(this);
@@ -109,6 +109,8 @@ public bool UseGourd()
 ```
 
 - HealCommand 由 GroundedState 拦截 → 调 UseGourd + 播喝药动画
+- 有药就能喝：满血也播动画、扣 1 次，HP 加完封顶
+- 没药才失败（不进动画）
 - 葫芦使用中不可移动/攻击（一个短喝药状态）
 
 ## 五、复活（M14）

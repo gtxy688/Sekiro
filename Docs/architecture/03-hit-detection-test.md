@@ -11,9 +11,9 @@
 | 玩家 | Capsule Collider（自带）+ `Hurtbox` 组件 | 刀身 + `Hitbox` 组件 |
 | Boss | Capsule Collider + `Hurtbox` 组件 | `sword_joint` 骨骼（或子空节点）+ `Hitbox` 组件 |
 
-> - **Hurtbox** = "我是目标"的标记，挂身体（跟 Capsule Collider 同一物体即可）
-> - **Hitbox** = 代码扫描器（不是碰撞体！），挂刀刃；刀**不需要** Collider
-> - **判定点**：刀刃中部的空节点（必须是骨骼/刀网格的**子级**，否则挥剑时判定点不跟刀动）；或直接挂武器骨骼 + 调大 castRadius
+> - **Hurtbox** = "我是目标"的标记，挂身体（跟 Capsule Collider 同一物体即可）。**碰撞体必须包住身体**，过小会导致部分刀（尤其 Attack2）扫空。
+> - **Hitbox** = 代码扫描器（不是碰撞体！），挂**武器中央**（刃中段）；刀**不需要** Collider。挂偏（柄/手骨/根）时第一刀可能碰巧中、后面刀漏。
+> - **判定点**：必须是骨骼/刀网格的**子级**，否则挥剑时判定点不跟刀动。
 
 ### 2. Hitbox 参数
 
@@ -43,6 +43,7 @@
 | 5 | 按 **L** 关闭判定后再扫 Boss | 无伤害 |
 | 6 | 玩家和 Boss 都开判定，双方武器相交 | `ReportClash` 触发：双方涨架势 + `TriggerWeaponDeflected`（打铁火花/音效，配了资源才看得到） |
 | 7 | 高速挥砍（动画快速摆动） | 能命中（上一帧→当前帧一段式扫描，防穿透） |
+| 7b | Attack1 打中后接 Attack2 | 第二刀也能打中（Hitbox 在武器中央 + Boss 碰撞体包住身体） |
 
 ## M17：危字攻击
 
@@ -54,7 +55,8 @@
 
 ## 常见问题
 
-- **扫不到敌人**：按 K 后检查 `castRadius` 是否太小、`targetLayers` 是否含对方层、判定点是否跟骨骼动（挂错层级会原地不动）
+- **扫不到敌人**：`castRadius` 是否太小、`targetLayers` 是否含对方层、**Hitbox 是否在武器中央**（挂错层级会原地不动或只扫空处）、**对方 Hurtbox 碰撞体是否包住身体**
+- **只有第一刀中、第二刀空**：优先查玩家 Hitbox 位置和 Boss 碰撞体大小
 - **敌人不掉血但进硬直**：看 `atk1.BaseDamage` 是不是 0（伤害数据全在 SO）
 - **一次挥砍多次伤害**：hitTargets 去重失效（检查 Enable 时是否 Clear）
 - **打到自己**：`ReportHit` 里 `attacker == target` 判断

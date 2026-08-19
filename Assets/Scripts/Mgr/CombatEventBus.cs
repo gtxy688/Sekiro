@@ -39,7 +39,7 @@ public static class CombatEventBus
     public static event Action<CharacterBody, int> OnLifeCleared;
     // 复活成功（角色）—— 隐藏回生提示（M14 UI）
     public static event Action<CharacterBody> OnRevived;
-    // 锁定状态变化（是否锁定）—— 锁定点 UI（M11）
+    // 锁定状态变化（是否锁定）—— 锁定点 UI + 相机模式切换（M11/M12）
     public static event Action<bool> OnLockOnChanged;
 
     // 1c. 战斗表现事件

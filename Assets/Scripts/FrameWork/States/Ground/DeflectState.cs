@@ -1,22 +1,31 @@
 using UnityEngine;
 
-// 防御/弹反状态（M4，方案 B：只狼式输入）
-//   短按（<0.15s）= 弹反：进入即开始弹反窗口（默认 0.3s，抖刀惩罚可缩短），松手播甩刀动画
-//   长按（≥0.15s）= 格挡：持续举刀防御，不扣血只涨架势（×GuardPostureFactor）
-//   完美弹反：攻击者涨架势（DeflectPostureGain）+ 被弹开硬直（ForceParryStun）；
-//             自己涨少量架势（×DeflectSelfPostureFactor）但永不因此崩防
-//   危字攻击：防御/弹反无效，放行硬吃（策划案 4.5）
+// 防御状态（M4）：短按/长按都是格挡。
+//   待机按下 → Deflect_Begin（抬刀）→ 静止 Deflect_Guard / 移动 Deflect_Walk|Deflect_Strafe
+//   走着按下 → 跳过抬刀，直接进移动格挡（对齐当前步伐，避免根运动被掐断抽搐）
+//   窗口内挡住 → Deflect_Slash；窗口外挡住 → 普通格挡受击
+//   长按松手 → Deflect_Cancel（收刀）；短按松手姿态不变，窗口结束回待机
 public class DeflectState : BaseState
 {
     private HierarchicalState parent;
-    private float enterTime;        // 进入时间（弹反窗口起点）
-    private float window;           // 有效弹反窗口（含抖刀惩罚）
-    private bool hasReleased;       // 短按后已松手：甩刀动画播完窗口结束就回待机
-    private float guardFlinchTimer; // >0 正在播格挡受击动画，结束后回格挡姿态
+    private float enterTime;
+    private float window;
+    private bool hasReleased;
+    private float guardFlinchTimer;
+    private float beginTimer;
+    private float beginFailsafe = 0.55f;
+    private bool inBegin;
+    private const float RaiseBlend = 0.22f; // 走着进格挡：用固定时长融合做出抬刀，不播原地 Begin
+    private float cancelTimer;
+    private float cancelDuration = 0.3f;
+    private bool canceling;
+    private string currentLoopAnim;
+    private float rotationSpeed = 720f;
 
     public DeflectState(CharacterBody body, HierarchicalState parent) : base(body)
     {
         this.parent = parent;
+        if (body.Config != null) rotationSpeed = body.Config.RotationSpeed;
     }
 
     public override void OnEnter()
@@ -24,31 +33,71 @@ public class DeflectState : BaseState
         enterTime = Time.time;
         hasReleased = false;
         guardFlinchTimer = 0f;
+        beginTimer = 0f;
+        cancelTimer = 0f;
+        canceling = false;
+        currentLoopAnim = null;
 
-        // 抖刀惩罚登记（0.5s 内连点 ≥3 次 → 窗口 ×0.75，下限 0.1s），并取当前窗口
         body.RegisterDeflectPress();
         window = body.GetDeflectWindow();
-
-        // 格挡姿态（举刀）动画（占位名，M8 接动画前）
-        body.Animator.CrossFade("Deflect_Guard", 0.05f);
-
-        // 格挡标记：架势回复 ×5（M9）
         body.IsGuarding = true;
+
+        // 走着进格挡：不播原地抬刀（会掐步伐），用较长融合把走路姿势接到举刀走，刀是抬起来的
+        if (IsPlayingLocomotion())
+        {
+            inBegin = false;
+            UpdateStrafeParams(instant: true);
+            PlayGuardLoop(force: true, matchCycle: true, blendSeconds: RaiseBlend);
+        }
+        else
+        {
+            inBegin = true;
+            body.Animator.CrossFadeInFixedTime("Deflect_Begin", 0.12f);
+        }
     }
 
     public override void OnUpdate()
     {
-        // 格挡受击的顿挫动画播完 → 回格挡姿态
-        if (guardFlinchTimer > 0f)
+        if (canceling)
         {
-            guardFlinchTimer -= Time.deltaTime;
-            if (guardFlinchTimer <= 0f)
+            cancelTimer += Time.deltaTime;
+            var cancelInfo = body.Animator.GetCurrentAnimatorStateInfo(0);
+            if ((AnimUtil.IsPlaying(cancelInfo, "Deflect_Cancel") && cancelInfo.normalizedTime >= 0.95f)
+                || cancelTimer >= cancelDuration)
             {
-                body.Animator.CrossFade("Deflect_Guard", 0.05f);
+                parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+            }
+            return;
+        }
+
+        if (inBegin)
+        {
+            beginTimer += Time.deltaTime;
+            var beginInfo = body.Animator.GetCurrentAnimatorStateInfo(0);
+            if ((AnimUtil.IsPlaying(beginInfo, "Deflect_Begin") && beginInfo.normalizedTime >= 0.92f)
+                || beginTimer >= beginFailsafe)
+            {
+                inBegin = false;
+                PlayGuardLoop(force: true);
             }
         }
 
-        // 短按已松手且弹反窗口结束 → 回待机
+        UpdateStrafeParams(instant: false);
+
+        if (guardFlinchTimer > 0f)
+        {
+            guardFlinchTimer -= Time.deltaTime;
+            if (guardFlinchTimer <= 0f && !hasReleased && !inBegin)
+            {
+                PlayGuardLoop(force: true);
+            }
+        }
+        else if (!inBegin && !hasReleased)
+        {
+            PlayGuardLoop(force: false);
+            RotateIfMoving();
+        }
+
         if (hasReleased && Time.time - enterTime >= window)
         {
             parent.SubStateMachine.ChangeState(new IdleState(body, parent));
@@ -62,40 +111,53 @@ public class DeflectState : BaseState
 
     public override bool HandleCommand(ICommand cmd)
     {
-        // 松手（PlayerBrain 在 Deflect.canceled 发 IdleCommand）
+        // 格挡全程可被再格挡（刷新窗口 + 抖刀计数）或垫步取消，含抬刀/举刀/弹刀成功/收刀
+        if (cmd is DeflectCommand)
+        {
+            parent.SubStateMachine.ChangeState(new DeflectState(body, parent));
+            return true;
+        }
+
+        if (cmd is DodgeCommand)
+        {
+            parent.SubStateMachine.ChangeState(new DodgeState(body, parent));
+            return true;
+        }
+
+        if (canceling) return true;
+
+        if (cmd is MoveCommand moveCmd)
+        {
+            body.MoveDirection = moveCmd.Direction;
+            return true;
+        }
+
         if (cmd is IdleCommand)
         {
             float held = Time.time - enterTime;
             if (held < 0.15f)
             {
-                // 短按 → 弹反甩刀动画，窗口保持到结束再回待机
                 hasReleased = true;
-                body.Animator.CrossFade("Deflect_Slash", 0.05f);
             }
             else
             {
-                // 长按松手 → 直接回待机
-                parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+                StartCancel();
             }
             return true;
         }
 
-        // 防御姿态期间吞掉其他所有命令（移动/攻击都不可用）
         return true;
     }
 
-    // 受击拦截（M4 核心）
     public override bool OnHitReceived(HitData hit)
     {
-        // 危字攻击（突刺/横扫）不可防御：放行硬吃（策划案 4.5）
         if (hit.isPerilous) return false;
+        if (canceling) return false;
 
         float elapsed = Time.time - enterTime;
 
-        // ===== 弹反窗口内 → 完美弹反 =====
         if (elapsed <= window)
         {
-            // 1. 攻击者涨架势（只狼核心：完美弹反反噬架势）+ 被弹开硬直
             if (hit.attacker != null)
             {
                 float gain = body.Config != null ? body.Config.DeflectPostureGain : 30f;
@@ -103,27 +165,131 @@ public class DeflectState : BaseState
                 hit.attacker.ForceParryStun();
             }
 
-            // 2. 自己涨少量架势，但永不因此崩防（allowBreak=false）
             float self = hit.postureDmg * (body.Config != null ? body.Config.DeflectSelfPostureFactor : 0.3f);
             body.AccumulatePosture(self, allowBreak: false);
 
-            // 3. 表现：完美弹反音效/火花 + 顿帧 + 轻震屏
+            inBegin = false;
+            currentLoopAnim = null;
+            body.Animator.CrossFade("Deflect_Slash", 0.05f);
+            guardFlinchTimer = 0.25f;
+
             CombatEventBus.TriggerWeaponDeflected(hit.hitPoint, DeflectType.Perfect);
             CombatEventBus.TriggerCameraShake(0.3f);
             CombatManager.Instance?.HitStop();
             return true;
         }
 
-        // ===== 窗口外 → 普通格挡（长按中）=====
-        // 不扣血，只涨架势（比例系数），留在防御姿态
         float posture = hit.postureDmg * (body.Config != null ? body.Config.GuardPostureFactor : 0.5f);
         body.AccumulatePosture(posture);
 
-        // 格挡受击顿挫动画：走受击动画映射接口（HurtContext.Guard，留空回退普通受击）
+        inBegin = false;
+        currentLoopAnim = null;
         body.Animator.CrossFade(body.ResolveHurtAnim(HurtContext.Guard), 0.03f);
         guardFlinchTimer = 0.25f;
 
         CombatEventBus.TriggerWeaponDeflected(hit.hitPoint, DeflectType.Normal);
         return true;
+    }
+
+    private void StartCancel()
+    {
+        canceling = true;
+        inBegin = false;
+        cancelTimer = 0f;
+        currentLoopAnim = null;
+        body.Animator.CrossFade("Deflect_Cancel", 0.05f);
+    }
+
+    private void PlayGuardLoop(bool force, bool matchCycle = false, float blendSeconds = 0.08f)
+    {
+        bool moving = body.MoveDirection.sqrMagnitude > 0.01f;
+        string want = moving
+            ? (IsLockedOnTarget() ? "Deflect_Strafe" : "Deflect_Walk")
+            : "Deflect_Guard";
+        if (!force && want == currentLoopAnim) return;
+
+        float startAt = 0f;
+        if (matchCycle)
+        {
+            var info = body.Animator.GetCurrentAnimatorStateInfo(0);
+            startAt = (info.normalizedTime % 1f) * info.length;
+        }
+
+        currentLoopAnim = want;
+        body.Animator.CrossFadeInFixedTime(want, blendSeconds, 0, startAt);
+    }
+
+    private void RotateIfMoving()
+    {
+        Vector2 inputDir = body.MoveDirection;
+        if (inputDir.sqrMagnitude < 0.01f) return;
+
+        Vector3 moveDir;
+        if (IsLockedOnTarget())
+        {
+            Vector3 toBoss = LockOnManager.Instance.Target.position - body.transform.position;
+            toBoss.y = 0f;
+            moveDir = toBoss.sqrMagnitude > 0.001f ? toBoss.normalized : body.transform.forward;
+        }
+        else
+        {
+            moveDir = body.InputToWorldDir(inputDir);
+        }
+
+        body.RotateYaw(moveDir, rotationSpeed);
+    }
+
+    private void UpdateStrafeParams(bool instant)
+    {
+        if (!IsLockedOnTarget()) return;
+
+        Vector3 world = body.InputToWorldDir(body.MoveDirection);
+        Vector3 toBoss = LockOnManager.Instance.Target.position - body.transform.position;
+        toBoss.y = 0f;
+        if (toBoss.sqrMagnitude < 0.001f)
+        {
+            SetStrafe(0f, 0f, instant);
+            return;
+        }
+
+        toBoss.Normalize();
+        Vector3 right = Vector3.Cross(Vector3.up, toBoss);
+        SetStrafe(Vector3.Dot(world, right), Vector3.Dot(world, toBoss), instant);
+    }
+
+    private void SetStrafe(float x, float z, bool instant)
+    {
+        if (instant)
+        {
+            body.Animator.SetFloat("MoveX", x);
+            body.Animator.SetFloat("MoveZ", z);
+        }
+        else
+        {
+            body.Animator.SetFloat("MoveX", x, 0.1f, Time.deltaTime);
+            body.Animator.SetFloat("MoveZ", z, 0.1f, Time.deltaTime);
+        }
+    }
+
+    private bool IsPlayingLocomotion()
+    {
+        var anim = body.Animator;
+        if (IsLocomotion(anim.GetCurrentAnimatorStateInfo(0))) return true;
+        return anim.IsInTransition(0) && IsLocomotion(anim.GetNextAnimatorStateInfo(0));
+    }
+
+    private static bool IsLocomotion(AnimatorStateInfo info)
+    {
+        return AnimUtil.IsPlaying(info, "Walk")
+            || AnimUtil.IsPlaying(info, "Walk_Strafe")
+            || AnimUtil.IsPlaying(info, "IdleToWalk")
+            || AnimUtil.IsPlaying(info, "IdleToStrafe")
+            || AnimUtil.IsPlaying(info, "DodgeToWalk");
+    }
+
+    private static bool IsLockedOnTarget()
+    {
+        return LockOnManager.Instance != null && LockOnManager.Instance.IsLockedOn
+            && LockOnManager.Instance.Target != null;
     }
 }
