@@ -123,6 +123,16 @@ public static class LockOnCameraBuilder
         composer.m_SoftZoneHeight = 0.8f;
         EditorUtility.SetDirty(lockVcam);
 
+        CinemachineCollider lockCollider = lockVcam.GetComponent<CinemachineCollider>();
+        if (lockCollider == null)
+            lockCollider = lockVcam.gameObject.AddComponent<CinemachineCollider>();
+        lockCollider.m_AvoidObstacles = true;
+        lockCollider.m_CollideAgainst = (1 << 0) | (1 << 3);
+        lockCollider.m_TransparentLayers = (1 << 5) | (1 << 6) | (1 << 7);
+        lockCollider.m_Strategy = CinemachineCollider.ResolutionStrategy.PreserveCameraHeight;
+        lockCollider.m_CameraRadius = 0.25f;
+        EditorUtility.SetDirty(lockCollider);
+
         Undo.RecordObject(brain, "Brain LateUpdate blend");
         brain.m_UpdateMethod = CinemachineBrain.UpdateMethod.LateUpdate;
         brain.m_BlendUpdateMethod = CinemachineBrain.BrainUpdateMethod.LateUpdate;

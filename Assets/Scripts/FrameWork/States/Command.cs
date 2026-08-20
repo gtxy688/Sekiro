@@ -8,7 +8,8 @@ public enum HurtContext
 {
     Normal,      // 裸吃普通攻击
     Heavy,       // 强力招式（击退更强/击飞）
-    Guard,       // 格挡中受击（小硬直）
+    Guard,       // 格挡轻攻击
+    GuardHeavy,  // 格挡重攻击（Knockback > 0）
     Deflected    // 被完美弹反后的硬直（攻击者播）
 }
 

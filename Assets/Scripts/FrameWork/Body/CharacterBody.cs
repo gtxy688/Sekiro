@@ -15,6 +15,8 @@ public class CharacterBody : MonoBehaviour
 
     // 3. 移动意图：无论是手柄摇杆推的，还是 Boss AI 寻路计算的，都写到这里
     public Vector3 MoveDirection { get; set; }
+    // Boss AI 给的是世界 XZ；玩家输入是相机相对。MoveState 据此选转向
+    public bool MoveUsesWorldDir { get; set; }
 
     // 4. 物理状态 (Body 负责检测，State 读取)
     public bool IsGrounded { get; private set; }
@@ -237,6 +239,11 @@ public class CharacterBody : MonoBehaviour
                 case HurtContext.Normal:    name = Config.HurtAnim_Normal; break;
                 case HurtContext.Heavy:     name = string.IsNullOrEmpty(Config.HurtAnim_Heavy) ? Config.HurtAnim_Normal : Config.HurtAnim_Heavy; break;
                 case HurtContext.Guard:     name = string.IsNullOrEmpty(Config.HurtAnim_Guard) ? Config.HurtAnim_Normal : Config.HurtAnim_Guard; break;
+                case HurtContext.GuardHeavy:
+                    if (!string.IsNullOrEmpty(Config.HurtAnim_GuardHeavy)) name = Config.HurtAnim_GuardHeavy;
+                    else if (!string.IsNullOrEmpty(Config.HurtAnim_Guard)) name = Config.HurtAnim_Guard;
+                    else name = Config.HurtAnim_Normal;
+                    break;
                 case HurtContext.Deflected: name = string.IsNullOrEmpty(Config.HurtAnim_Deflected) ? Config.HurtAnim_Normal : Config.HurtAnim_Deflected; break;
             }
             if (!string.IsNullOrEmpty(name)) return name;

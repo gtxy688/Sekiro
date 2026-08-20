@@ -103,16 +103,18 @@ Selector 同理，遇到 Success 记住索引；Running 记住索引。
 距离 ≤ 3m  → 贴身战（横砍+转身/踢一脚）+ 跳跃下刺
 ```
 
-### 行为树骨架
+> 当前实现是**简单版**（追击 + 隔一会儿砍一刀 + 你挥刀时格挡），用来看手感。完整弦一郎三层（连段/射箭/飞舟/交锋变招）尚未接上。
+
+### 简单树
 
 ```
-Selector（优先级从高到低）:
-├─ 距离条件 → BT_Combo（近战连段，内部维护第几刀）
-├─ 距离条件 → BT_BowShot（射箭）
-├─ 距离 > 7 → BT_MoveToTarget（追击）
-└─ 防御反制组
-   └─ Sequence: 玩家连续攻击 → BT_Deflect（招架）
+Selector:
+├─ 玩家正在攻击 且 距离 ≤ deflectRange 且 格挡冷却好了 → BT_Deflect
+├─ 距离 ≤ attackRange 且 攻击冷却好了 → BT_HitOnce（一刀，等 AttackState 结束）
+└─ BT_MoveToTarget（世界方向追玩家，到距离后停下并转向）
 ```
+
+Inspector：`attackRange` 默认 3、`attackCooldown` 默认 2.5、`deflectRange` 默认 2.5。场景里必须拖 `PlayerTarget` / `PlayerBody`。
 
 > 保留：Boss 有危字招式 `BT_Thrust`（突刺，识破反制）/`BT_Sweep`（横扫，跳踩反制），M7 实现时补进树（招式细节暂缓）。
 
@@ -153,7 +155,7 @@ blackboard["lastComboIndex"]     = 连段当前第几刀
 - 修改：`Assets/Scripts/Boss/BehaviourTree/Selector.cs`（Running 记忆）
 - 修改：`Assets/Scripts/Boss/BehaviourTree/BT/BT_MoveToTarget.cs`（黑板）
 - 修改：`Assets/Scripts/Boss/BehaviourTree/BT/BT_Attack.cs`（黑板）
-- 新建：`Assets/Scripts/Boss/BehaviourTree/BT/BT_Combo.cs`
+- 新建：`Assets/Scripts/Boss/BehaviourTree/BT/BT_HitOnce.cs`
 - 新建：`Assets/Scripts/Boss/BehaviourTree/BT/BT_BowShot.cs`
 - 新建：`Assets/Scripts/Boss/BehaviourTree/BT/BT_Deflect.cs`
 - 修改：`Assets/Scripts/Boss/BTBrain.cs`（黑板注入 + 完整树）

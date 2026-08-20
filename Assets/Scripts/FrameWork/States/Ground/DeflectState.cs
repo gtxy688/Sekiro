@@ -3,11 +3,13 @@ using UnityEngine;
 // 防御状态（M4）：短按/长按都是格挡。
 //   待机按下 → Deflect_Begin（抬刀）→ 静止 Deflect_Guard / 移动 Deflect_Walk|Deflect_Strafe
 //   走着按下 → 跳过抬刀，直接进移动格挡（对齐当前步伐，避免根运动被掐断抽搐）
+//   格挡中再按 → Deflect_Repeat（抖刀），刷新弹反窗口；没有 Repeat 状态则回退抬刀
 //   窗口内挡住 → Deflect_Slash；窗口外挡住 → 普通格挡受击
 //   长按松手 → Deflect_Cancel（收刀）；短按松手姿态不变，窗口结束回待机
 public class DeflectState : BaseState
 {
     private HierarchicalState parent;
+    private readonly bool remash;
     private float enterTime;
     private float window;
     private bool hasReleased;
@@ -15,6 +17,7 @@ public class DeflectState : BaseState
     private float beginTimer;
     private float beginFailsafe = 0.55f;
     private bool inBegin;
+    private string raiseAnim;
     private const float RaiseBlend = 0.22f; // 走着进格挡：用固定时长融合做出抬刀，不播原地 Begin
     private float cancelTimer;
     private float cancelDuration = 0.3f;
@@ -22,9 +25,10 @@ public class DeflectState : BaseState
     private string currentLoopAnim;
     private float rotationSpeed = 720f;
 
-    public DeflectState(CharacterBody body, HierarchicalState parent) : base(body)
+    public DeflectState(CharacterBody body, HierarchicalState parent, bool remash = false) : base(body)
     {
         this.parent = parent;
+        this.remash = remash;
         if (body.Config != null) rotationSpeed = body.Config.RotationSpeed;
     }
 
@@ -42,16 +46,25 @@ public class DeflectState : BaseState
         window = body.GetDeflectWindow();
         body.IsGuarding = true;
 
-        // 走着进格挡：不播原地抬刀（会掐步伐），用较长融合把走路姿势接到举刀走，刀是抬起来的
-        if (IsPlayingLocomotion())
+        // 格挡中再按：抖刀，不要重播抬刀。没有 Repeat Clip（Boss）则走原来的抬刀/走路融合
+        if (remash && AnimUtil.HasState(body.Animator, "Deflect_Repeat"))
         {
+            inBegin = true;
+            raiseAnim = "Deflect_Repeat";
+            body.Animator.CrossFadeInFixedTime("Deflect_Repeat", 0.05f);
+        }
+        else if (IsPlayingLocomotion())
+        {
+            // 走着进格挡：不播原地抬刀（会掐步伐），用较长融合把走路姿势接到举刀走
             inBegin = false;
+            raiseAnim = null;
             UpdateStrafeParams(instant: true);
             PlayGuardLoop(force: true, matchCycle: true, blendSeconds: RaiseBlend);
         }
         else
         {
             inBegin = true;
+            raiseAnim = "Deflect_Begin";
             body.Animator.CrossFadeInFixedTime("Deflect_Begin", 0.12f);
         }
     }
@@ -74,7 +87,7 @@ public class DeflectState : BaseState
         {
             beginTimer += Time.deltaTime;
             var beginInfo = body.Animator.GetCurrentAnimatorStateInfo(0);
-            if ((AnimUtil.IsPlaying(beginInfo, "Deflect_Begin") && beginInfo.normalizedTime >= 0.92f)
+            if ((raiseAnim != null && AnimUtil.IsPlaying(beginInfo, raiseAnim) && beginInfo.normalizedTime >= 0.92f)
                 || beginTimer >= beginFailsafe)
             {
                 inBegin = false;
@@ -114,7 +127,7 @@ public class DeflectState : BaseState
         // 格挡全程可被再格挡（刷新窗口 + 抖刀计数）或垫步取消，含抬刀/举刀/弹刀成功/收刀
         if (cmd is DeflectCommand)
         {
-            parent.SubStateMachine.ChangeState(new DeflectState(body, parent));
+            parent.SubStateMachine.ChangeState(new DeflectState(body, parent, remash: true));
             return true;
         }
 
@@ -184,7 +197,8 @@ public class DeflectState : BaseState
 
         inBegin = false;
         currentLoopAnim = null;
-        body.Animator.CrossFade(body.ResolveHurtAnim(HurtContext.Guard), 0.03f);
+        HurtContext guardHurt = hit.knockback > 0f ? HurtContext.GuardHeavy : HurtContext.Guard;
+        body.Animator.CrossFade(body.ResolveHurtAnim(guardHurt), 0.03f);
         guardFlinchTimer = 0.25f;
 
         CombatEventBus.TriggerWeaponDeflected(hit.hitPoint, DeflectType.Normal);

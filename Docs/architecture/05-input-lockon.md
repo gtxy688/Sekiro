@@ -86,7 +86,8 @@ public class LockOnManager : MonoBehaviour
        // 面向 dir，位移仍按摇杆输入
    }
    ```
-2. **相机**：`OnLockOnChanged` 驱动 M12 `CameraController` 切 VCam（FreeLook ↔ 锁定第三人称跟随），见 `06-presentation.md`。
+2. **DodgeState**：锁定中按相对 Boss 的输入切四向一次性垫步（`Dodge_Forward` / `Dodge_Back` / `Dodge_Left` / `Dodge_Right`），无输入后垫；未锁定仍用 `Dodge`。不要融合树。
+3. **相机**：`OnLockOnChanged` 驱动 M12 `CameraController` 切 VCam（FreeLook ↔ 锁定第三人称跟随），见 `06-presentation.md`。
 
 ### 锁定点 UI
 
@@ -99,3 +100,4 @@ public class LockOnManager : MonoBehaviour
 - 修改：`Assets/Scripts/Player/Brain/PlayerBrain.cs`（按键绑定）
 - 新建：`Assets/Scripts/Player/Control/LockOnManager.cs`
 - 修改：`Assets/Scripts/FrameWork/States/Ground/MoveState.cs`（锁定面向）
+- 修改：`Assets/Scripts/FrameWork/States/Ground/DodgeState.cs`（锁定四向垫步）

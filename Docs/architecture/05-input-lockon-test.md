@@ -18,7 +18,8 @@
 | 3 | 攻击中快速连按左键 | 连招预输入：在 `ComboWindowStart~End` 窗口内按下 → 切到 `NextCombo` 配置的下一段（需要 atk1.asset 的 NextCombo 链配好） |
 | 4 | 按空格 | 跳起切 AirState：先播 `Jump`（起跳，上升由动画 Root 驱动），过最高点自动切 `Fall`（下落） |
 | 5 | 鼠标右键**按住** | 进 DeflectState（防御/盾反姿态）；**松手** → 自动回待机（PlayerBrain 在松手时发 IdleCommand） |
-| 6 | 按 Shift | 垫步：位移由垫步动画 Root 驱动，`Config.DodgeDuration` 秒后回待机 |
+| 6 | 未锁定按 Shift | 播 `Dodge`，位移由垫步动画 Root 驱动，`Config.DodgeDuration` 秒后回待机 |
+| 6b | 锁定后 W/S/A/D + Shift | 分别播 `Dodge_Forward` / `Dodge_Back` / `Dodge_Left` / `Dodge_Right`，身体朝 Boss；无方向只按 Shift → `Dodge_Back` |
 | 7 | 按 R（血量不满时） | 葫芦生效：回血 `Config.HealAmount` + 葫芦数量减 1 |
 | 8 | 受击硬直中按攻击 | 命令进缓冲池（0.2s），硬直结束**立即执行**（预输入） |
 | 9 | 受击硬直中按移动/攻击/跳 | 全部被吞（StunnedState 拦截），硬直内不能动 |

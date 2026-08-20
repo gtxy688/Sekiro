@@ -20,7 +20,8 @@ public class CharacterConfig : ScriptableObject
     [Header("受击动画（接口预留，留空 = 回退到普通受击动画）")]
     public string HurtAnim_Normal = "Hurt_Ground";     // 裸吃普通攻击
     public string HurtAnim_Heavy = "";                 // 强力招式（击飞/倒地），空则用 HurtAnim_Normal
-    public string HurtAnim_Guard = "";                 // 格挡中受击，空则用 HurtAnim_Normal
+    public string HurtAnim_Guard = "Hurt_Guard";       // 格挡轻攻击，空则用 HurtAnim_Normal
+    public string HurtAnim_GuardHeavy = "Hurt_GuardHeavy"; // 格挡重攻击（Knockback>0），空则用 HurtAnim_Guard
     public string HurtAnim_Deflected = "";             // 被完美弹反后的硬直，空则用 HurtAnim_Normal
     public string HurtAnim_Broken = "Stagger_Broken";  // 架势崩解倒地（占位名）
 

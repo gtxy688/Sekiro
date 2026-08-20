@@ -136,11 +136,13 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 
 ### 格挡取消
 
-- `DeflectState` 全程（抬刀 / 举刀 / `Deflect_Slash` / `Deflect_Cancel`）：
-  - `DeflectCommand` → 新的 `DeflectState`（重播抬刀、重开弹反窗口）
+- `DeflectState` 全程（抬刀 / 举刀 / 抖刀 / `Deflect_Slash` / `Deflect_Cancel`）：
+  - `DeflectCommand` → 新的 `DeflectState`（重开弹反窗口；再按播 `Deflect_Repeat`，没有该状态则回退抬刀）
   - `DodgeCommand` → `DodgeState`
 - 连按格挡会走 `RegisterDeflectPress` 抖刀惩罚（0.5s 内 ≥3 次，窗口 ×0.75，下限 0.1s）。
 - 垫步本身仍不可被打断。
+- **锁定垫步**：`DodgeState` 按相对 Boss 的输入取最近四向，播一次性状态 `Dodge_Forward` / `Dodge_Back` / `Dodge_Left` / `Dodge_Right`。无输入默认后垫。斜向取绝对值更大的轴。不要用融合树（一次性 Root 混在一起会斜着滑）。未锁定仍播 `Dodge`。
+- **起步**：`IdleToWalk` / `IdleToStrafe` / `DodgeToWalk` 若 Animator 里没有对应状态，直接播 `Walk` / `Walk_Strafe`（Boss 没有 `IdleToWalk` 即可）。
 - **走着进格挡**：不播原地 `Deflect_Begin`（会掐步伐），约 0.22s 融合到 `Deflect_Walk` / `Deflect_Strafe` 并对齐步伐，抬刀靠这段融合。待机进格挡仍播抬刀，播完再进举刀循环。
 
 ## 六、StunnedState 设计（已有，M4 收尾）
@@ -160,6 +162,7 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 - 修改：`Assets/Scripts/FrameWork/States/Base/BaseState.cs`
 - 修改：`Assets/Scripts/FrameWork/States/Base/HierarchicalState.cs`
 - 修改：`Assets/Scripts/FrameWork/Body/CharacterBody.cs`（ReceiveHit 实现）
+- 修改：`Assets/Scripts/FrameWork/States/Ground/DodgeState.cs`（锁定四向垫步）
 - 修改：`Assets/Scripts/FrameWork/States/Ground/DeflectState.cs`
 - 修改：`Assets/Scripts/FrameWork/States/Ground/AttackState.cs`（进攻击开判定 + 前摇取消）
 - 修改：`Assets/Scripts/SO/AttackConfig.cs`（`HitStartTime`）

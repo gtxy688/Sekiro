@@ -19,8 +19,9 @@
 | 1c | 不锁定，只转鼠标、人站死 | 不抖、不糊 |
 | 2 | 中键锁定 Boss | 约 0.6s 从当前机位滑到锁定相机：镜头到角色背后（略偏肩），看向 Boss；角色面朝 Boss。不应硬切、穿地或突然变焦 |
 | 3 | 锁定后 WASD | 围着 Boss strafe，不是「相对自由镜头」平移；镜头跟着人-敌轴向转、始终盯着 Boss；走位同样清晰不糊 |
+| 3b | 锁定后贴墙 / 墙角走 | 镜头被墙挡住时应往前收到墙外，不穿进场景。墙没有碰撞体则避不了 |
 | 4 | 锁定时动鼠标 | 不再 FreeLook 独立环绕（环绕输入已关） |
-| 5 | 再按中键解锁 | 同样约 0.6s 滑回 FreeLook；WASD 重新相对相机 |
+| 5 | 再按中键解锁 | 镜头留在**角色背后**接着当 FreeLook，不甩到侧方、也不回到锁定前的环绕角；WASD 重新相对相机 |
 | 6 | Boss 死亡时若仍锁定 | 自动解锁并切回 FreeLook |
 | 7 | 弹反成功 | 屏幕轻微震动（`CameraShake`） |
 | 8 | Boss 崩解/处决 | 震屏（强度更大） |
@@ -59,12 +60,13 @@
 ## 常见问题
 
 - **切镜硬切 / 穿地 / 突然变焦**：Brain 混合不是 EaseInOut 0.6s；或没开 Inherit Position / Cylindrical Position；或锁定 VCam 的 FOV 和 FreeLook 不一致。调 `CameraController.Blend Time`（更快 0.45，更软 0.8）。
+- **锁定镜头穿墙**：`LockOn Camera` 要有 `CinemachineCollider`；墙需 Default/Ground 且带碰撞体。没碰撞体只能换地图或给墙加 MeshCollider。不要把 Hurtbox 勾进 Obstacle Layers。
 - **相机锁定切换失灵**：Main Camera 没挂 `CameraController`，或没订阅 `OnLockOnChanged`；Priority 没切。
 - **锁定后仍是 FreeLook 绕圈**：锁定 VCam 没生成 / Priority 没高于 FreeLook。菜单 **Tools/战斗/生成锁定相机** 后再 Play。
 - **锁定后镜头不架在人背后**：`CameraFollowTarget` 锁定时没朝 Boss（`SetYawTarget`）；或锁定 VCam 的 Follow 拖成了玩家根（会吃动画 yaw，镜头拧）。Follow 应是 `CameraFollowTarget`，Look At 才是 Boss。
 - **走路发糊 / 老花眼**：FreeLook Rig 的 **X Damping > 0**，或 Heading **Velocity Filter > 0**，或给跟随点加了位置平滑。应阻尼全 0、滤波 0、跟随点硬贴位置。
 - **侧向走镜头狂抖、调大 DeadZone 人又不居中**：Aim 还在用 Composer 跟步伐拉锯。三个 Rig 改成 **Hard Look At**，Follow/Look At 用 `CameraFollowTarget`。
-- **镜头跟着角色 yaw 拧**：Binding 不是 World Space，或 Follow 拖了玩家根。
+- **解锁后镜头绕到角色侧方 / 绕回锁定前角度**：混合期间锁定相机仍 live。跟随点 yaw 必须等 `Brain.IsBlending` 结束后再清。提前清会让混合起点甩到世界 -Z。
 - **UI 不更新**：CombatUIController 没订阅事件，或订阅了没取消（OnDisable）。
 - **架势条不双向**：Fill 方式用的单边，改成 Center 镜像填充。
 - **没声音**：AudioManager 没订阅，或 AudioClip 没拖。

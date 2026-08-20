@@ -46,18 +46,19 @@ OnLockOnChanged(bool isLocked)        // 锁定点 UI + 相机 VCam 切换（M11
 - 第二台 `CinemachineVirtualCamera`（`LockOn Camera`），**不用 FreeLook 继续独立环绕**。
 - Follow = 同一个 `CameraFollowTarget`（锁定时脚本 `SetYawTarget(Boss)`，机位架在人-敌轴背后）。**不要 Follow 玩家根。**
 - LookAt = Boss；Aim 看胸口高度；Body = Transposer，`LockToTargetWithWorldUp`，阻尼 0。
+- 锁定 VCam 挂 `CinemachineCollider`：撞到 Default/Ground 就把镜头往前收，避免穿墙。不要把 Hurtbox 勾进 Obstacle Layers（会吸进人里）。没 MeshCollider 的墙避不了，那种只能改碰撞或换地图。
 - 角色仍由 MoveState 面朝 Boss、围着目标 strafe。
 - 不用 TargetGroup 中点构图：那会把两人居中，不像只狼「架在角色背后看向敌人」。
 
 ### 锁定切换
 
 - `LockOnManager` 触发 `CombatEventBus.OnLockOnChanged` → `CameraController` 改两台 VCam 的 Priority（**不做每帧轮询**）。
-  - 解锁：FreeLook priority 高（默认 10），锁定 VCam = 0；恢复鼠标环绕；跟随点取消 yaw
-  - 锁定：锁定 VCam priority 高（默认 20），FreeLook = 0；关掉环绕输入
+  - 解锁：先按当前机位把 FreeLook 钉在角色背后，再切 Priority。跟随点 yaw **等到混合结束**才清掉——混合期间锁定相机仍 live，提前清 yaw 会把混合起点甩到角色侧方。
+  - 锁定：锁定 VCam priority 高（默认 20），FreeLook = 0；关掉环绕输入；跟随点 `SetYawTarget(Boss)`
 - CinemachineBrain：Update Method = Late Update；Default Blend = **EaseInOut、约 0.6s**（`CameraController.Blend Time`，太短像硬切、太长拖沓）。
 - 两台 VCam 都开 **Inherit Position** + Blend Hint **Cylindrical Position**：从当前机位绕角色滑过去，不走直线穿地。
 - 锁定 VCam 的 FOV 与 FreeLook 相同（避免过渡时突然变焦）；`Standby Update = Always`，混入前机位已就绪。
-- 解锁同样走这套混合，不是瞬间切回。
+- 解锁时 FreeLook 钉在角色背后（X = 角色 yaw），不混回锁定前的环绕角，也不会甩到角色侧方。
 
 ### 不要用的防抖
 

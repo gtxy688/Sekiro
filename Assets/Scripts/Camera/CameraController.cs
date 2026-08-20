@@ -1,9 +1,10 @@
+using System.Collections;
 using UnityEngine;
 using Cinemachine;
 
 // M12 锁定相机：订阅 OnLockOnChanged，用两台 VCam 的 Priority 让 Brain 混合切换。
 // 不每帧轮询 IsLockedOn。锁定时切第三人称跟随（跟着角色 yaw、看向 Boss），
-// 解锁切回 FreeLook 独立环绕——只狼手感，而不是锁定后仍用 FreeLook 绕圈。
+// 解锁时把 FreeLook 钉在角色背后，不混回锁定前的环绕角。
 public class CameraController : MonoBehaviour
 {
     [Header("虚拟相机")]
@@ -29,7 +30,13 @@ public class CameraController : MonoBehaviour
     [Tooltip("LookAt 相对 Boss 根的胸口偏移")]
     [SerializeField] private Vector3 lookAtOffset = new Vector3(0f, 1.2f, 0f);
 
+    [Header("锁定避障")]
+    [Tooltip("会挡住镜头的层。玩家/Boss 在 Hurtbox，不要勾进去，否则会把镜头拉进角色")]
+    [SerializeField] private LayerMask obstacleLayers = 1 | (1 << 3); // Default + Ground
+
     private bool setupDone;
+    private CinemachineBrain brain;
+    private Coroutine releaseLockYawCo;
 
     private void Awake()
     {
@@ -44,6 +51,11 @@ public class CameraController : MonoBehaviour
     private void OnDisable()
     {
         CombatEventBus.OnLockOnChanged -= HandleLockOnChanged;
+        if (releaseLockYawCo != null)
+        {
+            StopCoroutine(releaseLockYawCo);
+            releaseLockYawCo = null;
+        }
     }
 
     private void Start()
@@ -74,6 +86,13 @@ public class CameraController : MonoBehaviour
             return;
         }
 
+        if (releaseLockYawCo != null)
+        {
+            StopCoroutine(releaseLockYawCo);
+            releaseLockYawCo = null;
+        }
+        lockVcam.m_StandbyUpdate = CinemachineVirtualCameraBase.StandbyUpdateMode.Always;
+
         if (followProxy != null)
         {
             followProxy.SetYawTarget(target);
@@ -92,10 +111,69 @@ public class CameraController : MonoBehaviour
 
     private void ApplyFree()
     {
-        if (followProxy != null) followProxy.SetYawTarget(null);
+        // 混合期间锁定相机仍算 live，会每帧重算机位。
+        // 这时若清掉跟随点 yaw，混合起点会甩到世界 -Z（角色侧方），看起来就是绕回去。
+        // 必须等混合结束、锁定相机不再参与混合，才能把 yaw 清掉。
+        SnapFreeLookBehindPlayer();
+        if (freeLook != null)
+            freeLook.m_RecenterToTargetHeading.CancelRecentering();
+
         if (lockVcam != null) lockVcam.Priority = 0;
         if (freeLook != null) freeLook.Priority = freePriority;
         if (orbitInput != null) orbitInput.enabled = true;
+
+        if (releaseLockYawCo != null) StopCoroutine(releaseLockYawCo);
+        releaseLockYawCo = StartCoroutine(ReleaseLockYawAfterBlend());
+    }
+
+    private IEnumerator ReleaseLockYawAfterBlend()
+    {
+        if (brain == null)
+            brain = FindObjectOfType<CinemachineBrain>();
+
+        yield return null;
+        float timeout = Mathf.Max(0.05f, blendTime) + 0.25f;
+        float elapsed = 0f;
+        while (brain != null && brain.IsBlending && elapsed < timeout)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        if (followProxy != null)
+            followProxy.SetYawTarget(null);
+        releaseLockYawCo = null;
+    }
+
+    // World Space 下 X=0 在目标世界 -Z；X=角色 yaw 时镜头在 -forward，即背后。
+    // 同时用当前机位 ForceCameraPosition，把三个 Rig 的轴也钉住，避免混回锁定前的环绕角。
+    private void SnapFreeLookBehindPlayer()
+    {
+        if (freeLook == null) return;
+
+        Transform player = playerFollow != null ? playerFollow
+            : (followProxy != null ? followProxy.source : null);
+        if (player != null)
+        {
+            Vector3 fwd = player.forward;
+            fwd.y = 0f;
+            if (fwd.sqrMagnitude > 0.001f)
+            {
+                fwd.Normalize();
+                float yaw = Mathf.Atan2(fwd.x, fwd.z) * Mathf.Rad2Deg;
+                if (yaw > 180f) yaw -= 360f;
+                else if (yaw < -180f) yaw += 360f;
+                freeLook.m_XAxis.Value = yaw;
+            }
+        }
+
+        float y = orbitInput != null ? orbitInput.YCenter : 0.45f;
+        freeLook.m_YAxis.Value = Mathf.Clamp(y, 0.02f, 0.98f);
+
+        Camera live = GetComponent<Camera>();
+        if (live == null) live = Camera.main;
+        if (live != null)
+            freeLook.ForceCameraPosition(live.transform.position, live.transform.rotation);
     }
 
     private void EnsureSetup()
@@ -217,7 +295,7 @@ public class CameraController : MonoBehaviour
 
     private void EnsureBrainBlend()
     {
-        CinemachineBrain brain = FindObjectOfType<CinemachineBrain>();
+        brain = FindObjectOfType<CinemachineBrain>();
         if (brain == null) return;
 
         brain.m_UpdateMethod = CinemachineBrain.UpdateMethod.LateUpdate;
@@ -278,6 +356,7 @@ public class CameraController : MonoBehaviour
             lockVcam.m_Lens.FieldOfView = freeLook.m_Lens.FieldOfView;
 
         ApplyLockBodySettings();
+        EnsureLockCollider();
     }
 
     private void ApplyLockBodySettings()
@@ -317,5 +396,26 @@ public class CameraController : MonoBehaviour
         composer.m_DeadZoneHeight = 0f;
         composer.m_SoftZoneWidth = 0.8f;
         composer.m_SoftZoneHeight = 0.8f;
+    }
+
+    // 锁定相机从 Follow 拉到 LookAt 的路径上撞墙就往前收，避免穿进场景。
+    // 只打 Default/Ground：Hurtbox 是人，勾进去会把镜头吸进角色。
+    private void EnsureLockCollider()
+    {
+        if (lockVcam == null) return;
+
+        CinemachineCollider lockCollider = lockVcam.GetComponent<CinemachineCollider>();
+        if (lockCollider == null)
+            lockCollider = lockVcam.gameObject.AddComponent<CinemachineCollider>();
+
+        lockCollider.m_AvoidObstacles = true;
+        lockCollider.m_CollideAgainst = obstacleLayers;
+        lockCollider.m_TransparentLayers = (1 << 5) | (1 << 6) | (1 << 7); // UI / Hurtbox / LockOnMarker
+        lockCollider.m_Strategy = CinemachineCollider.ResolutionStrategy.PreserveCameraHeight;
+        lockCollider.m_CameraRadius = 0.25f;
+        lockCollider.m_MinimumDistanceFromTarget = 0.4f;
+        lockCollider.m_Damping = 0.15f;
+        lockCollider.m_DampingWhenOccluded = 0.05f;
+        lockCollider.m_SmoothingTime = 0.08f;
     }
 }

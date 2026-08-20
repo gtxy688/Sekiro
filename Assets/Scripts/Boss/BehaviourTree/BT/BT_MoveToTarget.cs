@@ -21,18 +21,19 @@ public class BT_MoveToTarget : Node
         // 如果已经到了攻击距离，返回成功，让 Sequence 继续往下走（比如去执行攻击）
         if (distance <= stopDistance)
         {
-            // 停下脚步 (发送方向为0的指令)
             body.TryExecuteCommand(new MoveCommand(Vector2.zero));
-            return NodeState.Success; 
+            Vector3 face = target.position - body.transform.position;
+            face.y = 0f;
+            if (face.sqrMagnitude > 0.001f)
+                body.RotateYaw(face.normalized, body.Config != null ? body.Config.RotationSpeed : 720f);
+            return NodeState.Success;
         }
 
-        // 如果没到，计算方向并发送 MoveCommand
         Vector3 dir3D = (target.position - body.transform.position).normalized;
         Vector2 moveDir = new Vector2(dir3D.x, dir3D.z);
-        
+        body.MoveUsesWorldDir = true;
         body.TryExecuteCommand(new MoveCommand(moveDir));
-        
-        // 告诉父节点：我还在跑路呢，下一帧继续叫我
+
         return NodeState.Running; 
     }
 }

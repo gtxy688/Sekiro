@@ -1021,6 +1021,9 @@ MonoBehaviour:
   lockPriority: 20
   followOffset: {x: 0.35, y: 0.2, z: -3.4}
   lookAtOffset: {x: 0, y: 1.2, z: 0}
+  obstacleLayers:
+    serializedVersion: 2
+    m_Bits: 9
 --- !u!1 &1170887003
 GameObject:
   m_ObjectHideFlags: 0
@@ -2047,6 +2050,16 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5769318795455819891, guid: 0abd895b2aed2ce48bc2d2b340c22288,
+        type: 3}
+      propertyPath: PlayerBody
+      value: 
+      objectReference: {fileID: 1658754164}
+    - target: {fileID: 5769318795455819891, guid: 0abd895b2aed2ce48bc2d2b340c22288,
+        type: 3}
+      propertyPath: PlayerTarget
+      value: 
+      objectReference: {fileID: 1658754160}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -5365,7 +5378,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: -1.8167572, y: -1.1784027}
-  m_SizeDelta: {x: 10, y: 10}
+  m_SizeDelta: {x: 6, y: 6}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &6912544028245803231
 MonoBehaviour:

@@ -4,19 +4,22 @@ using System.Collections.Generic;
 [RequireComponent(typeof(CharacterBody))]
 public class BTBrain : MonoBehaviour
 {
-    // 1. 核心依赖
+    [Header("目标")]
     public Transform PlayerTarget;
-    public CharacterBody PlayerBody;          // 玩家 CharacterBody（反制判定用，可留空自动取）
-    public AttackConfig BowShotConfig;        // 射箭招式配置（占位，投射物后补）
-    public float attackRange = 3.0f;          // 攻击距离
+    public CharacterBody PlayerBody;
+
+    [Header("简单 AI（先看效果）")]
+    public float attackRange = 3.0f;
+    public float attackCooldown = 2.5f;   // 打完一刀后隔多久再打
+    public float deflectRange = 2.5f;
+    public float deflectCooldown = 1.5f;
+
+    public AttackConfig BowShotConfig; // 保留槽位，这版简单树不用
 
     private CharacterBody body;
-
-    // 行为树的根节点 + 共享黑板
     private Node behaviorTreeRoot;
     private Blackboard blackboard;
 
-    // 2. 初始化与驱动
     private void Awake()
     {
         body = GetComponent<CharacterBody>();
@@ -25,11 +28,8 @@ public class BTBrain : MonoBehaviour
     private void Start()
     {
         if (PlayerBody == null && PlayerTarget != null)
-        {
             PlayerBody = PlayerTarget.GetComponent<CharacterBody>();
-        }
 
-        // 黑板 + 行为树构建（M5）
         blackboard = new Blackboard();
         blackboard.Set("target", PlayerTarget);
         behaviorTreeRoot = ConstructBehaviorTree();
@@ -38,10 +38,8 @@ public class BTBrain : MonoBehaviour
 
     private void Update()
     {
-        if (PlayerTarget != null && behaviorTreeRoot != null)
-        {
-            behaviorTreeRoot.Evaluate();
-        }
+        if (PlayerTarget == null || behaviorTreeRoot == null) return;
+        behaviorTreeRoot.Evaluate();
     }
 
     private float Distance()
@@ -49,52 +47,29 @@ public class BTBrain : MonoBehaviour
         return Vector3.Distance(body.transform.position, PlayerTarget.position);
     }
 
-    // 3. 构建行为树（M7 三层 AI）
-    // 优先级从高到低：
-    //   ① 玩家攻击中 + 距离近 → 招架（短按弹反，可能反杀玩家）【交锋/防御层】
-    //   ② 距离 ≤3m → 近战连段（AttackSet 逐刀，含突刺危字）【主动计划-贴身】
-    //   ③ 3-5m → 短连段【主动计划-中距】
-    //   ④ 5-7m → 射箭【主动计划-远距】
-    //   ⑤ 其他 → 追击【主动计划-接近】
+    // 简单树：你砍我就格 → 够近且冷却好了就砍一刀 → 否则追过来
     private Node ConstructBehaviorTree()
     {
-        Selector root = new Selector(new List<Node>
+        return new Selector(new List<Node>
         {
-            // ① 招架反制：玩家挥刀时 Boss 短按弹反
             new Sequence(new List<Node>
             {
                 new ConditionNode(() =>
                     PlayerBody != null && PlayerBody.IsAttacking
-                    && !blackboard.IsOnCooldown("deflect", 1.5f)
-                    && Distance() <= 2.5f),
+                    && !blackboard.IsOnCooldown("deflect", deflectCooldown)
+                    && Distance() <= deflectRange),
                 new BT_Deflect(body)
             }),
 
-            // ② 贴身近战连段
             new Sequence(new List<Node>
             {
-                new ConditionNode(() => Distance() <= 3f && !blackboard.IsOnCooldown("combo", 2f)),
-                new BT_Combo(body, 3)
+                new ConditionNode(() =>
+                    Distance() <= attackRange
+                    && !blackboard.IsOnCooldown("attack", attackCooldown)),
+                new BT_HitOnce(body)
             }),
 
-            // ③ 中距短连段
-            new Sequence(new List<Node>
-            {
-                new ConditionNode(() => Distance() > 3f && Distance() <= 5f && !blackboard.IsOnCooldown("combo", 2f)),
-                new BT_Combo(body, 2)
-            }),
-
-            // ④ 远距射箭
-            new Sequence(new List<Node>
-            {
-                new ConditionNode(() => Distance() > 5f && Distance() <= 7f && !blackboard.IsOnCooldown("bow", 2f)),
-                new BT_BowShot(body, BowShotConfig)
-            }),
-
-            // ⑤ 追击
             new BT_MoveToTarget(body, PlayerTarget, attackRange)
         });
-
-        return root;
     }
 }

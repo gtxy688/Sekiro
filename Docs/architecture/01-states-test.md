@@ -33,7 +33,8 @@ Player（GameObject）
 |--------|---------|---------|
 | `Idle` | 只狼待机 | IdleState.cs |
 | `Walk` | 只狼行走（WASD 是行走） | MoveState.cs |
-| `Dodge` | 只狼垫步 | DodgeState.cs |
+| `Dodge` | 未锁定垫步 | DodgeState.cs |
+| `Dodge_Forward` / `Dodge_Back` / `Dodge_Left` / `Dodge_Right` | 锁定四向垫步（独立状态，不要融合树） | DodgeState.cs |
 | `Hurt_Ground` | 受击 | GroundStunnedState.cs |
 | `Jump` | 起跳（上升段） | AirIdleState.cs |
 | `Fall` | 下落（过最高点后切） | AirIdleState.cs |

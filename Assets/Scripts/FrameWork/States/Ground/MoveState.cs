@@ -26,7 +26,8 @@ public class MoveState : BaseState
     public override void OnEnter()
     {
         enterTimer = 0f;
-        inEnterTransition = !string.IsNullOrEmpty(enterAnim);
+        // 没有起步 Clip（Boss 没有 IdleToWalk）就直接循环走，避免 CrossFade 静默失败站着滑
+        inEnterTransition = AnimUtil.HasState(body.Animator, enterAnim);
         wasLocked = IsLockedOnTarget();
         UpdateStrafeParams(instant: true);
         body.Animator.CrossFade(inEnterTransition ? enterAnim : LoopAnim, 0.1f);
@@ -64,6 +65,11 @@ public class MoveState : BaseState
             Vector3 toBoss = LockOnManager.Instance.Target.position - body.transform.position;
             toBoss.y = 0f;
             moveDir = toBoss.sqrMagnitude > 0.001f ? toBoss.normalized : body.transform.forward;
+        }
+        else if (body.MoveUsesWorldDir)
+        {
+            moveDir = new Vector3(inputDir.x, 0f, inputDir.y);
+            if (moveDir.sqrMagnitude > 0.001f) moveDir.Normalize();
         }
         else
         {
