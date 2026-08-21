@@ -27,11 +27,38 @@ public class BTBrain : MonoBehaviour
 
     private void Start()
     {
+        if (PlayerTarget == null)
+        {
+            Debug.LogError($"{name} 的 BTBrain 缺少 PlayerTarget，AI 已停用。");
+            enabled = false;
+            return;
+        }
+
         if (PlayerBody == null && PlayerTarget != null)
+        {
             PlayerBody = PlayerTarget.GetComponent<CharacterBody>();
+            if (PlayerBody == null)
+                PlayerBody = PlayerTarget.GetComponentInParent<CharacterBody>();
+        }
+
+        if (PlayerBody == null)
+        {
+            Debug.LogError($"{name} 的 BTBrain 无法从 PlayerTarget 找到 CharacterBody，AI 已停用。");
+            enabled = false;
+            return;
+        }
+
+        if (body.LightAttack == null)
+        {
+            Debug.LogError($"{name} 的 CharacterBody 缺少 LightAttack，AI 已停用。");
+            enabled = false;
+            return;
+        }
 
         blackboard = new Blackboard();
         blackboard.Set("target", PlayerTarget);
+        body.CombatTarget = PlayerTarget;
+        body.MoveUsesWorldDir = true;
         behaviorTreeRoot = ConstructBehaviorTree();
         behaviorTreeRoot.SetBlackboard(blackboard);
     }
@@ -40,6 +67,14 @@ public class BTBrain : MonoBehaviour
     {
         if (PlayerTarget == null || behaviorTreeRoot == null) return;
         behaviorTreeRoot.Evaluate();
+    }
+
+    private void OnDisable()
+    {
+        if (body == null) return;
+        body.MoveDirection = Vector3.zero;
+        body.MoveUsesWorldDir = false;
+        body.CombatTarget = null;
     }
 
     private float Distance()

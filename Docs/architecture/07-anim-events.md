@@ -13,8 +13,7 @@
   ├─ 动画事件 "EnableHitbox"（起始帧）→ 调用 Hitbox.Enable()
   ├─ 动画事件 "DisableHitbox"（结束帧）→ 调用 Hitbox.Disable()
   └─ 忍杀动画：
-     ├─ 动画事件 "ExecuteFinisher"（命中帧）→ 调 CombatManager.ExecuteFinisher()
-     └─ 动画事件 "Revive" / "DrinkGourd"（表现帧）→ 调对应逻辑
+     └─ 动画事件 "ExecuteFinisher"（命中帧）→ CharacterBody 转发 CombatManager.ExecuteFinisher()
 ```
 
 ## 二、动画事件接收（代码侧）
@@ -24,8 +23,11 @@ Hitbox 已提供 Enable/Disable（M3）。动画事件直接调这些公开方�
 需要新增的接收方法：
 
 ```csharp
-// CombatManager 增加
-public void ExecuteFinisher() { /* 清空目标一条命 + 架势归零 + 发事件 */ }
+// CharacterBody：动画事件必须落在 Animator 所在对象
+public void ExecuteFinisher()
+{
+    CombatManager.Instance?.ExecuteFinisher(this);
+}
 
 // 葫芦（M16）
 public void OnDrinkGourdAnimEvent() { /* 补血动作完成时回调 */ }
@@ -53,13 +55,18 @@ public void OnDrinkGourdAnimEvent() { /* 补血动作完成时回调 */ }
 | Boss 突刺 (Thrust) | EnableHitbox / DisableHitbox |
 | Boss 横扫 (Sweep) | EnableHitbox / DisableHitbox |
 | Boss 射箭 | （箭是弹道，暂用 Hitbox 或单独箭对象） |
-| 忍杀 | ExecuteFinisher（命中帧） |
-| 喝葫芦 | OnDrinkGourdAnimEvent |
+| 玩家 `Finsher_Ground` | ExecuteFinisher（命中帧） |
+| 玩家 `Finsher_Deflect` | ExecuteFinisher（命中帧） |
+| 玩家 `Finsher_Mikiri` | ExecuteFinisher（命中帧） |
+| Boss 三组成对忍杀 | 无清命事件，只同步播放 |
+| 喝葫芦 | 无事件；进入 HealState 时立即消耗并回血 |
 | 玩家受击 | （无事件，纯动画） |
 
 ## 五、注意事项
 
-- **M8 起攻击 Hitbox 由 `AttackState` 开关**：进入攻击即开、退出即关。`HitStartTime` 只作前摇取消窗口。动画事件只保留一次性回调：处决命中帧、喝药完成帧、射箭生成帧。
+- **M8 起攻击 Hitbox 由 `AttackState` 开关**：进入攻击即开、退出即关。`HitStartTime` 只作前摇取消窗口。动画事件只保留一次性回调：处决命中帧、射箭生成帧。
+- 三个玩家忍杀 Clip 都必须单独添加 `ExecuteFinisher`；`CombatManager` 有幂等保护，重复事件不会重复清命。
+- 喝药采用 Base Layer 慢走 + UpperBody `Drink_UpperBody`，不依赖动画事件结算回血。
 - 动画事件调用的方法必须在挂 Hitbox 的 GameObject 或引用到的对象上。
 - 若 Hitbox 不在 Animator 所在对象上，事件里 `GetComponent` 拿不到 → 让 Hitbox 直接持有 Animator 或由 CharacterBody 转发。
 - 事件名要和方法名完全一致（区分大小写）。

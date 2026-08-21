@@ -147,15 +147,7 @@ public class DeflectState : BaseState
 
         if (cmd is IdleCommand)
         {
-            float held = Time.time - enterTime;
-            if (held < 0.15f)
-            {
-                hasReleased = true;
-            }
-            else
-            {
-                StartCancel();
-            }
+            StartCancel();
             return true;
         }
 
@@ -171,24 +163,48 @@ public class DeflectState : BaseState
 
         if (elapsed <= window)
         {
+            bool brokeAttackerPosture = false;
             if (hit.attacker != null)
             {
                 float gain = body.Config != null ? body.Config.DeflectPostureGain : 30f;
-                hit.attacker.AccumulatePosture(gain);
-                hit.attacker.ForceParryStun();
+                brokeAttackerPosture = hit.attacker.AccumulatePosture(
+                    gain,
+                    allowBreak: true,
+                    source: PostureBreakSource.Deflect);
+                if (!brokeAttackerPosture)
+                {
+                    hit.attacker.ForceParryStun();
+                }
             }
 
             float self = hit.postureDmg * (body.Config != null ? body.Config.DeflectSelfPostureFactor : 0.3f);
             body.AccumulatePosture(self, allowBreak: false);
 
-            inBegin = false;
-            currentLoopAnim = null;
-            body.Animator.CrossFade("Deflect_Slash", 0.05f);
-            guardFlinchTimer = 0.25f;
-
             CombatEventBus.TriggerWeaponDeflected(hit.hitPoint, DeflectType.Perfect);
             CombatEventBus.TriggerCameraShake(0.3f);
             CombatManager.Instance?.HitStop();
+
+            if (brokeAttackerPosture)
+            {
+                parent.SubStateMachine.ChangeState(
+                    new FinisherReadyState(body, parent, hit.attacker));
+                return true;
+            }
+
+            inBegin = false;
+            currentLoopAnim = null;
+            string deflectAnim = hit.knockback > 0f
+                ? "Deflect_HeavySlash"
+                : "Deflect_Slash";
+            if (!AnimUtil.HasState(body.Animator, deflectAnim))
+            {
+                Debug.LogError($"{body.name} 的 Animator 缺少弹反状态：{deflectAnim}");
+            }
+            else
+            {
+                body.Animator.CrossFade(deflectAnim, 0.05f);
+            }
+            guardFlinchTimer = 0.25f;
             return true;
         }
 
@@ -207,6 +223,8 @@ public class DeflectState : BaseState
 
     private void StartCancel()
     {
+        if (canceling) return;
+
         canceling = true;
         inBegin = false;
         cancelTimer = 0f;

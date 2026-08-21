@@ -12,6 +12,8 @@ public class MoveState : BaseState
     private float enterDuration = 0.45f;
     private bool inEnterTransition;
     private bool wasLocked;
+    private int moveXHash;
+    private int moveForwardHash;
 
     public MoveState(CharacterBody body, HierarchicalState parent, string enterAnim = "IdleToWalk") : base(body)
     {
@@ -26,6 +28,7 @@ public class MoveState : BaseState
     public override void OnEnter()
     {
         enterTimer = 0f;
+        ResolveMoveParameters();
         // 没有起步 Clip（Boss 没有 IdleToWalk）就直接循环走，避免 CrossFade 静默失败站着滑
         inEnterTransition = AnimUtil.HasState(body.Animator, enterAnim);
         wasLocked = IsLockedOnTarget();
@@ -62,9 +65,10 @@ public class MoveState : BaseState
         Vector3 moveDir;
         if (locked)
         {
-            Vector3 toBoss = LockOnManager.Instance.Target.position - body.transform.position;
-            toBoss.y = 0f;
-            moveDir = toBoss.sqrMagnitude > 0.001f ? toBoss.normalized : body.transform.forward;
+            Transform target = GetCombatTarget();
+            Vector3 toTarget = target.position - body.transform.position;
+            toTarget.y = 0f;
+            moveDir = toTarget.sqrMagnitude > 0.001f ? toTarget.normalized : body.transform.forward;
         }
         else if (body.MoveUsesWorldDir)
         {
@@ -83,40 +87,73 @@ public class MoveState : BaseState
 
     private void UpdateStrafeParams(bool instant)
     {
-        if (!IsLockedOnTarget()) return;
+        Transform target = GetCombatTarget();
+        if (target == null) return;
 
-        Vector3 world = body.InputToWorldDir(body.MoveDirection);
-        Vector3 toBoss = LockOnManager.Instance.Target.position - body.transform.position;
-        toBoss.y = 0f;
-        if (toBoss.sqrMagnitude < 0.001f)
+        Vector2 input = body.MoveDirection;
+        Vector3 world = body.MoveUsesWorldDir
+            ? new Vector3(input.x, 0f, input.y)
+            : body.InputToWorldDir(input);
+        Vector3 toTarget = target.position - body.transform.position;
+        toTarget.y = 0f;
+        if (toTarget.sqrMagnitude < 0.001f)
         {
             SetStrafe(0f, 0f, instant);
             return;
         }
 
-        toBoss.Normalize();
-        Vector3 right = Vector3.Cross(Vector3.up, toBoss);
-        SetStrafe(Vector3.Dot(world, right), Vector3.Dot(world, toBoss), instant);
+        toTarget.Normalize();
+        Vector3 right = Vector3.Cross(Vector3.up, toTarget);
+        SetStrafe(Vector3.Dot(world, right), Vector3.Dot(world, toTarget), instant);
     }
 
     private void SetStrafe(float x, float z, bool instant)
     {
         if (instant)
         {
-            body.Animator.SetFloat("MoveX", x);
-            body.Animator.SetFloat("MoveZ", z);
+            body.Animator.SetFloat(moveXHash, x);
+            body.Animator.SetFloat(moveForwardHash, z);
         }
         else
         {
-            body.Animator.SetFloat("MoveX", x, 0.1f, Time.deltaTime);
-            body.Animator.SetFloat("MoveZ", z, 0.1f, Time.deltaTime);
+            body.Animator.SetFloat(moveXHash, x, 0.1f, Time.deltaTime);
+            body.Animator.SetFloat(moveForwardHash, z, 0.1f, Time.deltaTime);
         }
+    }
+
+    private void ResolveMoveParameters()
+    {
+        moveXHash = Animator.StringToHash("MoveX");
+        // 玩家 Controller 使用 MoveZ，Boss 旧 Controller 使用 MoveY；运行时兼容两者。
+        string forwardName = "MoveY";
+        foreach (AnimatorControllerParameter parameter in body.Animator.parameters)
+        {
+            if (parameter.type == AnimatorControllerParameterType.Float &&
+                parameter.name == "MoveZ")
+            {
+                forwardName = "MoveZ";
+                break;
+            }
+        }
+        moveForwardHash = Animator.StringToHash(forwardName);
     }
 
     private bool IsLockedOnTarget()
     {
-        return LockOnManager.Instance != null && LockOnManager.Instance.IsLockedOn
-            && LockOnManager.Instance.Target != null;
+        return GetCombatTarget() != null;
+    }
+
+    private Transform GetCombatTarget()
+    {
+        if (body.CombatTarget != null)
+            return body.CombatTarget;
+
+        if (LockOnManager.Instance != null &&
+            LockOnManager.Instance.IsLockedOn)
+        {
+            return LockOnManager.Instance.Target;
+        }
+        return null;
     }
 
     public override void OnExit() { }

@@ -1,22 +1,42 @@
 using UnityEngine;
 
-// 喝葫芦状态（M16）：播喝药动画 Drink，
-// 进入时立即扣药回血（满血也可喝，HP 封顶），动画期间可被打断（OnHitReceived 不拦截 → 被切 Stunned），
-// 结束回待机。被打断 = 药已消耗（只狼同款：喝药被砍药水照样没）
+// 移动喝药：Base Layer 用慢走根运动，UpperBody Layer 播 Drink。
+// 只放行移动意图；受击仍会打断，OnExit 负责清理上半身层。
 public class HealState : BaseState
 {
-    private HierarchicalState parent;
-    private float timer;
-    private float duration = 1.2f; // 喝药动画时长（占位值，可后续放 SO）
+    private const string UpperLayerName = "UpperBody";
+    private const string DrinkState = "Drink_UpperBody";
+    private const string SlowWalkState = "Walk_Slow_Strafe";
+
+    private readonly HierarchicalState parent;
+    private int upperLayerIndex = -1;
+    private bool drinkAnimationSeen;
+    private string currentBaseState;
+    private float rotationSpeed = 720f;
 
     public HealState(CharacterBody body, HierarchicalState parent) : base(body)
     {
         this.parent = parent;
+        if (body.Config != null)
+        {
+            rotationSpeed = body.Config.RotationSpeed;
+        }
     }
 
     public override void OnEnter()
     {
-        timer = 0f;
+        drinkAnimationSeen = false;
+        currentBaseState = null;
+
+        upperLayerIndex = body.Animator.GetLayerIndex(UpperLayerName);
+        if (upperLayerIndex < 0 ||
+            !AnimUtil.HasState(body.Animator, DrinkState, upperLayerIndex))
+        {
+            Debug.LogError(
+                $"{body.name} 的 Animator 缺少 {UpperLayerName}/{DrinkState}，已取消喝药。");
+            parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+            return;
+        }
 
         // 先扣药；没药才退回。满血也能喝（播 Drink、扣次数，血量封顶）
         if (!body.UseGourd())
@@ -25,24 +45,166 @@ public class HealState : BaseState
             return;
         }
 
-        // 播喝药动画（占位名，M8 接动画前）
-        body.Animator.CrossFade("Drink", 0.1f);
+        body.IsHealing = true;
+        body.Animator.SetLayerWeight(upperLayerIndex, 1f);
+        body.Animator.CrossFadeInFixedTime(
+            DrinkState,
+            0.1f,
+            upperLayerIndex);
+        UpdateStrafeParams(instant: true);
+        PlayBaseLocomotion(force: true);
     }
 
     public override void OnUpdate()
     {
-        timer += Time.deltaTime;
-        if (timer >= duration)
+        UpdateFacingAndMovement();
+        PlayBaseLocomotion(force: false);
+
+        AnimatorStateInfo info =
+            body.Animator.GetCurrentAnimatorStateInfo(upperLayerIndex);
+        if (AnimUtil.IsPlaying(info, DrinkState))
+        {
+            drinkAnimationSeen = true;
+            if (info.normalizedTime >= 0.95f)
+            {
+                FinishHeal();
+            }
+        }
+        else if (drinkAnimationSeen &&
+                 !body.Animator.IsInTransition(upperLayerIndex))
+        {
+            FinishHeal();
+        }
+    }
+
+    public override bool HandleCommand(ICommand cmd)
+    {
+        if (cmd is MoveCommand moveCmd)
+        {
+            body.MoveDirection = moveCmd.Direction;
+        }
+        return true;
+    }
+
+    public override void OnExit()
+    {
+        body.IsHealing = false;
+        if (upperLayerIndex >= 0 &&
+            upperLayerIndex < body.Animator.layerCount)
+        {
+            body.Animator.SetLayerWeight(upperLayerIndex, 0f);
+        }
+    }
+
+    private void FinishHeal()
+    {
+        if (body.MoveDirection.sqrMagnitude >= 0.01f)
+        {
+            parent.SubStateMachine.ChangeState(
+                new MoveState(body, parent, null));
+        }
+        else
         {
             parent.SubStateMachine.ChangeState(new IdleState(body, parent));
         }
     }
 
-    // 喝药期间吞掉其他命令（不可移动/攻击）
-    public override bool HandleCommand(ICommand cmd)
+    private void PlayBaseLocomotion(bool force)
     {
-        return true;
+        string wanted = body.MoveDirection.sqrMagnitude >= 0.01f
+            ? SlowWalkState
+            : "Idle";
+        if (!force && wanted == currentBaseState) return;
+
+        if (!AnimUtil.HasState(body.Animator, wanted))
+        {
+            Debug.LogError($"{body.name} 的 Animator 缺少喝药移动状态：{wanted}");
+            return;
+        }
+
+        currentBaseState = wanted;
+        body.Animator.CrossFadeInFixedTime(wanted, 0.08f, 0);
     }
 
-    // 不拦截受击 → 被打会切 StunnedState（喝药被打断，符合策划案"会被打断"）
+    private void UpdateFacingAndMovement()
+    {
+        bool locked = IsLockedOnTarget();
+        Vector2 input = body.MoveDirection;
+        if (input.sqrMagnitude < 0.01f)
+        {
+            SetStrafe(0f, 0f, instant: false);
+            if (locked)
+            {
+                FaceTarget();
+            }
+            return;
+        }
+
+        if (locked)
+        {
+            UpdateStrafeParams(instant: false);
+            FaceTarget();
+        }
+        else
+        {
+            SetStrafe(0f, input.magnitude, instant: false);
+            body.RotateYaw(body.InputToWorldDir(input), rotationSpeed);
+        }
+    }
+
+    private void UpdateStrafeParams(bool instant)
+    {
+        if (!IsLockedOnTarget())
+        {
+            Vector2 input = body.MoveDirection;
+            SetStrafe(0f, input.magnitude, instant);
+            return;
+        }
+
+        Vector3 world = body.InputToWorldDir(body.MoveDirection);
+        Vector3 toBoss =
+            LockOnManager.Instance.Target.position - body.transform.position;
+        toBoss.y = 0f;
+        if (toBoss.sqrMagnitude < 0.001f)
+        {
+            SetStrafe(0f, 0f, instant);
+            return;
+        }
+
+        toBoss.Normalize();
+        Vector3 right = Vector3.Cross(Vector3.up, toBoss);
+        SetStrafe(
+            Vector3.Dot(world, right),
+            Vector3.Dot(world, toBoss),
+            instant);
+    }
+
+    private void SetStrafe(float x, float z, bool instant)
+    {
+        if (instant)
+        {
+            body.Animator.SetFloat("MoveX", x);
+            body.Animator.SetFloat("MoveZ", z);
+        }
+        else
+        {
+            body.Animator.SetFloat("MoveX", x, 0.1f, Time.deltaTime);
+            body.Animator.SetFloat("MoveZ", z, 0.1f, Time.deltaTime);
+        }
+    }
+
+    private void FaceTarget()
+    {
+        Vector3 direction =
+            LockOnManager.Instance.Target.position - body.transform.position;
+        direction.y = 0f;
+        body.RotateYaw(direction, rotationSpeed);
+    }
+
+    private static bool IsLockedOnTarget()
+    {
+        return LockOnManager.Instance != null &&
+               LockOnManager.Instance.IsLockedOn &&
+               LockOnManager.Instance.Target != null;
+    }
 }

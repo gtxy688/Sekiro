@@ -27,7 +27,11 @@ public class Blackboard
     // 冷却工具：招式冷却（M7，参考 sekiro 逆向的 SetCoolTime）
     public bool IsOnCooldown(string key, float cooldown)
     {
-        float last = Get<float>("cd_" + key);
+        string cooldownKey = "cd_" + key;
+        // 从未执行过的招式应当立即可用，不能把缺失值 0 当成开局时间戳。
+        if (!Has(cooldownKey)) return false;
+
+        float last = Get<float>(cooldownKey);
         return UnityEngine.Time.time - last < cooldown;
     }
 

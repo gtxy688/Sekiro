@@ -32,6 +32,11 @@
 | 7 | 玩家受点伤，调 `UseGourd()` | GourdRemaining 减 1，CurrentHP 回复到上限封顶 |
 | 8 | 葫芦用完（GourdRemaining=0）再调 | 返回 false，不加血 |
 | 9 | HP 已满时调 | 仍返回 true：扣 1 次葫芦，HP 保持上限 |
+| 9b | 原地喝药 | Base Layer 为 Idle，UpperBody 播 `Drink_UpperBody` |
+| 9c | 喝药期间输入四向移动 | Base Layer 播 `Walk_Slow_Strafe`，角色慢走，上半身喝药不中断 |
+| 9d | 锁定 Boss 后移动喝药 | 身体持续朝 Boss，前后左右慢走方向正确 |
+| 9e | 喝药期间按攻击/格挡/闪避/跳跃/喝药 | 均不响应；移动仍可用 |
+| 9f | 喝药期间受击 | 喝药被打断，UpperBody Layer Weight 立即归零，不残留姿势 |
 
 ## M14：复活
 
@@ -45,4 +50,6 @@
 
 - **数值没生效**：确认 CharacterConfig 资源已拖进 CharacterBody.Config 槽，且 InitCombat 在 Awake 调用。
 - **满血喝药没动画**：旧逻辑在满血时 `return false`，已改为有药就能喝。
+- **喝药时腿不动**：检查 Base Layer 的 `Walk_Slow_Strafe` 与四个慢走 Motion，UpperBody 只负责 `Drink_UpperBody`。
+- **受击后上身仍举药**：确认 `HealState.OnExit` 把 `UpperBody` Layer Weight 设回 0。
 - **架势不回复**：检查 postureDecayDelay 计时逻辑。

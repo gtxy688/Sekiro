@@ -19,6 +19,10 @@ public class CombatManager : MonoBehaviour
     public float finisherRange = 2f;        // 处决触发距离
     public CharacterBody BossRef;           // 场景里拖 Boss（单 Boss 战）
 
+    private CharacterBody activeFinisherPlayer;
+    private CharacterBody activeFinisherVictim;
+    private bool finisherResolved;
+
     private void Awake()
     {
         // 单例防重
@@ -89,17 +93,143 @@ public class CombatManager : MonoBehaviour
         Time.timeScale = 1f;
     }
 
-    // ===== 处决触发（M10）：玩家按攻击键时由 GroundedState 拦截调用 =====
-    // Boss 崩解中 + 玩家距离近 → 玩家进 FinisherState（处决动画），消耗该次攻击指令
-    public bool TryExecuteFinisher(CharacterBody player)
+    // ===== 成对忍杀（M10）=====
+    public bool TryExecuteFinisher(
+        CharacterBody player,
+        FinisherKind kind = FinisherKind.Ground)
     {
         if (BossRef == null || player == null) return false;
+        if (activeFinisherPlayer != null) return false;
         if (!BossRef.IsPostureBroken) return false;
+        if (!MatchesBreakSource(kind, BossRef.CurrentPostureBreakSource)) return false;
 
         float dist = Vector3.Distance(player.transform.position, BossRef.transform.position);
         if (dist > finisherRange) return false;
 
-        player.MainStateMachine.ChangeState(new GroundedState(player, new FinisherState(player, BossRef)));
+        string animName = ResolveFinisherAnim(kind);
+        if (!AnimUtil.HasState(player.Animator, animName) ||
+            !AnimUtil.HasState(BossRef.Animator, animName))
+        {
+            Debug.LogError(
+                $"成对忍杀状态缺失：{animName}。请同时检查 {player.name} 与 {BossRef.name} 的 Animator。");
+            return false;
+        }
+
+        activeFinisherPlayer = player;
+        activeFinisherVictim = BossRef;
+        finisherResolved = false;
+        player.ActiveAttack = null;
+
+        AlignFinisherPair(player, BossRef, kind);
+        player.DisableWeaponHit();
+        BossRef.DisableWeaponHit();
+        CombatEventBus.TriggerFinisherOpportunityChanged(BossRef, false);
+
+        BossRef.MainStateMachine.ChangeState(
+            new GroundedState(BossRef, new FinisherVictimState(BossRef, animName)));
+        player.MainStateMachine.ChangeState(
+            new GroundedState(player, new FinisherState(player, BossRef, animName)));
+
+        CombatEventBus.TriggerFinisher(BossRef.transform.position);
+        CombatEventBus.TriggerCameraShake(1f);
         return true;
+    }
+
+    // 玩家动画命中帧调用；幂等保护确保重复 Event 不会重复清命。
+    public void ExecuteFinisher(CharacterBody source)
+    {
+        if (source == null || source != activeFinisherPlayer) return;
+        if (activeFinisherVictim == null || finisherResolved) return;
+
+        finisherResolved = true;
+        activeFinisherVictim.ClearLife();
+        CombatEventBus.TriggerFinisherOpportunityChanged(activeFinisherVictim, false);
+    }
+
+    public bool IsFinisherResolved(CharacterBody player)
+    {
+        return player != null &&
+               player == activeFinisherPlayer &&
+               finisherResolved;
+    }
+
+    public void CompleteFinisherSequence(CharacterBody player)
+    {
+        if (player == null || player != activeFinisherPlayer) return;
+
+        CharacterBody victim = activeFinisherVictim;
+        activeFinisherPlayer = null;
+        activeFinisherVictim = null;
+        finisherResolved = false;
+
+        if (victim != null && victim.LivesRemaining > 0)
+        {
+            victim.MainStateMachine.ChangeState(new GroundedState(victim));
+        }
+        player.MainStateMachine.ChangeState(new GroundedState(player));
+    }
+
+    private static bool MatchesBreakSource(
+        FinisherKind kind,
+        PostureBreakSource source)
+    {
+        switch (kind)
+        {
+            case FinisherKind.Deflect:
+                return source == PostureBreakSource.Deflect;
+            case FinisherKind.Mikiri:
+                return source == PostureBreakSource.Mikiri;
+            default:
+                return source == PostureBreakSource.Attack;
+        }
+    }
+
+    private static string ResolveFinisherAnim(FinisherKind kind)
+    {
+        switch (kind)
+        {
+            case FinisherKind.Deflect:
+                return "Finsher_Deflect";
+            case FinisherKind.Mikiri:
+                return "Finsher_Mikiri";
+            default:
+                return "Finsher_Ground";
+        }
+    }
+
+    private static void AlignFinisherPair(
+        CharacterBody player,
+        CharacterBody victim,
+        FinisherKind kind)
+    {
+        Vector3 offset = Vector3.forward;
+        if (player.Config != null)
+        {
+            switch (kind)
+            {
+                case FinisherKind.Deflect:
+                    offset = player.Config.FinisherDeflectOffset;
+                    break;
+                case FinisherKind.Mikiri:
+                    offset = player.Config.FinisherMikiriOffset;
+                    break;
+                default:
+                    offset = player.Config.FinisherGroundOffset;
+                    break;
+            }
+        }
+
+        player.transform.position = victim.transform.TransformPoint(offset);
+
+        Vector3 playerToVictim = victim.transform.position - player.transform.position;
+        playerToVictim.y = 0f;
+        if (playerToVictim.sqrMagnitude < 0.001f) return;
+
+        player.transform.rotation = Quaternion.LookRotation(
+            playerToVictim.normalized,
+            Vector3.up);
+        victim.transform.rotation = Quaternion.LookRotation(
+            -playerToVictim.normalized,
+            Vector3.up);
     }
 }

@@ -102,18 +102,12 @@ public void ReceiveHit(CharacterBody attacker, int healthDmg, float postureDmg, 
 ## 四、各状态 OnHitReceived 实现（M4）
 
 ### DeflectState（防御/盾反）
-```csharp
-public override bool OnHitReceived(HitData hit)
-{
-    if (IsInDeflectWindow)  // 盾反窗口内（按下瞬间）
-    {
-        HandlePerfectParry(hit); // 触发盾反：涨对方架势 + 事件总线发"叮"声
-        return true;
-    }
-    // 窗口过了但仍在防御 → 普通格挡：减伤/掉自己架势（M4 细化）
-    return false; // 暂定硬吃
-}
-```
+
+- 弹反窗口内：按 `knockback` 选择 `Deflect_Slash` / `Deflect_HeavySlash`，增加攻击者架势。
+- 窗口外仍在防御：按 `knockback` 选择 `Hurt_Guard` / `Hurt_GuardHeavy`，只增加防守者架势。
+- 未格挡受击：按 `knockback` 选择 `Hurt_Ground` / `Hurt_Heavy`。
+- 普通格挡不会增加攻击者架势；只有完美弹反会。
+- 完美弹反造成攻击者架势崩解时，不再进入普通 `ParriedState`，改走弹反忍杀确认窗口。
 
 ### StunnedState（受击期间）
 ```csharp
@@ -130,15 +124,20 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 ### 攻击前摇
 
 - Hitbox：**进入 `AttackState` 即 `EnableWeaponHit`，退出即关**。刀碰到就算，不再等 `HitStartTime`。
-- 取消窗口仍用 `AttackConfig.HitStartTime`（秒）：`stateTimer < HitStartTime` 时 `DeflectCommand` → `DeflectState`，`DodgeCommand` → `DodgeState`。
-- 过了取消窗口：本刀锁死，格挡/垫步 `return false`，走 0.2s 输入缓冲。
+- `stateTimer < HitStartTime`：允许格挡/垫步取消。
+- `HitStartTime <= stateTimer < RecoveryWindowStart`：动作锁定，离散命令进入 0.2s 输入缓冲。
+- `RecoveryWindowStart <= stateTimer <= ComboWindowEnd`：攻击接 `NextCombo`；移动、格挡、垫步、跳跃、喝药可立即取消。
+- `ComboWindowEnd` 后不再接本段 `NextCombo`，尚未过期的命令由动作结束后的状态处理。
+- `ComboWindowStart` 已更名为 `RecoveryWindowStart`，使用序列化迁移保留旧 SO 数值。
 - `HitStartTime = 0`：进招不可取消（判定仍然一进攻击就开）。
+- 攻击转向由 `AttackConfig` 的 `AllowRotation` / `RotationSpeed` / `RotationWindowEnd` 控制；锁定时追踪 Boss，未锁定时按移动输入转向。
 
 ### 格挡取消
 
 - `DeflectState` 全程（抬刀 / 举刀 / 抖刀 / `Deflect_Slash` / `Deflect_Cancel`）：
   - `DeflectCommand` → 新的 `DeflectState`（重开弹反窗口；再按播 `Deflect_Repeat`，没有该状态则回退抬刀）
   - `DodgeCommand` → `DodgeState`
+- 无论短按还是长按，松开格挡键都播放 `Deflect_Cancel`，播放结束后回待机。
 - 连按格挡会走 `RegisterDeflectPress` 抖刀惩罚（0.5s 内 ≥3 次，窗口 ×0.75，下限 0.1s）。
 - 垫步本身仍不可被打断。
 - **锁定垫步**：`DodgeState` 按相对 Boss 的输入取最近四向，播一次性状态 `Dodge_Forward` / `Dodge_Back` / `Dodge_Left` / `Dodge_Right`。无输入默认后垫。斜向取绝对值更大的轴。不要用融合树（一次性 Root 混在一起会斜着滑）。未锁定仍播 `Dodge`。
@@ -152,10 +151,13 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 
 ## 七、处决/忍杀（M10）
 
-- 架势崩解 → 对方进 EndureState（崩解硬直）。
-- 玩家进入攻击范围 → 交互键触发忍杀。
-- 忍杀动画 → 动画事件调用 `CombatManager.ExecuteFinisher()` 清空一条命。
-- 不新增独立状态机，靠 EndureState + 动画事件。
+- 架势崩解记录来源：`Attack` / `Deflect` / `Mikiri`，三类均通过事件总线显示忍杀红点。
+- 攻击崩解：Boss 播 `Stagger_Broken`，范围内按攻击后双方播放 `Finsher_Ground`。
+- 弹反崩解：Boss 播 `Stagger_Broken_Deflect`，玩家播 `DeflectToFinsher`；窗口内按攻击后双方播放 `Finsher_Deflect`。
+- 识破崩解：Boss 立即播放专用 `Stagger_Broken_Miriki`，玩家现有 `Mikiri` 剩余动画作为确认窗口；按攻击后双方播放 `Finsher_Mikiri`。
+- 弹反/识破窗口超时：Boss 架势从 100% 降到 80%，解除崩解并隐藏红点。
+- 忍杀开始时按配置偏移对齐双方并隐藏红点，期间双方锁定命令与受击。
+- 玩家忍杀动画命中帧调用 `CharacterBody.ExecuteFinisher()`，转发到 `CombatManager` 幂等清命；动画结束只做兜底与状态释放。
 
 ## 涉及文件
 

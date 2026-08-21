@@ -10,6 +10,7 @@ public class MikiriCounterState : BaseState
     private float timer;
     private float duration;
     private float postureGain;
+    private bool finisherWindow;
 
     public MikiriCounterState(CharacterBody body, HierarchicalState parent, HitData hit) : base(body)
     {
@@ -36,9 +37,13 @@ public class MikiriCounterState : BaseState
         body.Animator.CrossFade("Mikiri", 0.05f);
 
         // 识破成功：大幅涨攻击者架势（只狼核心：踩刀反制）
+        finisherWindow = false;
         if (attacker != null)
         {
-            attacker.AccumulatePosture(postureGain);
+            finisherWindow = attacker.AccumulatePosture(
+                postureGain,
+                allowBreak: true,
+                source: PostureBreakSource.Mikiri);
         }
 
         // 表现：打铁音效/火花（Perfect 级别）
@@ -51,6 +56,10 @@ public class MikiriCounterState : BaseState
 
         if (timer >= duration)
         {
+            if (finisherWindow && attacker != null && attacker.IsPostureBroken)
+            {
+                attacker.RecoverFromBreak(0.8f);
+            }
             parent.SubStateMachine.ChangeState(new IdleState(body, parent));
         }
     }
@@ -58,6 +67,10 @@ public class MikiriCounterState : BaseState
     // 识破期间吞掉所有命令（不可打断）
     public override bool HandleCommand(ICommand cmd)
     {
+        if (finisherWindow && cmd is AttackCommand)
+        {
+            CombatManager.Instance?.TryExecuteFinisher(body, FinisherKind.Mikiri);
+        }
         return true;
     }
 }

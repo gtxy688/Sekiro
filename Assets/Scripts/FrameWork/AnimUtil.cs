@@ -11,7 +11,18 @@ public static class AnimUtil
     // CrossFade 短名：没建状态会静默失败。Boss 没有 IdleToWalk 时用来跳过起步。
     public static bool HasState(Animator animator, string shortName)
     {
-        if (animator == null || string.IsNullOrEmpty(shortName)) return false;
-        return animator.HasState(0, Animator.StringToHash(shortName));
+        return HasState(animator, shortName, 0);
+    }
+
+    public static bool HasState(Animator animator, string shortName, int layerIndex)
+    {
+        if (animator == null ||
+            string.IsNullOrEmpty(shortName) ||
+            layerIndex < 0 ||
+            layerIndex >= animator.layerCount)
+        {
+            return false;
+        }
+        return animator.HasState(layerIndex, Animator.StringToHash(shortName));
     }
 }

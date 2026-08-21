@@ -3022,7 +3022,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   UseRootMotion: 1
   Config: {fileID: 11400000, guid: 9e6e7af83b0128344925fea1904cbe8b, type: 2}
-  LightAttack: {fileID: 11400000, guid: 16797f3eb33fad440ad5ad542e34a080, type: 2}
+  LightAttack: {fileID: 11400000, guid: 0255034cef866df4aaa4a73297cba0e5, type: 2}
   AttackSet: []
   groundCheckPoint: {fileID: 4804299939941162521}
   groundCheckRadius: 0.2
@@ -3080,8 +3080,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   PlayerTarget: {fileID: 0}
   PlayerBody: {fileID: 0}
-  BowShotConfig: {fileID: 0}
   attackRange: 3
+  attackCooldown: 2.5
+  deflectRange: 2.5
+  deflectCooldown: 1.5
+  BowShotConfig: {fileID: 0}
 --- !u!1 &4335963503947929138
 GameObject:
   m_ObjectHideFlags: 0

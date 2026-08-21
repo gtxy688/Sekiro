@@ -27,6 +27,7 @@ public class CombatUIController : MonoBehaviour
         CombatEventBus.OnHPChanged += HandleHPChanged;
         CombatEventBus.OnPostureChanged += HandlePostureChanged;
         CombatEventBus.OnPostureBroken += HandlePostureBroken;
+        CombatEventBus.OnFinisherOpportunityChanged += HandleFinisherOpportunityChanged;
         CombatEventBus.OnGourdUsed += HandleGourdUsed;
         CombatEventBus.OnReviveAvailable += HandleReviveAvailable;
         CombatEventBus.OnRevived += HandleRevived;
@@ -44,6 +45,7 @@ public class CombatUIController : MonoBehaviour
         CombatEventBus.OnHPChanged -= HandleHPChanged;
         CombatEventBus.OnPostureChanged -= HandlePostureChanged;
         CombatEventBus.OnPostureBroken -= HandlePostureBroken;
+        CombatEventBus.OnFinisherOpportunityChanged -= HandleFinisherOpportunityChanged;
         CombatEventBus.OnGourdUsed -= HandleGourdUsed;
         CombatEventBus.OnReviveAvailable -= HandleReviveAvailable;
         CombatEventBus.OnRevived -= HandleRevived;
@@ -150,6 +152,14 @@ public class CombatUIController : MonoBehaviour
         {
             // Boss 架势崩解 → 处决窗口 → 锁定点变红
             lockOnIndicatorView?.SetFinisherReady(true);
+        }
+    }
+
+    private void HandleFinisherOpportunityChanged(CharacterBody target, bool available)
+    {
+        if (target == bossBody)
+        {
+            lockOnIndicatorView?.SetFinisherReady(available);
         }
     }
 

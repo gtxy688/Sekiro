@@ -6341,7 +6341,7 @@ Animator:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5242769244002619023}
   m_Enabled: 1
-  m_Avatar: {fileID: 9000000, guid: 22540443014e5a24aa069f0e21b751a6, type: 3}
+  m_Avatar: {fileID: 9000000, guid: 0acee403ecd60f543bf2e44f633e88c2, type: 3}
   m_Controller: {fileID: 9100000, guid: 783c9a406e144b24eb788f26e05879a3, type: 2}
   m_CullingMode: 0
   m_UpdateMode: 1
@@ -6368,6 +6368,7 @@ MonoBehaviour:
   UseRootMotion: 1
   Config: {fileID: 11400000, guid: 82a437506d2419844b3f6a5fb86615fa, type: 2}
   LightAttack: {fileID: 11400000, guid: 16797f3eb33fad440ad5ad542e34a080, type: 2}
+  ThrustAttack: {fileID: 11400000, guid: 2a4a32ae935522d4193de365dfc76843, type: 2}
   AttackSet: []
   groundCheckPoint: {fileID: 8897550995147660481}
   groundCheckRadius: 0.2

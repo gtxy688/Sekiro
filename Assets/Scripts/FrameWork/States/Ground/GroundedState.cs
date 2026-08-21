@@ -30,6 +30,20 @@ public class GroundedState : HierarchicalState
     //所有的地面状态，都共用这个跳跃逻辑！
     protected override bool OnParentHandleCommand(ICommand cmd)
     {
+        // 喝药期间只有移动会下钻到 HealState；跳跃和重复喝药在父层直接吞掉。
+        if (body.IsHealing && (cmd is JumpCommand || cmd is HealCommand))
+        {
+            return true;
+        }
+
+        // 攻击命中段不能被跳跃/喝药强切；命令保持在 0.2s 缓冲中等待后摇。
+        if (body.IsAttacking &&
+            !body.IsAttackRecoveryOpen &&
+            (cmd is JumpCommand || cmd is HealCommand))
+        {
+            return false;
+        }
+
         // 拦截跳跃指令
         if (cmd is JumpCommand)
         {
@@ -49,7 +63,8 @@ public class GroundedState : HierarchicalState
         // M10：拦截攻击指令时先查处决机会（Boss 崩解 + 距离近 → 处决优先于普通攻击）
         if (cmd is AttackCommand)
         {
-            if (CombatManager.Instance != null && CombatManager.Instance.TryExecuteFinisher(body))
+            if (CombatManager.Instance != null &&
+                CombatManager.Instance.TryExecuteFinisher(body, FinisherKind.Ground))
             {
                 return true; // 触发处决，消耗指令
             }

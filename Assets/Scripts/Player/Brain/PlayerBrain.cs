@@ -8,9 +8,14 @@ public class PlayerBrain : BrainBase
     // Player Input 组件管理的资产实例（双方案 Auto-Switch 只作用于这个实例）
     private InputActionAsset actions;
     private InputAction moveAction;
+    private InputAction attackAction;
 
     // 专门用来暂存摇杆当前的输入值
     private Vector2 currentMoveInput;
+    private bool attackPressed;
+    private bool holdAttackTriggered;
+    private bool holdThresholdChecked;
+    private float attackPressedTime;
 
     protected override void Awake()
     {
@@ -32,6 +37,7 @@ public class PlayerBrain : BrainBase
 
         var map = actions.FindActionMap("Player");
         moveAction = actions.FindAction("Move");
+        attackAction = map.FindAction("Attack");
 
         // A. 绑定连续输入 (摇杆移动)
         // performed: 摇杆被推时持续触发
@@ -41,7 +47,22 @@ public class PlayerBrain : BrainBase
 
         // B. 绑定离散输入 (动作按键，带有输入缓冲)
         // started: 按下按键的第一帧。我们生成对应的 Command 并丢进基类的缓冲池
-        map.FindAction("Attack").started += _ => BufferCommand(new AttackCommand());
+        attackAction.started += _ =>
+        {
+            attackPressed = true;
+            holdAttackTriggered = false;
+            holdThresholdChecked = false;
+            attackPressedTime = Time.time;
+        };
+        attackAction.canceled += _ =>
+        {
+            if (attackPressed && !holdAttackTriggered && isActiveAndEnabled)
+            {
+                body.ActiveAttack = null;
+                BufferCommand(new AttackCommand());
+            }
+            attackPressed = false;
+        };
         map.FindAction("Jump").started += _ => BufferCommand(new JumpCommand());
         map.FindAction("Deflect").started += _ => BufferCommand(new DeflectCommand());
         // 松手时发 IdleCommand，让 DeflectState 退出回待机（防御按住不放的语义）
@@ -57,6 +78,8 @@ public class PlayerBrain : BrainBase
 
     protected override void Update()
     {
+        ProcessHeldAttack();
+
         // 1. 调用基类的 Update，让它去处理缓冲池里的 攻击、弹反、跳跃 指令
         base.Update();
 
@@ -79,6 +102,27 @@ public class PlayerBrain : BrainBase
         body.TryExecuteCommand(new MoveCommand(currentMoveInput));
     }
 
+    private void ProcessHeldAttack()
+    {
+        if (!attackPressed || holdAttackTriggered || holdThresholdChecked) return;
+
+        float threshold = body.Config != null
+            ? body.Config.AttackHoldDuration
+            : 0.3f;
+        if (Time.time - attackPressedTime < threshold) return;
+
+        holdThresholdChecked = true;
+        if (body.ThrustAttack == null)
+        {
+            Debug.LogError($"{body.name} 未配置 ThrustAttack，松开攻击键后回退普通攻击。");
+            return;
+        }
+
+        holdAttackTriggered = true;
+        body.ActiveAttack = body.ThrustAttack;
+        BufferCommand(new AttackCommand());
+    }
+
     // 启用与禁用 InputSystem
     // 注意 OnEnable 在 Start 之前执行，此时 actions 还没拿到，所以要做空判断；
     // 挂 Player Input 组件时由其 Auto Enable Inputs 负责启用
@@ -89,6 +133,9 @@ public class PlayerBrain : BrainBase
 
     private void OnDisable()
     {
+        attackPressed = false;
+        holdAttackTriggered = false;
+        holdThresholdChecked = false;
         if (actions != null) actions.Disable();
     }
 }

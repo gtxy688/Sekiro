@@ -66,17 +66,25 @@ public void TakeDamage(int healthDmg, float postureDmg)
     if (CurrentHP <= 0) HandleDeath();
 }
 
-public void AccumulatePosture(float amount)
+public bool AccumulatePosture(
+    float amount,
+    bool allowBreak = true,
+    PostureBreakSource source = PostureBreakSource.Attack)
 {
-    if (IsPostureBroken) return;  // 崩解中不累计
+    if (IsPostureBroken) return false;  // 崩解中不累计
     CurrentPosture = Mathf.Min(CurrentPosture + amount, Config.MaxPosture);
     lastHitTime = Time.time;      // 重置架势回复延迟计时
     CombatEventBus.TriggerPostureChanged(this, CurrentPosture, Config.MaxPosture);
-    if (CurrentPosture >= Config.MaxPosture)
+    if (allowBreak && CurrentPosture >= Config.MaxPosture)
     {
         IsPostureBroken = true;
+        CurrentPostureBreakSource = source;
         CombatEventBus.TriggerPostureBroken(this);  // M10 接 EndureState
+        CombatEventBus.TriggerFinisherOpportunityChanged(this, true);
+        ForcePostureBroken(source);
+        return true;
     }
+    return false;
 }
 ```
 
@@ -85,12 +93,12 @@ public void AccumulatePosture(float amount)
 **规则（只狼）：**
 - 受到伤害 → 架势 + 伤害量（防御也涨架势）
 - 弹反成功 → 架势 + 少量（好的弹反不加）
-- 架势满 → 崩解硬直 → 处决窗口
+- 架势满 → 按 Attack / Deflect / Mikiri 来源进入对应崩解硬直与处决窗口
 - 处决 → 清一条命 + 架势归零
 - 一段时间不受击 → 架势缓慢回复
 
 **实现：**
-- 崩解 = 切 EndureState（M10），M2 先置 `IsPostureBroken` + 触发事件
+- 崩解 = 记录 `CurrentPostureBreakSource` 后切对应等待状态，并通过事件总线显示忍杀红点
 - 架势自然回复写在 `CharacterBody.Update`（`UpdatePostureDecay`）：
   距上次受击超过 `PostureDecayDelay` 则每秒减 `PostureDecayRate`；崩解中不回复
 - `ClearLife()` 供 M10 处决后调用：架势归零 + 崩解解除
@@ -111,7 +119,10 @@ public bool UseGourd()
 - HealCommand 由 GroundedState 拦截 → 调 UseGourd + 播喝药动画
 - 有药就能喝：满血也播动画、扣 1 次，HP 加完封顶
 - 没药才失败（不进动画）
-- 葫芦使用中不可移动/攻击（一个短喝药状态）
+- 葫芦使用中允许慢走，禁止攻击、格挡、闪避、跳跃和重复喝药。
+- Base Layer 用 `Idle` / `Walk_Slow_Strafe` 提供根运动，UpperBody Override Layer 用 `Drink_UpperBody` 播喝药。
+- 锁定时面向 Boss 四向慢走；未锁定时按输入方向慢走。
+- 受击仍会打断喝药；`HealState.OnExit` 必须把 UpperBody Layer Weight 清零。
 
 ## 五、复活（M14）
 
@@ -151,6 +162,7 @@ CombatEventBus:
   static event Action<CharacterBody, int, int> OnHPChanged      // (角色, 当前HP, 最大HP)
   static event Action<CharacterBody, float, float> OnPostureChanged  // (角色, 当前架势, 最大架势)
   static event Action<CharacterBody> OnPostureBroken
+  static event Action<CharacterBody, bool> OnFinisherOpportunityChanged
   static event Action<CharacterBody, int> OnGourdUsed           // (角色, 剩余次数)
   static event Action<CharacterBody> OnDeath
   static event Action<CharacterBody> OnReviveAvailable

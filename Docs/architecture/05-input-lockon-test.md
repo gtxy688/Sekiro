@@ -8,14 +8,22 @@
 - InputAction 资源 `PlayerInputActions`（已生成，PlayerBrain 自动创建并 Enable）
 - Animator 状态名已配好（见 `01-states-test.md` 第 3 节：Idle/Walk/Hurt_Ground/Jump + 攻击状态）
 - `CharacterBody.Light Attack` 槽已拖入 atk1.asset（攻击要有配置才切状态）
+- `CharacterBody.Thrust Attack` 槽已拖入 `ThrustAttack.asset`，Animator 有 `Thrust`
 
 ## M6 验收（键盘/鼠标直接操作）
 
 | # | 操作 | 预期 |
 |---|------|------|
 | 1 | 按 WASD | 角色移动（切 MoveState），位移由 Walk 动画根运动驱动 |
-| 2 | 鼠标左键 | 切 AttackState，播 `atk1.asset` 的 AnimName 动画 |
-| 3 | 攻击中快速连按左键 | 连招预输入：在 `ComboWindowStart~End` 窗口内按下 → 切到 `NextCombo` 配置的下一段（需要 atk1.asset 的 NextCombo 链配好） |
+| 2 | 短按鼠标左键 | 松开时切 AttackState，播 `atk1.asset` 的 AnimName 动画 |
+| 2b | 按住鼠标左键超过 `AttackHoldDuration` | 达到阈值时自动播 `Thrust`；继续按住不会重复出招 |
+| 3 | 在后摇前不超过约 0.2s 再按一次攻击 | 命令先进入缓冲，在 `RecoveryWindowStart` 自动衔接 `NextCombo` |
+| 3b | 在 `RecoveryWindowStart~ComboWindowEnd` 按攻击 | 立即衔接 `NextCombo` |
+| 3c | 过早按攻击或晚于 `ComboWindowEnd` | 不错误衔接本段 `NextCombo` |
+| 3d | 后摇窗口按移动/格挡/垫步/跳跃/喝药 | 立即取消后摇并执行对应行为 |
+| 3e | 锁定攻击时 Boss 横向移动 | `RotationWindowEnd` 前玩家持续追踪 Boss；窗口结束后不再强转 |
+| 3f | 未锁定攻击时输入不同方向 | `RotationWindowEnd` 前攻击朝输入方向调整 |
+| 3g | 锁定攻击期间持续按移动，进入后摇 | 立即衔接 `Walk_Strafe`；不会插入 `IdleToWalk`，也不会额外朝 Boss 前冲 |
 | 4 | 按空格 | 跳起切 AirState：先播 `Jump`（起跳，上升由动画 Root 驱动），过最高点自动切 `Fall`（下落） |
 | 5 | 鼠标右键**按住** | 进 DeflectState（防御/盾反姿态）；**松手** → 自动回待机（PlayerBrain 在松手时发 IdleCommand） |
 | 6 | 未锁定按 Shift | 播 `Dodge`，位移由垫步动画 Root 驱动，`Config.DodgeDuration` 秒后回待机 |
@@ -32,7 +40,8 @@
 - **攻击键切不了状态**：`Light Attack` 槽位是否为空（空配置会安全回退 Idle）；Animator 里攻击状态名是否与 atk1.asset 的 AnimName 一致
 - **防御松手不退**：DeflectState 是否收到 IdleCommand（PlayerBrain 的 Defend.canceled 已绑定）
 - **跳跃没跳起来**：`Config.JumpSpeed` 是否 > 0
-- **连招不生效**：atk1.asset 的 `NextCombo` 是否指向 atk2，且 `ComboWindowStart < ComboWindowEnd`
+- **连招不生效**：检查 `NextCombo`，并确认 `HitStartTime <= RecoveryWindowStart <= ComboWindowEnd <= StateDuration`
+- **长按仍是普攻**：检查 `ThrustAttack` 槽与 `CharacterConfig.AttackHoldDuration`
 
 ## 暂不验收（后续模块）
 

@@ -17,6 +17,8 @@ public class CharacterBody : MonoBehaviour
     public Vector3 MoveDirection { get; set; }
     // Boss AI 给的是世界 XZ；玩家输入是相机相对。MoveState 据此选转向
     public bool MoveUsesWorldDir { get; set; }
+    // 每个角色自己的战斗目标；Boss 不能读取玩家 LockOnManager 的目标（它会指向 Boss 自己）。
+    public Transform CombatTarget { get; set; }
 
     // 4. 物理状态 (Body 负责检测，State 读取)
     public bool IsGrounded { get; private set; }
@@ -33,6 +35,7 @@ public class CharacterBody : MonoBehaviour
     // 默认攻击招式根节点（SO）：AttackCommand 不携带配置，状态机从这里取连招起点
     // （用户决策：轻重击通过不同 AttackConfig 区分，不通过 Command 字段）
     public AttackConfig LightAttack;
+    public AttackConfig ThrustAttack;
 
     // 运行时状态
     public int CurrentHP { get; private set; }
@@ -42,6 +45,7 @@ public class CharacterBody : MonoBehaviour
 
     // 架势是否处于崩解状态（处决窗口内不自然回复）
     public bool IsPostureBroken { get; private set; }
+    public PostureBreakSource CurrentPostureBreakSource { get; private set; }
 
     // 剩余命数（Boss 一阶段 2 条命；玩家 1 条）
     public int LivesRemaining { get; private set; }
@@ -51,6 +55,8 @@ public class CharacterBody : MonoBehaviour
 
     // 是否正在攻击（AttackState 期间）——Boss AI 反制判定用（避免查状态类型，架构红线）
     public bool IsAttacking { get; set; }
+    public bool IsAttackRecoveryOpen { get; set; }
+    public bool IsHealing { get; set; }
 
     // Boss 招式集（AI 切换招式用）：AttackCommand 不携带配置（用户决策 9），
     // BT 节点先设置 ActiveAttack，AttackState 优先读它，null 则回退 LightAttack
@@ -223,6 +229,7 @@ public class CharacterBody : MonoBehaviour
         }
         CurrentPosture = 0f;
         IsPostureBroken = false;
+        CurrentPostureBreakSource = PostureBreakSource.Attack;
     }
 
     // ===== 受击动画接口（用户预留扩展点）=====
@@ -290,12 +297,27 @@ public class CharacterBody : MonoBehaviour
     }
 
     // 架势崩解硬直入口（M9）：玩家 = 击飞倒地（不被处决）；Boss = 处决窗口（红点）。
-    public void ForcePostureBroken()
+    public void ForcePostureBroken(PostureBreakSource source = PostureBreakSource.Attack)
     {
         IsAttacking = false;
         DisableWeaponHit();
         CombatEventBus.TriggerCameraShake(0.8f); // 崩解震屏
-        MainStateMachine.ChangeState(new GroundedState(this, new StaggerBrokenState(this)));
+
+        BaseState brokenState;
+        switch (source)
+        {
+            case PostureBreakSource.Deflect:
+                brokenState = new FinisherVictimState(this, "Stagger_Broken_Deflect");
+                break;
+            case PostureBreakSource.Mikiri:
+                brokenState = new FinisherVictimState(this, "Stagger_Broken_Miriki");
+                break;
+            default:
+                brokenState = new StaggerBrokenState(this);
+                break;
+        }
+
+        MainStateMachine.ChangeState(new GroundedState(this, brokenState));
     }
 
     // 开启武器判定（M3/M8）：攻击状态/动画事件调用。绑定本招式的伤害配置
@@ -334,29 +356,31 @@ public class CharacterBody : MonoBehaviour
 
     // 累计架势。防御/弹反也会加少量（M9 细则接），这里统一入口。
     // allowBreak=false：本次累计不会导致崩解（只狼：完美弹反时自己的架势永不崩防）
-    public void AccumulatePosture(float amount, bool allowBreak = true)
+    public bool AccumulatePosture(
+        float amount,
+        bool allowBreak = true,
+        PostureBreakSource source = PostureBreakSource.Attack)
     {
-        if (IsPostureBroken) return; // 崩解中不累计
+        if (IsPostureBroken) return false; // 崩解中不累计
 
-        if (Config == null)
-        {
-            CurrentPosture = Mathf.Min(CurrentPosture + amount, 100f);
-        }
-        else
-        {
-            CurrentPosture = Mathf.Min(CurrentPosture + amount, Config.MaxPosture);
-        }
+        float maxPosture = Config != null ? Config.MaxPosture : 100f;
+        CurrentPosture = Mathf.Min(CurrentPosture + amount, maxPosture);
         lastHitTime = Time.time; // 受击计时，用于架势回复延迟
 
-        CombatEventBus.TriggerPostureChanged(this, CurrentPosture, Config != null ? Config.MaxPosture : 100f);
+        CombatEventBus.TriggerPostureChanged(this, CurrentPosture, maxPosture);
 
-        if (allowBreak && CurrentPosture >= (Config != null ? Config.MaxPosture : 100f))
+        if (allowBreak && CurrentPosture >= maxPosture)
         {
             IsPostureBroken = true;
+            CurrentPostureBreakSource = source;
             // 崩解 → 崩解硬直（玩家击飞倒地 / Boss 处决窗口）
             CombatEventBus.TriggerPostureBroken(this);
-            ForcePostureBroken();
+            CombatEventBus.TriggerFinisherOpportunityChanged(this, true);
+            ForcePostureBroken(source);
+            return true;
         }
+
+        return false;
     }
 
     // 架势自然回复：停止受击超过 PostureDecayDelay 秒后，每秒回 PostureDecayRate
@@ -440,6 +464,7 @@ public class CharacterBody : MonoBehaviour
         LivesRemaining--;
         CurrentPosture = 0f;
         IsPostureBroken = false;
+        CombatEventBus.TriggerFinisherOpportunityChanged(this, false);
 
         CombatEventBus.TriggerLifeCleared(this, LivesRemaining);
 
@@ -454,12 +479,20 @@ public class CharacterBody : MonoBehaviour
     }
 
     // 崩解超时恢复（M9）：架势清空 + 崩解解除，不扣命（与处决清命区分）
-    public void RecoverFromBreak()
+    public void RecoverFromBreak(float remainingRatio = 0f)
     {
         IsPostureBroken = false;
-        CurrentPosture = 0f;
-        CombatEventBus.TriggerPostureChanged(this, 0f, Config != null ? Config.MaxPosture : 100f);
+        float maxPosture = Config != null ? Config.MaxPosture : 100f;
+        CurrentPosture = Mathf.Clamp01(remainingRatio) * maxPosture;
+        CombatEventBus.TriggerPostureChanged(this, CurrentPosture, maxPosture);
+        CombatEventBus.TriggerFinisherOpportunityChanged(this, false);
         MainStateMachine.ChangeState(new GroundedState(this));
+    }
+
+    // 玩家忍杀动画命中帧事件入口：转发到 CombatManager 做幂等清命。
+    public void ExecuteFinisher()
+    {
+        CombatManager.Instance?.ExecuteFinisher(this);
     }
 
     // 接收外界物理碰撞传来的打击

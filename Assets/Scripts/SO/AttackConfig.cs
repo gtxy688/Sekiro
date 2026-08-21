@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 // 这个标签让你可以在 Unity 项目的右键菜单里直接创建这个配置文件
 [CreateAssetMenu(fileName = "NewAttackConfig", menuName = "Combat/Attack Configuration")]
@@ -23,8 +24,14 @@ public class AttackConfig : ScriptableObject
 
     [Header("连招窗口期")]
     public float StateDuration = 1.633f;  // 这个动作总共持续多久
-    public float ComboWindowStart = 0f; // 挥刀多久后允许按键
+    [FormerlySerializedAs("ComboWindowStart")]
+    public float RecoveryWindowStart = 0f; // 后摇起点：连招衔接与其他行为取消从这里开放
     public float ComboWindowEnd = 0.33f;   // 多久之后按键无效（错过连招）
+
+    [Header("攻击转向")]
+    public bool AllowRotation = true;
+    public float RotationSpeed = 720f;
+    public float RotationWindowEnd = 0.3f;
 
     [Header("连招派生")]
     // 极其关键：指向下一段攻击的配置！如果没有下一段，留空即可

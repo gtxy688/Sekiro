@@ -27,6 +27,8 @@ public static class CombatEventBus
     public static event Action<CharacterBody, float, float> OnPostureChanged;
     // 架势崩解（角色）—— 触发处决窗口
     public static event Action<CharacterBody> OnPostureBroken;
+    // 忍杀机会显隐（目标, 是否可忍杀）—— UI 红点只订阅事件，不轮询
+    public static event Action<CharacterBody, bool> OnFinisherOpportunityChanged;
     // 葫芦使用（角色, 剩余次数）
     public static event Action<CharacterBody, int> OnGourdUsed;
     // 角色死亡
@@ -75,6 +77,11 @@ public static class CombatEventBus
     public static void TriggerPostureBroken(CharacterBody c)
     {
         OnPostureBroken?.Invoke(c);
+    }
+
+    public static void TriggerFinisherOpportunityChanged(CharacterBody target, bool available)
+    {
+        OnFinisherOpportunityChanged?.Invoke(target, available);
     }
 
     public static void TriggerGourdUsed(CharacterBody c, int remaining)

@@ -19,7 +19,7 @@ public class CharacterConfig : ScriptableObject
 
     [Header("受击动画（接口预留，留空 = 回退到普通受击动画）")]
     public string HurtAnim_Normal = "Hurt_Ground";     // 裸吃普通攻击
-    public string HurtAnim_Heavy = "";                 // 强力招式（击飞/倒地），空则用 HurtAnim_Normal
+    public string HurtAnim_Heavy = "Hurt_Heavy";       // 强力招式（击飞/倒地），空则用 HurtAnim_Normal
     public string HurtAnim_Guard = "Hurt_Guard";       // 格挡轻攻击，空则用 HurtAnim_Normal
     public string HurtAnim_GuardHeavy = "Hurt_GuardHeavy"; // 格挡重攻击（Knockback>0），空则用 HurtAnim_Guard
     public string HurtAnim_Deflected = "";             // 被完美弹反后的硬直，空则用 HurtAnim_Normal
@@ -55,6 +55,14 @@ public class CharacterConfig : ScriptableObject
     [Header("移动")]
     // 移动速度由动画 Root 曲线决定（全权根运动），这里只留转身速度
     public float RotationSpeed = 720f;
+
+    [Header("攻击输入")]
+    public float AttackHoldDuration = 0.3f; // 按住攻击达到该时长后自动触发突刺
+
+    [Header("忍杀站位（Boss 本地坐标）")]
+    public Vector3 FinisherGroundOffset = new Vector3(0f, 0f, 1f);
+    public Vector3 FinisherDeflectOffset = new Vector3(0f, 0f, 1f);
+    public Vector3 FinisherMikiriOffset = new Vector3(0f, 0f, 1f);
 
     [Header("葫芦/复活（玩家专属，Boss 用不到）")]
     public int GourdCount = 10;       // 初始葫芦次数

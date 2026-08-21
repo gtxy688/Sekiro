@@ -13,6 +13,22 @@ public enum HurtContext
     Deflected    // 被完美弹反后的硬直（攻击者播）
 }
 
+// 架势崩解来源决定等待姿态与忍杀演出，不能只看 IsPostureBroken。
+public enum PostureBreakSource
+{
+    Attack,
+    Deflect,
+    Mikiri
+}
+
+// 三组成对忍杀使用独立动画与站位偏移。
+public enum FinisherKind
+{
+    Ground,
+    Deflect,
+    Mikiri
+}
+
 // 受击数据（值类型）：由 CombatManager / Hitbox 打包传给 ReceiveHit
 // 状态机用 OnHitReceived 查询"当前在防御吗/垫步吗/受击中吗"，再决定是否拦截
 public struct HitData

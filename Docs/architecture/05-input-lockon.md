@@ -40,8 +40,9 @@ protected override void Awake()
     inputActions.Player.Move.performed += ctx => currentMoveInput = ctx.ReadValue<Vector2>();
     inputActions.Player.Move.canceled += ctx => currentMoveInput = Vector2.zero;
 
-    // 离散按键 → 缓冲池（基类 BufferCommand）
-    inputActions.Player.Attack.started += _ => BufferCommand(new AttackCommand());
+    // Attack：按下计时；阈值前松开 = 普攻，达到 0.3s = 自动突刺
+    inputActions.Player.Attack.started += _ => BeginAttackHold();
+    inputActions.Player.Attack.canceled += _ => ReleaseAttack();
     inputActions.Player.Jump.started += _ => BufferCommand(new JumpCommand());
     inputActions.Player.Defend.started += _ => BufferCommand(new DeflectCommand());
     // 松手发 IdleCommand，让 DeflectState 退出（防御按住不放的语义）
@@ -50,6 +51,15 @@ protected override void Awake()
     inputActions.Player.Focus.started += _ => BufferCommand(new LockOnCommand());
 }
 ```
+
+### 攻击短按 / 长按
+
+- 不需要给 InputAction 添加 Hold Interaction。
+- 按下攻击时开始计时，阈值前松开才发送普通 `AttackCommand`。
+- 按住达到 `CharacterConfig.AttackHoldDuration`（默认 0.3s）时，设置 `CharacterBody.ThrustAttack` 为本次主动攻击并立即发送一次 `AttackCommand`。
+- 达到阈值后继续按住不会重复出招。
+- `ThrustAttack` 使用独立 `AttackConfig`，Animator 状态名为 `Thrust`。
+- 连招预输入继续使用 `BrainBase` 的 0.2s 单槽缓冲：窗口开启前不超过 0.2s 的攻击会在 `RecoveryWindowStart` 自动落地，过早输入会超时。
 
 ### 缓冲池规则（已有）
 
@@ -88,6 +98,7 @@ public class LockOnManager : MonoBehaviour
    ```
 2. **DodgeState**：锁定中按相对 Boss 的输入切四向一次性垫步（`Dodge_Forward` / `Dodge_Back` / `Dodge_Left` / `Dodge_Right`），无输入后垫；未锁定仍用 `Dodge`。不要融合树。
 3. **相机**：`OnLockOnChanged` 驱动 M12 `CameraController` 切 VCam（FreeLook ↔ 锁定第三人称跟随），见 `06-presentation.md`。
+4. **AttackState**：每招在 `AttackConfig.RotationWindowEnd` 前允许转向；锁定时持续追踪 Boss，未锁定时按移动输入方向调整。
 
 ### 锁定点 UI
 

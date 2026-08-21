@@ -39,6 +39,11 @@ Player（GameObject）
 | `Jump` | 起跳（上升段） | AirIdleState.cs |
 | `Fall` | 下落（过最高点后切） | AirIdleState.cs |
 | `Mikiri` | 踩刀 | MikiriCounterState.cs |
+| `Deflect_Slash` / `Deflect_HeavySlash` | 完美弹反轻/重攻击 | DeflectState.cs |
+| `Hurt_Guard` / `Hurt_GuardHeavy` | 普通格挡轻/重攻击 | DeflectState.cs |
+| `Hurt_Heavy` | 未格挡重攻击 | GroundStunnedState.cs |
+| `DeflectToFinsher` | 弹反崩解后的忍杀确认姿态 | FinisherReadyState.cs |
+| `Finsher_Ground` / `Finsher_Deflect` / `Finsher_Mikiri` | 三组成对忍杀 | FinisherState.cs |
 | 攻击状态名 | 攻击 | `atk1.asset` 的 AnimName 字段 |
 
 > 攻击状态名要写进 atk1.asset 的 `Anim Name` 字段，两者一致。
@@ -69,7 +74,20 @@ Player（GameObject）
 - **硬直时长不对**：改 `PlayerConfig.asset` 的 `StunDuration` 看是否生效
 - **跳跃没跳起来**：`Config.JumpSpeed` 是否配置（>0），跳跃初速度从这里读
 
-## 暂不验收（后续模块）
+## M4：防御反馈验收
 
-- M4：弹反窗口拦截（DeflectState 的 OnHitReceived 实现）
-- M10：#9-#12 处决/忍杀
+| # | 操作 | 预期 |
+|---|------|------|
+| 6 | 分别格挡轻攻击和 `Knockback > 0` 的重攻击 | 播 `Hurt_Guard` / `Hurt_GuardHeavy`，玩家涨架势，Boss 不涨架势 |
+| 7 | 分别完美弹反轻攻击和重攻击 | 播 `Deflect_Slash` / `Deflect_HeavySlash`，Boss 涨架势 |
+| 8 | 攻击前摇按住格挡取消，随后立即松开 | 必定播放 `Deflect_Cancel`，播完回 Idle |
+
+## M10：三类忍杀验收
+
+| # | 操作 | 预期 |
+|---|------|------|
+| 9 | 玩家攻击打满 Boss 架势 | Boss 播 `Stagger_Broken`，红点显示；按攻击后双方播 `Finsher_Ground` |
+| 10 | 完美弹反打满 Boss 架势 | Boss 播 `Stagger_Broken_Deflect`，玩家播 `DeflectToFinsher`，红点显示；按攻击后双方播 `Finsher_Deflect` |
+| 11 | 识破突刺打满 Boss 架势 | 识破动画期间红点显示；按攻击后双方播 `Finsher_Mikiri` |
+| 12 | 弹反/识破崩解后不按攻击 | 确认动画结束后红点隐藏，Boss 架势降至 80% 并恢复 |
+| 13 | 任一忍杀动画播放到命中帧 | 只清 Boss 一条命；双方位置、朝向和动画同步 |
