@@ -25,4 +25,16 @@ public static class AnimUtil
         }
         return animator.HasState(layerIndex, Animator.StringToHash(shortName));
     }
+
+    // 不在这里 Animator.Update：崩解常从命中动画事件切入，Update 会重入。
+    public static bool TryPlay(Animator animator, string shortName, int layerIndex = 0)
+    {
+        if (!HasState(animator, shortName, layerIndex))
+        {
+            return false;
+        }
+
+        animator.Play(shortName, layerIndex, 0f);
+        return true;
+    }
 }

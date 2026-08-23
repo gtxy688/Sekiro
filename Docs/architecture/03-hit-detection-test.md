@@ -44,6 +44,7 @@
 | 6 | 玩家和 Boss 都开判定，双方武器相交 | `ReportClash` 触发：双方涨架势 + `TriggerWeaponDeflected`（打铁火花/音效，配了资源才看得到） |
 | 7 | 高速挥砍（动画快速摆动） | 能命中（上一帧→当前帧一段式扫描，防穿透） |
 | 7b | Attack1 打中后接 Attack2 | 第二刀也能打中（Hitbox 在武器中央 + Boss 碰撞体包住身体） |
+| 7c | 进入 `RecoveryWindowStart` 后再贴身（刀已进入可取消段） | 不再掉血；没取消则动画仍播到 `StateDuration` |
 
 ## M17：危字攻击
 

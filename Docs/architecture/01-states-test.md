@@ -40,6 +40,7 @@ Player（GameObject）
 | `Fall` | 下落（过最高点后切） | AirIdleState.cs |
 | `Mikiri` | 踩刀 | MikiriCounterState.cs |
 | `Deflect_Slash` / `Deflect_HeavySlash` | 完美弹反轻/重攻击 | DeflectState.cs |
+| `Deflected` | 被完美弹反硬直 | ParriedState.cs |
 | `Hurt_Guard` / `Hurt_GuardHeavy` | 普通格挡轻/重攻击 | DeflectState.cs |
 | `Hurt_Heavy` | 未格挡重攻击 | GroundStunnedState.cs |
 | `DeflectToFinsher` | 弹反崩解后的忍杀确认姿态 | FinisherReadyState.cs |
@@ -79,7 +80,7 @@ Player（GameObject）
 | # | 操作 | 预期 |
 |---|------|------|
 | 6 | 分别格挡轻攻击和 `Knockback > 0` 的重攻击 | 播 `Hurt_Guard` / `Hurt_GuardHeavy`，玩家涨架势，Boss 不涨架势 |
-| 7 | 分别完美弹反轻攻击和重攻击 | 播 `Deflect_Slash` / `Deflect_HeavySlash`，Boss 涨架势 |
+| 7 | 分别完美弹反轻攻击和重攻击 | 播 `Deflect_Slash` / `Deflect_HeavySlash`，攻击者播 `Deflected` 并涨架势；防守者自己不涨架势 |
 | 8 | 攻击前摇按住格挡取消，随后立即松开 | 必定播放 `Deflect_Cancel`，播完回 Idle |
 
 ## M10：三类忍杀验收
@@ -90,4 +91,8 @@ Player（GameObject）
 | 10 | 完美弹反打满 Boss 架势 | Boss 播 `Stagger_Broken_Deflect`，玩家播 `DeflectToFinsher`，红点显示；按攻击后双方播 `Finsher_Deflect` |
 | 11 | 识破突刺打满 Boss 架势 | 识破动画期间红点显示；按攻击后双方播 `Finsher_Mikiri` |
 | 12 | 弹反/识破崩解后不按攻击 | 确认动画结束后红点隐藏，Boss 架势降至 80% 并恢复 |
-| 13 | 任一忍杀动画播放到命中帧 | 只清 Boss 一条命；双方位置、朝向和动画同步 |
+| 13 | 任一忍杀动画播放完毕 | 只清 Boss 一条命；双方位置、朝向和动画同步 |
+| 14 | 玩家架势打满 | 播 `Stagger_Broken`（倒地，不是格挡受击）；期间跳跃/喝药不能打断。动画结束立刻清架势条并恢复，不会额外卡住约 5 秒；起身后才能忍杀 |
+| 15 | 攻击打崩 Boss 后玩家不按攻击 | Boss 播完 `Stagger_Broken` 立刻清架势条并解除崩解，不进 `Finsher_Ground`，不掉命 |
+| 16 | 崩解窗口内 Boss 仍可能发攻击意图 | Boss 不播忍杀、不 `ClearLife`；Console 无「自己 CrossFade 忍杀」 |
+| 17 | 玩家自己崩解期间连按攻击 | 不能忍杀 Boss；起身后再按才可能处决 |

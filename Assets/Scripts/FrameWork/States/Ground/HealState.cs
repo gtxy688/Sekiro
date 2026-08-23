@@ -6,6 +6,7 @@ public class HealState : BaseState
 {
     private const string UpperLayerName = "UpperBody";
     private const string DrinkState = "Drink_UpperBody";
+    private const string EmptyState = "UpperBody_Empty";
     private const string SlowWalkState = "Walk_Slow_Strafe";
 
     private readonly HierarchicalState parent;
@@ -47,10 +48,8 @@ public class HealState : BaseState
 
         body.IsHealing = true;
         body.Animator.SetLayerWeight(upperLayerIndex, 1f);
-        body.Animator.CrossFadeInFixedTime(
-            DrinkState,
-            0.1f,
-            upperLayerIndex);
+        // 默认态可能已经停在喝药末帧，CrossFade 同状态不会重播。
+        body.Animator.Play(DrinkState, upperLayerIndex, 0f);
         UpdateStrafeParams(instant: true);
         PlayBaseLocomotion(force: true);
     }
@@ -92,6 +91,10 @@ public class HealState : BaseState
         if (upperLayerIndex >= 0 &&
             upperLayerIndex < body.Animator.layerCount)
         {
+            if (AnimUtil.HasState(body.Animator, EmptyState, upperLayerIndex))
+            {
+                body.Animator.Play(EmptyState, upperLayerIndex, 0f);
+            }
             body.Animator.SetLayerWeight(upperLayerIndex, 0f);
         }
     }
@@ -181,16 +184,7 @@ public class HealState : BaseState
 
     private void SetStrafe(float x, float z, bool instant)
     {
-        if (instant)
-        {
-            body.Animator.SetFloat("MoveX", x);
-            body.Animator.SetFloat("MoveZ", z);
-        }
-        else
-        {
-            body.Animator.SetFloat("MoveX", x, 0.1f, Time.deltaTime);
-            body.Animator.SetFloat("MoveZ", z, 0.1f, Time.deltaTime);
-        }
+        body.SetMoveStrafe(x, z, instant);
     }
 
     private void FaceTarget()

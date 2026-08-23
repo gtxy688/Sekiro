@@ -1,13 +1,14 @@
 using UnityEngine;
 
-// 被完美弹反后的硬直（M4）：攻击者被弹开，播被弹反动画（HurtContext.Deflected），
-// 短暂不可动后回待机。动画名走 CharacterConfig 受击动画映射（接口预留）
-// 由 CharacterBody.ForceParryStun 强切（顶层走 GroundedState 初始子状态），
-// 结束直接切顶层 GroundedState，不依赖 parent 引用
+// 被完美弹反后的硬直（M4）：攻击者被弹开，播 Deflected，动画结束回待机。
+// 由 CharacterBody.ForceParryStun 强切（顶层走 GroundedState 初始子状态）。
 public class ParriedState : BaseState
 {
+    private const string DeflectedAnim = "Deflected";
+
     private float timer;
     private float duration;
+    private bool hasSeenAnim;
 
     public ParriedState(CharacterBody body) : base(body)
     {
@@ -17,14 +18,40 @@ public class ParriedState : BaseState
     public override void OnEnter()
     {
         timer = 0f;
-        // 被弹反动画：HurtContext.Deflected 映射（留空则回退普通受击动画）
-        body.Animator.CrossFade(body.ResolveHurtAnim(HurtContext.Deflected), 0.05f);
+        hasSeenAnim = false;
+
+        if (!AnimUtil.HasState(body.Animator, DeflectedAnim))
+        {
+            Debug.LogError($"{body.name} 的 Animator 缺少被弹反状态：{DeflectedAnim}");
+            body.Animator.CrossFade(body.ResolveHurtAnim(HurtContext.Deflected), 0.05f);
+            return;
+        }
+
+        body.Animator.CrossFade(DeflectedAnim, 0.05f);
     }
 
     public override void OnUpdate()
     {
         timer += Time.deltaTime;
-        if (timer >= duration)
+
+        AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
+        if (AnimUtil.IsPlaying(info, DeflectedAnim))
+        {
+            hasSeenAnim = true;
+            if (info.normalizedTime >= 0.95f)
+            {
+                body.MainStateMachine.ChangeState(new GroundedState(body));
+                return;
+            }
+        }
+        else if (hasSeenAnim && !body.Animator.IsInTransition(0))
+        {
+            body.MainStateMachine.ChangeState(new GroundedState(body));
+            return;
+        }
+
+        // 没接到 Deflected 时用配置时长兜底，避免卡死
+        if (!hasSeenAnim && timer >= duration)
         {
             body.MainStateMachine.ChangeState(new GroundedState(body));
         }

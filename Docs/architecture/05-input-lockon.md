@@ -112,3 +112,11 @@ public class LockOnManager : MonoBehaviour
 - 新建：`Assets/Scripts/Player/Control/LockOnManager.cs`
 - 修改：`Assets/Scripts/FrameWork/States/Ground/MoveState.cs`（锁定面向）
 - 修改：`Assets/Scripts/FrameWork/States/Ground/DodgeState.cs`（锁定四向垫步）
+
+## 三、暂停与自定义键位
+
+Esc / 手柄 Start 打开暂停（`PauseMenuController`）。`Time.timeScale = 0` 冻战斗；`GamePause.IsPaused` 让 `PlayerBrain` 忽略玩法输入，避免点菜单时误触发攻击。
+
+设置页两个 Tab（`KeyboardMouse` / `Gamepad`），只改 Attack / Deflect / Dodge / Jump / Heal / LockOn。改键走 `PerformInteractiveRebinding`，同一 Scheme 撞键自动对调，override 存 `PlayerPrefs`。Move / Look 不开放。
+
+顿帧结束时若仍在暂停，保持 `timeScale = 0`，不拨回 1。

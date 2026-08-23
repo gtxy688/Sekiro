@@ -19,13 +19,14 @@ public class AttackConfig : ScriptableObject
     public PerilousType Perilous = PerilousType.None;
 
     [Header("取消窗口")]
-    [Tooltip("进招后多少秒内可用格挡/垫步取消。判定从进攻击就开，与此无关。0 = 进招不可取消")]
+    [Tooltip("进招后多少秒内可用格挡/垫步取消。武器判定也从这一刻开启。0 = 进招即开判定且不可取消")]
     public float HitStartTime = 0.2f;
 
     [Header("连招窗口期")]
     public float StateDuration = 1.633f;  // 这个动作总共持续多久
     [FormerlySerializedAs("ComboWindowStart")]
-    public float RecoveryWindowStart = 0f; // 后摇起点：连招衔接与其他行为取消从这里开放
+    [Tooltip("判定结束并开放连招/取消：关 Hitbox，到 ComboWindowEnd 可接 NextCombo，也可格挡/垫步/移动。动画仍播到 StateDuration")]
+    public float RecoveryWindowStart = 0f; // 判定结束 + 开放连招/取消
     public float ComboWindowEnd = 0.33f;   // 多久之后按键无效（错过连招）
 
     [Header("攻击转向")]

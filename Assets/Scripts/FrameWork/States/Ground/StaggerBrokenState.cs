@@ -1,44 +1,91 @@
 using UnityEngine;
 
 // 架势崩解硬直（M9）：
-//   玩家崩解 → 击飞倒地动画，结束后架势清空（不被处决）
-//   Boss 崩解 → 处决窗口（红点），期间玩家可走近按攻击键处决，超时恢复
+//   玩家崩解 → 播倒地动画，播完立刻恢复（不加额外硬直，不被处决）
+//   Boss 攻击崩解 → 处决窗口跟 Stagger_Broken 动画走，播完未处决则立刻清架势条
 // 由 CharacterBody.ForcePostureBroken 强切（顶层走 GroundedState 初始子状态），
 // 结束由 body.RecoverFromBreak 切顶层，不依赖 parent 引用
 public class StaggerBrokenState : BaseState
 {
+    // Animator 当帧还没切到 clip 时的兜底：玩家 Stagger_Broken 约 75 帧 / 30fps
+    private const float FallbackDuration = 2.5f;
+
+    private string animName;
     private float timer;
     private float duration;
+    private bool triedNestedPath;
 
     public StaggerBrokenState(CharacterBody body) : base(body)
     {
-        duration = body.Config != null ? body.Config.PostureBrokenDuration : 5f;
     }
 
     public override void OnEnter()
     {
         timer = 0f;
-
-        // 崩解动画：独立字段（占位名 Stagger_Broken，M8 接动画前）
-        string anim = body.Config != null && !string.IsNullOrEmpty(body.Config.HurtAnim_Broken)
+        triedNestedPath = false;
+        duration = FallbackDuration;
+        animName = body.Config != null && !string.IsNullOrEmpty(body.Config.HurtAnim_Broken)
             ? body.Config.HurtAnim_Broken : "Hurt_Ground";
-        body.Animator.CrossFade(anim, 0.05f);
+
+        if (body.Animator == null)
+        {
+            return;
+        }
+
+        if (!AnimUtil.TryPlay(body.Animator, animName))
+        {
+            Debug.LogError($"{body.name} 的 Animator 缺少崩解状态：{animName}");
+            duration = 0.5f;
+        }
     }
 
     public override void OnUpdate()
     {
         timer += Time.deltaTime;
+        if (body.Animator == null)
+        {
+            if (timer >= duration)
+            {
+                FinishBreak();
+            }
+            return;
+        }
 
-        // 崩解窗口结束：架势清空恢复（不扣命）
+        AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
+        if (AnimUtil.IsPlaying(info, animName))
+        {
+            if (info.length > 0.05f)
+            {
+                duration = info.length;
+            }
+
+            if (info.normalizedTime >= 0.99f && !body.Animator.IsInTransition(0))
+            {
+                FinishBreak();
+                return;
+            }
+        }
+        else if (!triedNestedPath && timer > 0.05f && body.Animator != null)
+        {
+            // 等 Animator 吃到 OnEnter 的 Play；仍对不上再走 _Hurt 子状态机路径
+            triedNestedPath = true;
+            body.Animator.Play("_Hurt." + animName, 0, 0f);
+        }
+
+        // 短名对不上或 clipInfo 为空时，仍按兜底时长结束，避免满条卡死。
         if (timer >= duration)
         {
-            body.RecoverFromBreak();
+            FinishBreak();
         }
     }
 
-    // 崩解期间吞掉所有命令（Boss 无法行动，处决由玩家侧 CombatManager 触发）
     public override bool HandleCommand(ICommand cmd)
     {
         return true;
+    }
+
+    private void FinishBreak()
+    {
+        body.RecoverFromBreak();
     }
 }

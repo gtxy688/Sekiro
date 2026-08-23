@@ -22,13 +22,13 @@ public class CharacterConfig : ScriptableObject
     public string HurtAnim_Heavy = "Hurt_Heavy";       // 强力招式（击飞/倒地），空则用 HurtAnim_Normal
     public string HurtAnim_Guard = "Hurt_Guard";       // 格挡轻攻击，空则用 HurtAnim_Normal
     public string HurtAnim_GuardHeavy = "Hurt_GuardHeavy"; // 格挡重攻击（Knockback>0），空则用 HurtAnim_Guard
-    public string HurtAnim_Deflected = "";             // 被完美弹反后的硬直，空则用 HurtAnim_Normal
+    public string HurtAnim_Deflected = "Deflected";    // 被完美弹反后的硬直，空则用 HurtAnim_Normal
     public string HurtAnim_Broken = "Stagger_Broken";  // 架势崩解倒地（占位名）
 
     [Header("防御/弹反（M4）")]
     public float DeflectWindow = 0.3f;             // 完美弹反窗口（秒）
     public float DeflectPostureGain = 30f;         // 完美弹反成功：攻击者涨的架势
-    public float DeflectSelfPostureFactor = 0.3f;  // 完美弹反时自己涨架势的比例（×对方架势伤害）
+    public float DeflectSelfPostureFactor = 0f;    // 已废弃：完美弹反不再涨自己架势，保留字段以免序列化丢失
     public float GuardPostureFactor = 0.5f;        // 格挡时自己涨架势的比例（×对方架势伤害）
     public float ParriedDuration = 0.35f;          // 被完美弹反后的硬直时长
     public float DeflectMashLimit = 3;             // 抖刀惩罚：0.5s 内连点次数阈值
@@ -39,7 +39,7 @@ public class CharacterConfig : ScriptableObject
 
     [Header("架势（M9）")]
     public bool PostureDecayInverse = false;   // true=非线性（架势越高回越慢，Boss 用）；false=线性
-    public float PostureBrokenDuration = 5f;   // 崩解硬直/处决窗口时长
+    public float PostureBrokenDuration = 5f;   // 仅文档/旧数据保留；攻击崩解窗口已改为跟倒地动画走
 
     [Header("命数（Boss 用，一阶段 2 条命）")]
     public int LifeCount = 1;      // 总命数（玩家填 1，Boss 填 2）
@@ -58,11 +58,6 @@ public class CharacterConfig : ScriptableObject
 
     [Header("攻击输入")]
     public float AttackHoldDuration = 0.3f; // 按住攻击达到该时长后自动触发突刺
-
-    [Header("忍杀站位（Boss 本地坐标）")]
-    public Vector3 FinisherGroundOffset = new Vector3(0f, 0f, 1f);
-    public Vector3 FinisherDeflectOffset = new Vector3(0f, 0f, 1f);
-    public Vector3 FinisherMikiriOffset = new Vector3(0f, 0f, 1f);
 
     [Header("葫芦/复活（玩家专属，Boss 用不到）")]
     public int GourdCount = 10;       // 初始葫芦次数

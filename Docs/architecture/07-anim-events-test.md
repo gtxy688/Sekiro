@@ -21,14 +21,12 @@
 |---|------|------|
 | 4 | 播放攻击动画，观察 Console | 动画事件调用 EnableHitbox，无 "not found" 报错 |
 | 5 | 挥砍扫到敌人 | 伤害在 Enable 之后、Disable 之前才能命中 |
-| 6 | 分别检查玩家三个 `Finsher_*` Clip | 每个 Clip 的实际命中帧都有且只有一个 `ExecuteFinisher` 事件 |
-| 7 | 分别触发三类忍杀 | 命中帧调用 `CharacterBody.ExecuteFinisher`，Boss 只扣一条命 |
-| 8 | 暂时移除一个忍杀 Clip 的事件再测试 | 动画结束打印明确兜底错误，但仍只结算一次，不会卡死 |
-| 9 | 喝葫芦动画 | 不需要喝药事件；进入 HealState 时立即扣次数并回血 |
+| 6 | 分别触发三类忍杀，播完处决动画 | Boss 只扣一条命；Console 无“未在命中帧触发 ExecuteFinisher”报错 |
+| 7 | 喝葫芦动画 | 不需要喝药事件；进入 HealState 时立即扣次数并回血 |
 
 ## 常见问题
 
 - **动画事件报 "Function not found"**：方法名和事件 Function 不一致，或方法不在事件目标对象上。
-- **忍杀事件找不到方法**：事件应调用玩家 Animator 所在对象的 `CharacterBody.ExecuteFinisher`，不是直接调用 CombatManager。
+- **忍杀不扣命**：确认处决动画能播完（normalizedTime ≥ 0.98），且场景里有 CombatManager。
 - **伤害提前/延后**：EnableHitbox 帧位置不对，调整时间轴。
 - **每次只配一个 Clip 生效**：每个攻击 Clip 都要单独配，连招的每一段都是独立 Clip。

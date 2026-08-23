@@ -85,10 +85,17 @@ public class CharacterBody : MonoBehaviour
     [Tooltip("接地判定迟滞帧数：连续 N 帧结果一致才翻转，防物理抖动（默认 2）")]
     public int groundHysteresisFrames = 2;
 
+    // 玩家 Controller 用 MoveZ，Boss 用 MoveY。缓存起来避免每帧 SetFloat 打到不存在的参数。
+    private int moveXHash;
+    private int moveForwardHash;
+    private bool moveParamsResolved;
+    private Collider bodyCollider;
+
     private void Awake()
     {
         Animator = GetComponent<Animator>();
         Rb = GetComponent<Rigidbody>();
+        bodyCollider = GetComponent<Collider>();
 
         // 【相机微抖修复】刚体插值：
         // 位移来自动画根运动（Update 直改 transform），但物理系统每 FixedUpdate(50Hz) 会同步/回写刚体位置，
@@ -120,6 +127,9 @@ public class CharacterBody : MonoBehaviour
 
     private void Update()
     {
+        EnsureRuntimeReady();
+        if (MainStateMachine == null) return;
+
         // 1. 每帧更新物理环境感知 (例如是否接地)
         // 这样做的好处是：所有 State 只需要读取 body.IsGrounded，不需要在各自内部写射线检测
         UpdateEnvironmentalChecks();
@@ -131,11 +141,84 @@ public class CharacterBody : MonoBehaviour
         MainStateMachine.Update();
     }
 
+    private void LateUpdate()
+    {
+        if (MainStateMachine == null) return;
+        // 根运动已经写完位移后再做阻挡，避免 PhysX 冲量把人弹开。
+        ResolveOpponentOverlap();
+    }
+
+    // 改脚本后仍停在 Play 时，纯 C# 状态机会丢。下一帧补一套，避免 Update NRE。
+    private void EnsureRuntimeReady()
+    {
+        if (Animator == null) Animator = GetComponent<Animator>();
+        if (Rb == null) Rb = GetComponent<Rigidbody>();
+        if (bodyCollider == null) bodyCollider = GetComponent<Collider>();
+
+        if (MainStateMachine == null)
+        {
+            MainStateMachine = new StateMachine();
+        }
+
+        if (MainStateMachine.CurrentState == null)
+        {
+            if (IsPostureBroken)
+            {
+                MainStateMachine.ChangeState(
+                    new GroundedState(this, new StaggerBrokenState(this)));
+            }
+            else
+            {
+                MainStateMachine.ChangeState(new GroundedState(this));
+            }
+        }
+    }
+
+    // 玩家/Boss 忽略物理互撞后，用分离把玩家挡在 Boss 体外。Boss 不被胶囊挤走。
+    private void ResolveOpponentOverlap()
+    {
+        if (CombatManager.Instance == null) return;
+        if (this != CombatManager.Instance.PlayerRef) return;
+
+        CharacterBody other = CombatManager.Instance.BossRef;
+        if (other == null) return;
+
+        Collider otherCol = other.bodyCollider != null
+            ? other.bodyCollider
+            : other.GetComponent<Collider>();
+        if (bodyCollider == null || otherCol == null) return;
+
+        Vector3 direction;
+        float distance;
+        if (!Physics.ComputePenetration(
+                bodyCollider, transform.position, transform.rotation,
+                otherCol, other.transform.position, other.transform.rotation,
+                out direction, out distance))
+        {
+            return;
+        }
+
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.0001f) return;
+
+        Vector3 delta = direction.normalized * (distance + 0.01f);
+        transform.position += delta;
+        if (Rb != null)
+        {
+            Rb.position = transform.position;
+            Vector3 velocity = Rb.velocity;
+            Rb.velocity = new Vector3(0f, velocity.y, 0f);
+        }
+    }
+
     // 根运动交回 Animator：不要写 OnAnimatorMove，否则 Unity 不再自动应用 Root。
 
     // 接收大脑 (Brain) 传来的指令
     public bool TryExecuteCommand(ICommand cmd)
     {
+        EnsureRuntimeReady();
+        if (MainStateMachine == null) return false;
+
         // 将大脑的指令直接喂给主状态机。
         // 返回 true  表示：指令被某个状态 (父状态或子状态) 成功消耗；
         // 返回 false 表示：当前层级下的所有状态都拒收这个指令。
@@ -287,10 +370,46 @@ public class CharacterBody : MonoBehaviour
         return baseWindow * deflectWindowScale;
     }
 
+    // 锁定四向移动参数：有 MoveZ 用 MoveZ，否则回退 MoveY。
+    public void SetMoveStrafe(float x, float z, bool instant)
+    {
+        if (Animator == null) return;
+        ResolveMoveParams();
+        if (instant)
+        {
+            Animator.SetFloat(moveXHash, x);
+            Animator.SetFloat(moveForwardHash, z);
+        }
+        else
+        {
+            Animator.SetFloat(moveXHash, x, 0.1f, Time.deltaTime);
+            Animator.SetFloat(moveForwardHash, z, 0.1f, Time.deltaTime);
+        }
+    }
+
+    private void ResolveMoveParams()
+    {
+        if (moveParamsResolved || Animator == null) return;
+        moveXHash = Animator.StringToHash("MoveX");
+        string forwardName = "MoveY";
+        foreach (AnimatorControllerParameter parameter in Animator.parameters)
+        {
+            if (parameter.type == AnimatorControllerParameterType.Float &&
+                parameter.name == "MoveZ")
+            {
+                forwardName = "MoveZ";
+                break;
+            }
+        }
+        moveForwardHash = Animator.StringToHash(forwardName);
+        moveParamsResolved = true;
+    }
+
     // 被完美弹反后的硬直入口（M4）：物理强制覆写，不走 Command，直接切顶层状态机。
     // ParriedState 装在 GroundedState 内（通过带初始子状态的构造），顶层结构不变。
     public void ForceParryStun()
     {
+        EnsureRuntimeReady();
         IsAttacking = false;
         DisableWeaponHit();
         MainStateMachine.ChangeState(new GroundedState(this, new ParriedState(this)));
@@ -299,18 +418,24 @@ public class CharacterBody : MonoBehaviour
     // 架势崩解硬直入口（M9）：玩家 = 击飞倒地（不被处决）；Boss = 处决窗口（红点）。
     public void ForcePostureBroken(PostureBreakSource source = PostureBreakSource.Attack)
     {
+        EnsureRuntimeReady();
         IsAttacking = false;
         DisableWeaponHit();
         CombatEventBus.TriggerCameraShake(0.8f); // 崩解震屏
 
+        // 弹反/识破受害姿态只给 Boss：玩家没有这些状态，崩解走普通击飞倒地。
         BaseState brokenState;
         switch (source)
         {
             case PostureBreakSource.Deflect:
-                brokenState = new FinisherVictimState(this, "Stagger_Broken_Deflect");
+                brokenState = CanEnterFinisherVictim("Stagger_Broken_Deflect")
+                    ? new FinisherVictimState(this, "Stagger_Broken_Deflect")
+                    : new StaggerBrokenState(this);
                 break;
             case PostureBreakSource.Mikiri:
-                brokenState = new FinisherVictimState(this, "Stagger_Broken_Miriki");
+                brokenState = CanEnterFinisherVictim("Stagger_Broken_Miriki")
+                    ? new FinisherVictimState(this, "Stagger_Broken_Miriki")
+                    : new StaggerBrokenState(this);
                 break;
             default:
                 brokenState = new StaggerBrokenState(this);
@@ -318,6 +443,12 @@ public class CharacterBody : MonoBehaviour
         }
 
         MainStateMachine.ChangeState(new GroundedState(this, brokenState));
+    }
+
+    // 只有 Animator 里真有受害姿态才进处决等待；玩家不需要这些状态。
+    private bool CanEnterFinisherVictim(string animName)
+    {
+        return AnimUtil.HasState(Animator, animName);
     }
 
     // 开启武器判定（M3/M8）：攻击状态/动画事件调用。绑定本招式的伤害配置
@@ -481,6 +612,7 @@ public class CharacterBody : MonoBehaviour
     // 崩解超时恢复（M9）：架势清空 + 崩解解除，不扣命（与处决清命区分）
     public void RecoverFromBreak(float remainingRatio = 0f)
     {
+        EnsureRuntimeReady();
         IsPostureBroken = false;
         float maxPosture = Config != null ? Config.MaxPosture : 100f;
         CurrentPosture = Mathf.Clamp01(remainingRatio) * maxPosture;
@@ -489,7 +621,7 @@ public class CharacterBody : MonoBehaviour
         MainStateMachine.ChangeState(new GroundedState(this));
     }
 
-    // 玩家忍杀动画命中帧事件入口：转发到 CombatManager 做幂等清命。
+    // 动画事件可选入口：正常结算改由 FinisherState 在动画结束时驱动。
     public void ExecuteFinisher()
     {
         CombatManager.Instance?.ExecuteFinisher(this);
@@ -500,6 +632,7 @@ public class CharacterBody : MonoBehaviour
                            bool isPerilous = false, PerilousType perilousType = PerilousType.None,
                            float knockback = 0f)
     {
+        EnsureRuntimeReady();
         // 打包成值类型，供状态机做层级查询（M1）
         HitData hit = new HitData
         {

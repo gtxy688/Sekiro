@@ -9,6 +9,8 @@ public class Hitbox : MonoBehaviour
 {
     [Header("判定参数")]
     public float castRadius = 0.1f;   // 扫描球半径（大约等于武器"粗细"）
+    [Tooltip("柄到尖的刀身半径。贴身时刀尖在人外侧，只扫尖会漏")]
+    public float shaftRadius = 0.3f;
     public LayerMask targetLayers;    // 能打到的层：对方 Hurtbox / 对方 Hitbox（拼刀）
 
     private CharacterBody owner;
@@ -49,10 +51,11 @@ public class Hitbox : MonoBehaviour
     {
         if (owner == null) return;
         isActive = true;
+        Physics.SyncTransforms();
         lastCastPos = transform.position;
         hitTargets.Clear();
         blockedUntilExit.Clear();
-        FillOverlapping(blockedUntilExit);
+        // 判定改到 HitStartTime 后才开，此时已经叠在刀上就是这一刀该中的，不再先屏蔽。
     }
 
     public void Disable()
@@ -62,9 +65,12 @@ public class Hitbox : MonoBehaviour
         blockedUntilExit.Clear();
     }
 
-    private void FixedUpdate()
+    // 动画在 Update 写骨头，受击胶囊在物理步进才同步。LateUpdate 里先 Sync 再扫。
+    private void LateUpdate()
     {
         if (!isActive || owner == null) return;
+
+        Physics.SyncTransforms();
 
         Vector3 currentPos = transform.position;
         Vector3 delta = currentPos - lastCastPos;
@@ -95,9 +101,24 @@ public class Hitbox : MonoBehaviour
 
     private void FillOverlapping(HashSet<CharacterBody> dest)
     {
-        int count = Physics.OverlapSphereNonAlloc(
+        AddOverlapping(dest, Physics.OverlapSphereNonAlloc(
             transform.position, castRadius, overlapBuf, targetLayers,
-            QueryTriggerInteraction.Collide);
+            QueryTriggerInteraction.Collide));
+
+        // 贴身站在挥砍内侧时，刀尖会从身侧刮过，必须连柄到尖一起扫
+        Vector3 tip = transform.position;
+        Vector3 hilt = transform.parent != null ? transform.parent.position : tip;
+        float shaft = Mathf.Max(castRadius, shaftRadius);
+        if ((tip - hilt).sqrMagnitude > 0.0001f)
+        {
+            AddOverlapping(dest, Physics.OverlapCapsuleNonAlloc(
+                hilt, tip, shaft, overlapBuf, targetLayers,
+                QueryTriggerInteraction.Collide));
+        }
+    }
+
+    private void AddOverlapping(HashSet<CharacterBody> dest, int count)
+    {
         for (int i = 0; i < count; i++)
         {
             Collider col = overlapBuf[i];

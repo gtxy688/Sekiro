@@ -132,12 +132,10 @@ public class CombatUIController : MonoBehaviour
         if (c == playerBody)
         {
             playerPostureBarView?.SetPosture(ratio);
-            playerPostureBarView?.SetDanger(ratio > 0.8f);
         }
         else if (c == bossBody)
         {
             bossPostureBarView?.SetPosture(ratio);
-            bossPostureBarView?.SetDanger(ratio > 0.8f);
             // 崩解结束架势归零 → 处决红点熄灭
             if (ratio <= 0.001f)
             {

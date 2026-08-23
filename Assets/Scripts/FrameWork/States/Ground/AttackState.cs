@@ -5,6 +5,7 @@ public class AttackState : BaseState
     private readonly AttackConfig config; // 当前动作的全部数值与窗口均来自 SO
 
     private float stateTimer;
+    private bool weaponHitEnabled;
 
     // 构造函数只接收一个光盘（配置）
     public AttackState(CharacterBody body, HierarchicalState parent, AttackConfig config) : base(body)
@@ -37,10 +38,25 @@ public class AttackState : BaseState
             return;
         }
 
-        body.Animator.CrossFade(config.AnimName, config.TransitionDuration);
+        if (!AnimUtil.HasState(body.Animator, config.AnimName))
+        {
+            Debug.LogError($"{body.name} 的 Animator 缺少攻击状态：{config.AnimName}");
+        }
+        else
+        {
+            // 必须指定 layer 0：两参数 CrossFade 会把 layer 当成 -1，
+            // 嵌套子状态机里的 Attack1 会 GotoState 失败，刀停在待机姿势。
+            body.Animator.CrossFade(config.AnimName, config.TransitionDuration, 0);
+        }
 
-        // 进攻击就开判定，刀碰到就算；退出时 OnExit 关
-        body.EnableWeaponHit(config);
+        // 前摇不开判定：贴身时刀还在蓄力就会扫到。到 HitStartTime 再开。
+        // HitStartTime=0 且尚未到 RecoveryWindowStart：进招即开。
+        weaponHitEnabled = false;
+        if (config.HitStartTime <= 0f && config.RecoveryWindowStart > 0f)
+        {
+            body.EnableWeaponHit(config);
+            weaponHitEnabled = true;
+        }
 
         // Boss AI 反制判定标记（M7 用，避免查状态类型）
         body.IsAttacking = true;
@@ -58,6 +74,21 @@ public class AttackState : BaseState
 
         stateTimer += Time.deltaTime;
         body.IsAttackRecoveryOpen = stateTimer >= config.RecoveryWindowStart;
+
+        // 可取消 = 这一刀判定段结束。关了之后不能因 HitStartTime 再开。
+        if (stateTimer >= config.RecoveryWindowStart)
+        {
+            if (weaponHitEnabled)
+            {
+                body.DisableWeaponHit();
+                weaponHitEnabled = false;
+            }
+        }
+        else if (!weaponHitEnabled && stateTimer >= config.HitStartTime)
+        {
+            body.EnableWeaponHit(config);
+            weaponHitEnabled = true;
+        }
 
         if (config.AllowRotation && stateTimer <= config.RotationWindowEnd)
         {

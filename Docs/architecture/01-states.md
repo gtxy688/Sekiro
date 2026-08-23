@@ -103,8 +103,9 @@ public void ReceiveHit(CharacterBody attacker, int healthDmg, float postureDmg, 
 
 ### DeflectState（防御/盾反）
 
-- 弹反窗口内：按 `knockback` 选择 `Deflect_Slash` / `Deflect_HeavySlash`，增加攻击者架势。
-- 窗口外仍在防御：按 `knockback` 选择 `Hurt_Guard` / `Hurt_GuardHeavy`，只增加防守者架势。
+- 弹反窗口内：按 `knockback` 选择 `Deflect_Slash` / `Deflect_HeavySlash`，增加攻击者架势；防守者自己不涨架势。
+- 攻击者未崩解时进入 `ParriedState`，播 `Deflected`。
+- 窗口外仍在防御：按 `knockback` 选择 `Hurt_Guard` / `Hurt_GuardHeavy`，只增加防守者架势；受击动画播完再回举刀循环。
 - 未格挡受击：按 `knockback` 选择 `Hurt_Ground` / `Hurt_Heavy`。
 - 普通格挡不会增加攻击者架势；只有完美弹反会。
 - 完美弹反造成攻击者架势崩解时，不再进入普通 `ParriedState`，改走弹反忍杀确认窗口。
@@ -123,10 +124,10 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 
 ### 攻击前摇
 
-- Hitbox：**进入 `AttackState` 即 `EnableWeaponHit`，退出即关**。刀碰到就算，不再等 `HitStartTime`。
+- Hitbox：**`HitStartTime` 开判定，`RecoveryWindowStart` 关判定**（退出再兜底关）。可取消 = 这一刀已经打完，收刀动画不再扫人。
 - `stateTimer < HitStartTime`：允许格挡/垫步取消。
 - `HitStartTime <= stateTimer < RecoveryWindowStart`：动作锁定，离散命令进入 0.2s 输入缓冲。
-- `RecoveryWindowStart <= stateTimer <= ComboWindowEnd`：攻击接 `NextCombo`；移动、格挡、垫步、跳跃、喝药可立即取消。
+- `RecoveryWindowStart <= stateTimer <= ComboWindowEnd`：判定已关；攻击接 `NextCombo`；移动、格挡、垫步、跳跃、喝药可立即取消。动画仍播到 `StateDuration`。
 - `ComboWindowEnd` 后不再接本段 `NextCombo`，尚未过期的命令由动作结束后的状态处理。
 - `ComboWindowStart` 已更名为 `RecoveryWindowStart`，使用序列化迁移保留旧 SO 数值。
 - `HitStartTime = 0`：进招不可取消（判定仍然一进攻击就开）。
@@ -152,12 +153,14 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 ## 七、处决/忍杀（M10）
 
 - 架势崩解记录来源：`Attack` / `Deflect` / `Mikiri`，三类均通过事件总线显示忍杀红点。
-- 攻击崩解：Boss 播 `Stagger_Broken`，范围内按攻击后双方播放 `Finsher_Ground`。
-- 弹反崩解：Boss 播 `Stagger_Broken_Deflect`，玩家播 `DeflectToFinsher`；窗口内按攻击后双方播放 `Finsher_Deflect`。
+- 攻击崩解：Boss 播 `Stagger_Broken`，范围内玩家再按攻击后双方播放 `Finsher_Ground`。未处决则动画播完立刻 `RecoverFromBreak`（清架势条），不再套 `PostureBrokenDuration`。
+- 处决身份：`CombatManager.PlayerRef` 是唯一发起者，受害者固定 `BossRef`。`TryExecuteFinisher` 正向断言 `initiator == PlayerRef && initiator != BossRef && !initiator.IsPostureBroken`。Boss 的 `AttackCommand` 不能把自己当处决发起者。
+- 弹反崩解：Boss 播 `Stagger_Broken_Deflect`，玩家播 `DeflectToFinsher`；窗口内按攻击后双方播放 `Finsher_Deflect`。反向（Boss 弹反打崩玩家）玩家走 `StaggerBrokenState` 击飞倒地（动画播完即恢复，不加额外硬直），Boss 不进确认窗口，继续弹反挥刀。
+- 玩家被攻击打崩：同样播 `Stagger_Broken`，动画结束立刻恢复，不套 `PostureBrokenDuration`。崩解期间父层不响应跳跃/喝药；若仍被带入空中，落地回到倒地直到动画结束。
 - 识破崩解：Boss 立即播放专用 `Stagger_Broken_Miriki`，玩家现有 `Mikiri` 剩余动画作为确认窗口；按攻击后双方播放 `Finsher_Mikiri`。
 - 弹反/识破窗口超时：Boss 架势从 100% 降到 80%，解除崩解并隐藏红点。
-- 忍杀开始时按配置偏移对齐双方并隐藏红点，期间双方锁定命令与受击。
-- 玩家忍杀动画命中帧调用 `CharacterBody.ExecuteFinisher()`，转发到 `CombatManager` 幂等清命；动画结束只做兜底与状态释放。
+- 忍杀开始时隐藏红点，期间双方锁定命令与受击。不强制瞬移对齐站位。
+- 玩家忍杀动画播完后由 `FinisherState` 调用 `CombatManager.ExecuteFinisher()` 清命，再 `CompleteFinisherSequence` 解锁双方。不依赖命中帧动画事件。
 
 ## 涉及文件
 

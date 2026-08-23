@@ -17,6 +17,7 @@ public class CombatManager : MonoBehaviour
 
     [Header("处决（M10）")]
     public float finisherRange = 2f;        // 处决触发距离
+    public CharacterBody PlayerRef;         // 场景里拖玩家；唯一处决发起者
     public CharacterBody BossRef;           // 场景里拖 Boss（单 Boss 战）
 
     private CharacterBody activeFinisherPlayer;
@@ -32,6 +33,41 @@ public class CombatManager : MonoBehaviour
             return;
         }
         Instance = this;
+        ValidateFinisherRefs();
+    }
+
+    private void Start()
+    {
+        // 身体胶囊同时承担 Hurtbox 扫描。互撞冲量会挤开站位，所以忽略 PhysX 互撞；
+        // 玩家仍在 CharacterBody.LateUpdate 里做胶囊分离，不会穿过 Boss。
+        IgnoreCharacterPhysics(PlayerRef, BossRef);
+    }
+
+    private static void IgnoreCharacterPhysics(CharacterBody a, CharacterBody b)
+    {
+        if (a == null || b == null) return;
+
+        Collider[] aCols = a.GetComponentsInChildren<Collider>(true);
+        Collider[] bCols = b.GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < aCols.Length; i++)
+        {
+            if (aCols[i] == null) continue;
+            for (int j = 0; j < bCols.Length; j++)
+            {
+                if (bCols[j] == null) continue;
+                Physics.IgnoreCollision(aCols[i], bCols[j], true);
+            }
+        }
+    }
+
+    private void ValidateFinisherRefs()
+    {
+        if (PlayerRef == null)
+            Debug.LogError("CombatManager.PlayerRef 未绑定，处决无法发起。");
+        if (BossRef == null)
+            Debug.LogError("CombatManager.BossRef 未绑定，处决无法发起。");
+        if (PlayerRef != null && PlayerRef == BossRef)
+            Debug.LogError("CombatManager.PlayerRef 与 BossRef 指向同一角色，处决已禁用。");
     }
 
     private void OnDestroy()
@@ -79,7 +115,7 @@ public class CombatManager : MonoBehaviour
     // ===== 顿帧（打击感）：短暂减速全局时间，营造命中重量感 =====
     public void HitStop(float duration = -1f)
     {
-        if (!enableHitStop) return;
+        if (!enableHitStop || GamePause.IsPaused) return;
         if (duration < 0f) duration = hitStopDuration;
 
         StopAllCoroutines();
@@ -88,54 +124,62 @@ public class CombatManager : MonoBehaviour
 
     private IEnumerator HitStopRoutine(float duration)
     {
+        if (GamePause.IsPaused) yield break;
+
         Time.timeScale = 0.05f;
         yield return new WaitForSecondsRealtime(duration);
-        Time.timeScale = 1f;
+        // 顿帧期间若打开暂停，结束时保持冻结，不要拨回 1
+        Time.timeScale = GamePause.IsPaused ? 0f : 1f;
     }
 
     // ===== 成对忍杀（M10）=====
+    // 正向身份断言：只有玩家能发起，只有 Boss 能被处决，禁止自处决。
     public bool TryExecuteFinisher(
-        CharacterBody player,
+        CharacterBody initiator,
         FinisherKind kind = FinisherKind.Ground)
     {
-        if (BossRef == null || player == null) return false;
+        if (PlayerRef == null || BossRef == null || initiator == null) return false;
+        if (initiator != PlayerRef) return false;
+        if (initiator == BossRef) return false;
+        if (initiator.IsPostureBroken) return false;
         if (activeFinisherPlayer != null) return false;
         if (!BossRef.IsPostureBroken) return false;
         if (!MatchesBreakSource(kind, BossRef.CurrentPostureBreakSource)) return false;
 
-        float dist = Vector3.Distance(player.transform.position, BossRef.transform.position);
+        float dist = Vector3.Distance(
+            initiator.transform.position, BossRef.transform.position);
         if (dist > finisherRange) return false;
 
         string animName = ResolveFinisherAnim(kind);
-        if (!AnimUtil.HasState(player.Animator, animName) ||
+        if (!AnimUtil.HasState(initiator.Animator, animName) ||
             !AnimUtil.HasState(BossRef.Animator, animName))
         {
             Debug.LogError(
-                $"成对忍杀状态缺失：{animName}。请同时检查 {player.name} 与 {BossRef.name} 的 Animator。");
+                $"成对忍杀状态缺失：{animName}。请同时检查 {initiator.name} 与 {BossRef.name} 的 Animator。");
             return false;
         }
 
-        activeFinisherPlayer = player;
+        activeFinisherPlayer = initiator;
         activeFinisherVictim = BossRef;
         finisherResolved = false;
-        player.ActiveAttack = null;
+        initiator.ActiveAttack = null;
 
-        AlignFinisherPair(player, BossRef, kind);
-        player.DisableWeaponHit();
+        initiator.DisableWeaponHit();
         BossRef.DisableWeaponHit();
         CombatEventBus.TriggerFinisherOpportunityChanged(BossRef, false);
 
         BossRef.MainStateMachine.ChangeState(
             new GroundedState(BossRef, new FinisherVictimState(BossRef, animName)));
-        player.MainStateMachine.ChangeState(
-            new GroundedState(player, new FinisherState(player, BossRef, animName)));
+        initiator.MainStateMachine.ChangeState(
+            new GroundedState(initiator, new FinisherState(initiator, BossRef, animName)));
 
-        CombatEventBus.TriggerFinisher(BossRef.transform.position);
+        CombatEventBus.TriggerFinisherStarted(
+            BossRef.transform.position, initiator, BossRef, kind);
         CombatEventBus.TriggerCameraShake(1f);
         return true;
     }
 
-    // 玩家动画命中帧调用；幂等保护确保重复 Event 不会重复清命。
+    // 动画结束由 FinisherState 调用；若 Clip 仍残留事件也不会重复清命。
     public void ExecuteFinisher(CharacterBody source)
     {
         if (source == null || source != activeFinisherPlayer) return;
@@ -161,6 +205,8 @@ public class CombatManager : MonoBehaviour
         activeFinisherPlayer = null;
         activeFinisherVictim = null;
         finisherResolved = false;
+
+        CombatEventBus.TriggerFinisherEnded(player, victim);
 
         if (victim != null && victim.LivesRemaining > 0)
         {
@@ -195,41 +241,5 @@ public class CombatManager : MonoBehaviour
             default:
                 return "Finsher_Ground";
         }
-    }
-
-    private static void AlignFinisherPair(
-        CharacterBody player,
-        CharacterBody victim,
-        FinisherKind kind)
-    {
-        Vector3 offset = Vector3.forward;
-        if (player.Config != null)
-        {
-            switch (kind)
-            {
-                case FinisherKind.Deflect:
-                    offset = player.Config.FinisherDeflectOffset;
-                    break;
-                case FinisherKind.Mikiri:
-                    offset = player.Config.FinisherMikiriOffset;
-                    break;
-                default:
-                    offset = player.Config.FinisherGroundOffset;
-                    break;
-            }
-        }
-
-        player.transform.position = victim.transform.TransformPoint(offset);
-
-        Vector3 playerToVictim = victim.transform.position - player.transform.position;
-        playerToVictim.y = 0f;
-        if (playerToVictim.sqrMagnitude < 0.001f) return;
-
-        player.transform.rotation = Quaternion.LookRotation(
-            playerToVictim.normalized,
-            Vector3.up);
-        victim.transform.rotation = Quaternion.LookRotation(
-            -playerToVictim.normalized,
-            Vector3.up);
     }
 }

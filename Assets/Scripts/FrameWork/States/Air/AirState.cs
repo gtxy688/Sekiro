@@ -13,10 +13,19 @@ public class AirState : HierarchicalState
 
     public override void OnUpdate()
     {
-        // 只要碰地，直接切回地面，不属于 command
+        // 只要碰地，直接切回地面，不属于 command。
+        // 崩解中若被跳走，落地必须回到倒地，不能进 Idle 却仍 IsPostureBroken。
         if (body.IsGrounded)
         {
-            body.MainStateMachine.ChangeState(new GroundedState(body));
+            if (body.IsPostureBroken)
+            {
+                body.MainStateMachine.ChangeState(
+                    new GroundedState(body, new StaggerBrokenState(body)));
+            }
+            else
+            {
+                body.MainStateMachine.ChangeState(new GroundedState(body));
+            }
             return;
         }
 

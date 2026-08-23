@@ -12,8 +12,6 @@ public class MoveState : BaseState
     private float enterDuration = 0.45f;
     private bool inEnterTransition;
     private bool wasLocked;
-    private int moveXHash;
-    private int moveForwardHash;
 
     public MoveState(CharacterBody body, HierarchicalState parent, string enterAnim = "IdleToWalk") : base(body)
     {
@@ -28,7 +26,6 @@ public class MoveState : BaseState
     public override void OnEnter()
     {
         enterTimer = 0f;
-        ResolveMoveParameters();
         // 没有起步 Clip（Boss 没有 IdleToWalk）就直接循环走，避免 CrossFade 静默失败站着滑
         inEnterTransition = AnimUtil.HasState(body.Animator, enterAnim);
         wasLocked = IsLockedOnTarget();
@@ -109,33 +106,7 @@ public class MoveState : BaseState
 
     private void SetStrafe(float x, float z, bool instant)
     {
-        if (instant)
-        {
-            body.Animator.SetFloat(moveXHash, x);
-            body.Animator.SetFloat(moveForwardHash, z);
-        }
-        else
-        {
-            body.Animator.SetFloat(moveXHash, x, 0.1f, Time.deltaTime);
-            body.Animator.SetFloat(moveForwardHash, z, 0.1f, Time.deltaTime);
-        }
-    }
-
-    private void ResolveMoveParameters()
-    {
-        moveXHash = Animator.StringToHash("MoveX");
-        // 玩家 Controller 使用 MoveZ，Boss 旧 Controller 使用 MoveY；运行时兼容两者。
-        string forwardName = "MoveY";
-        foreach (AnimatorControllerParameter parameter in body.Animator.parameters)
-        {
-            if (parameter.type == AnimatorControllerParameterType.Float &&
-                parameter.name == "MoveZ")
-            {
-                forwardName = "MoveZ";
-                break;
-            }
-        }
-        moveForwardHash = Animator.StringToHash(forwardName);
+        body.SetMoveStrafe(x, z, instant);
     }
 
     private bool IsLockedOnTarget()

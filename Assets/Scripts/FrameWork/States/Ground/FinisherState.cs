@@ -1,11 +1,12 @@
 using UnityEngine;
 
-// 玩家成对忍杀状态：正常清命由动画事件完成，动画结束只做兜底与双方解锁。
+// 玩家成对忍杀状态：动画播完后代码结算清命并解锁双方，不依赖命中帧事件。
 public class FinisherState : BaseState
 {
     private readonly CharacterBody victim;
     private readonly string animName;
     private bool hasSeenAnim;
+    private bool hasCompleted;
 
     public FinisherState(
         CharacterBody body,
@@ -19,6 +20,7 @@ public class FinisherState : BaseState
     public override void OnEnter()
     {
         hasSeenAnim = false;
+        hasCompleted = false;
         body.IsAttacking = false;
         body.DisableWeaponHit();
         body.Animator.CrossFade(animName, 0.05f);
@@ -26,6 +28,8 @@ public class FinisherState : BaseState
 
     public override void OnUpdate()
     {
+        if (hasCompleted) return;
+
         AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
         if (AnimUtil.IsPlaying(info, animName))
         {
@@ -37,14 +41,10 @@ public class FinisherState : BaseState
             if (!hasSeenAnim || body.Animator.IsInTransition(0)) return;
         }
 
+        hasCompleted = true;
         if (CombatManager.Instance != null)
         {
-            if (!CombatManager.Instance.IsFinisherResolved(body))
-            {
-                Debug.LogError(
-                    $"{animName} 未在命中帧触发 ExecuteFinisher，已在动画结束时执行兜底结算。");
-                CombatManager.Instance.ExecuteFinisher(body);
-            }
+            CombatManager.Instance.ExecuteFinisher(body);
             CombatManager.Instance.CompleteFinisherSequence(body);
         }
         else

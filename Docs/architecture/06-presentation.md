@@ -22,7 +22,9 @@ OnDeath(CharacterBody c)
 OnReviveAvailable(CharacterBody c)
 
 // 新增（表现）
-OnFinisherTriggered(Vector3 pos)      // 忍杀
+OnFinisherTriggered(Vector3 pos)      // 忍杀音效/特效
+OnFinisherStarted(Vector3 pos, CharacterBody player, CharacterBody victim) // 忍杀运镜切入
+OnFinisherEnded(CharacterBody player, CharacterBody victim)   // 忍杀运镜退回
 OnCameraShake(float intensity)        // 震屏
 OnLockOnChanged(bool isLocked)        // 锁定点 UI + 相机 VCam 切换（M11 触发）
 ```
@@ -31,9 +33,12 @@ OnLockOnChanged(bool isLocked)        // 锁定点 UI + 相机 VCam 切换（M11
 
 > 为什么事件带完整数据：M2（CharacterConfig）还没实现时表现层也能独立编译运行，不依赖读取 CharacterBody 内部字段。
 
-## 二、相机（M12，Cinemachine）
+## 二、相机（M12，Cinemachine 三级相机管理）
 
-### 自由模式
+相机系统统一由 `CameraController` 调度，基于 `CombatEventBus` 事件驱动，不每帧轮询状态。
+**优先级层级**：`FreeLook (10)` < `LockOn Camera (20)` < `Finisher Camera (30)`。
+
+### 1. 自由模式（FreeLook）
 
 - Cinemachine FreeLook。**Follow 和 Look At 都是 `CameraFollowTarget`**（独立空物体，位置硬贴玩家胸口，旋转 identity），**不要拖玩家根**：根运动步伐晃和角色 yaw 都会进镜头。
 - 三个 Rig 的 Aim = **Hard Look At**（不用 Composer + DeadZone 跟步伐拉锯）。
@@ -41,7 +46,7 @@ OnLockOnChanged(bool isLocked)        // 锁定点 UI + 相机 VCam 切换（M11
 - Binding Mode = **World Space**。未锁定走位相对相机；朝向只跟鼠标。
 - 鼠标环绕由 `CinemachineOrbitInput` 驱动（关掉 `CinemachineInputProvider`；FreeLook Axis Max Speed = 0）。
 
-### 锁定模式（只狼第三人称跟随）
+### 2. 锁定模式（LockOn Camera）
 
 - 第二台 `CinemachineVirtualCamera`（`LockOn Camera`），**不用 FreeLook 继续独立环绕**。
 - Follow = 同一个 `CameraFollowTarget`（锁定时脚本 `SetYawTarget(Boss)`，机位架在人-敌轴背后）。**不要 Follow 玩家根。**
@@ -50,13 +55,24 @@ OnLockOnChanged(bool isLocked)        // 锁定点 UI + 相机 VCam 切换（M11
 - 角色仍由 MoveState 面朝 Boss、围着目标 strafe。
 - 不用 TargetGroup 中点构图：那会把两人居中，不像只狼「架在角色背后看向敌人」。
 
-### 锁定切换
+### 3. 处决特写模式（Finisher Camera，只狼原版刀刃侧低机位特写）
+
+- 第三台 `CinemachineVirtualCamera`（`Finisher Camera`），优先级最高（30）。
+- **触发与退出**：订阅 `OnFinisherStarted(pos, player, victim, kind)` 切入，`OnFinisherEnded` 退出平滑降回锁定或自由相机。
+- **差异化机位配置（针对三类忍杀）**：
+  - **普通地面直刺 (`Ground`)**：`FollowOffset = (-0.48f, -0.05f, -2.65f)`，偏向狼左后方（刀刃侧），低机位微仰视，清晰收录直刺贯穿与受害者受挫姿势，配合 `0.4m` Dolly In 推进。
+  - **弹反借力断喉 (`Deflect`)**：`FollowOffset = (-0.68f, -0.1f, -2.85f)`，更宽的左侧越肩视角与更低机位，完美框定左侧狼蓄力与右侧 Boss 核心红点位置，配合 `0.35m` Dolly In 推进。
+  - **识破踩刀贯穿 (`Mikiri`)**：`FollowOffset = (-0.42f, -0.15f, -2.7f)`，极低机位强烈仰角，聚焦狼踩刀与向下狠刺的动作线。
+- **长焦与微推（Dolly In）**：FOV 设为 `46°~48°`，处决期间沿刺刀攻击线向前缓推，刺入瞬间配合顿帧（HitStop）与强震屏（CameraShake）。
+- **贴墙避障**：通过射线检测自动收短 Z 轴距离，防止卡入墙体。
+
+### 4. 模式平滑切换规则
 
 - `LockOnManager` 触发 `CombatEventBus.OnLockOnChanged` → `CameraController` 改两台 VCam 的 Priority（**不做每帧轮询**）。
   - 解锁：先按当前机位把 FreeLook 钉在角色背后，再切 Priority。跟随点 yaw **等到混合结束**才清掉——混合期间锁定相机仍 live，提前清 yaw 会把混合起点甩到角色侧方。
   - 锁定：锁定 VCam priority 高（默认 20），FreeLook = 0；关掉环绕输入；跟随点 `SetYawTarget(Boss)`
 - CinemachineBrain：Update Method = Late Update；Default Blend = **EaseInOut、约 0.6s**（`CameraController.Blend Time`，太短像硬切、太长拖沓）。
-- 两台 VCam 都开 **Inherit Position** + Blend Hint **Cylindrical Position**：从当前机位绕角色滑过去，不走直线穿地。
+- 三台 VCam 都开 **Inherit Position** + Blend Hint **Cylindrical Position**：从当前机位绕角色滑过去，不走直线穿地。
 - 锁定 VCam 的 FOV 与 FreeLook 相同（避免过渡时突然变焦）；`Standby Update = Always`，混入前机位已就绪。
 - 解锁时 FreeLook 钉在角色背后（X = 角色 yaw），不混回锁定前的环绕角，也不会甩到角色侧方。
 
@@ -70,98 +86,3 @@ OnLockOnChanged(bool isLocked)        // 锁定点 UI + 相机 VCam 切换（M11
 
 - 订阅 `OnCameraShake` → `CameraShake`（DoTween 偏移，不依赖 Impulse）
 - 触发点：弹反成功、崩解、处决、受击
-
-## 三、UI（M13，MVC）
-
-### 布局（用户决策，参考截图）
-
-```
-正上方居中：Boss 架势条（中心双向增长，黄/橙，箭头端点）
-底部居中：  玩家架势条（中心双向增长，样式同 Boss）
-左上角：    忍杀提示灯（2 红点）+ Boss 血条 + 名称"苇名弦一郎"
-左下角：    回生节点（1 粉花瓣）+ 玩家血条
-右下角：    葫芦槽位（图标 + 数量）
-世界空间：  锁定点钉在 Boss Spine1，Overlay 相机画在最前，不被模型挡住
-屏幕中央：  "危"字（玩家头顶 World→Canvas 投影）
-```
-
-**不显示**：忍义手武器栏、纸人数量。物品区只有葫芦。
-
-### View 层（纯 UI，每个一个类）
-
-```csharp
-// 只暴露视觉接口，不持有业务逻辑
-BossStatusView     : SetLifeDots(int count) / SetHP(float ratio) / SetName(string)
-BossPostureBarView : SetPosture(float ratio) / SetDanger(bool)  // 中心双向 + 快满高亮
-PlayerStatusView   : SetReviveDots(int) / SetHP(float) / SetPosture(float)
-ItemSlotView       : SetGourdIcon(Sprite) / SetGourdCount(int)
-LockOnIndicatorView: SetLocked(bool) / SetFinisherReady(bool)  // 世界空间跟 Spine1，Overlay 相机不被挡
-PerilousWarningView  : SetPerilous(PerilousType)        // "危"字（世界空间投影，M17 保留）
-
-// 所有 View 继承 UIView 基类：Show()/Hide()/OnViewInit()
-```
-
-### Controller 层
-
-```csharp
-public class CombatUIController : MonoBehaviour
-{
-    [SerializeField] private CharacterBody playerBody;  // 区分事件属于玩家还是 Boss
-    [SerializeField] private CharacterBody bossBody;
-    [SerializeField] private BossStatusView bossStatusView;  // 以及其余 View 引用
-
-    // 订阅 CombatEventBus 所有战斗事件 → 调对应 View 接口更新
-    void OnEnable()  { /* 订阅 */ }
-    void OnDisable() { /* 取消订阅 */ }
-
-    // 按 CharacterBody 区分路由，不做每帧轮询
-    void HandlePostureChanged(CharacterBody c, float posture, float maxPosture)
-    {
-        float ratio = posture / maxPosture;
-        if (c == playerBody) playerStatusView?.SetPosture(ratio);
-        else if (c == bossBody) { bossPostureBarView?.SetPosture(ratio); bossPostureBarView?.SetDanger(ratio > 0.8f); }
-    }
-    // ...
-}
-```
-
-### 特殊动画（DoTween，已实现）
-
-- 架势条快满（>80%）：颜色变亮 + 边缘尖刺脉动（`BossPostureBarView.SetDanger`）
-- 忍杀图标：崩解时显示 `Finsher`（`LockOnIndicatorView.SetFinisherReady`）
-- 葫芦使用：数字闪烁（待接）
-
-> 动画全部通过 `DOKill()` 清理残留 tween，防止事件连续触发时动画叠加。
-> PerilousWarningView（"危"字 UI）保留（M17）。
-
-## 四、音效（M15）
-
-跟 FXManager 同模式——订阅 CombatEventBus 播 AudioClip。
-
-```csharp
-public class AudioManager : MonoBehaviour
-{
-    public AudioClip deflectSfx;      // "叮"
-    public AudioClip blockSfx;        // "笃"
-    public AudioClip hitSfx;          // 受击
-    public AudioClip finisherSfx;     // 处决
-    public AudioClip deathSfx;        // 死亡
-    public AudioClip gourdSfx;        // 喝葫芦
-
-    void OnEnable()  { CombatEventBus.OnWeaponDeflected += HandleWeaponDeflected; /* 等 */ }
-    void OnDisable() { /* 取消 */ }
-    // 处理函数里判断 DeflectType：Perfect → 叮，Normal → 笃
-}
-```
-
-> 实现细节：Awake 里自动补 AudioSource（`GetComponent` 失败则 `AddComponent`），`PlayOneShot` 播放不打断其他音效。
-
-## 涉及文件
-
-- 新建：`Assets/Scripts/Camera/CameraController.cs`（订阅 OnLockOnChanged 切 VCam）
-- 新建：`Assets/Scripts/Camera/CameraFollowTarget.cs`、`CinemachineOrbitInput.cs`
-- 编辑器：`Assets/Editor/LockOnCameraBuilder.cs`（菜单 Tools/战斗/生成锁定相机）
-- 新建：`Assets/Scripts/UI/Views/*.cs`
-- 新建：`Assets/Scripts/UI/CombatUIController.cs`
-- 新建：`Assets/Scripts/Audio/AudioManager.cs`
-- 修改：`Assets/Scripts/Mgr/CombatEventBus.cs`

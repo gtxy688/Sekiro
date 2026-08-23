@@ -99,7 +99,8 @@ public class BTBrain : MonoBehaviour
             new Sequence(new List<Node>
             {
                 new ConditionNode(() =>
-                    Distance() <= attackRange
+                    !body.IsPostureBroken
+                    && Distance() <= attackRange
                     && !blackboard.IsOnCooldown("attack", attackCooldown)),
                 new BT_HitOnce(body)
             }),

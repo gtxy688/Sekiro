@@ -23,6 +23,9 @@ public class DeflectState : BaseState
     private float cancelDuration = 0.3f;
     private bool canceling;
     private string currentLoopAnim;
+    private string guardHurtAnim;
+    private bool waitingGuardHurt;
+    private bool hasSeenGuardHurt;
     private float rotationSpeed = 720f;
 
     public DeflectState(CharacterBody body, HierarchicalState parent, bool remash = false) : base(body)
@@ -41,6 +44,9 @@ public class DeflectState : BaseState
         cancelTimer = 0f;
         canceling = false;
         currentLoopAnim = null;
+        guardHurtAnim = null;
+        waitingGuardHurt = false;
+        hasSeenGuardHurt = false;
 
         body.RegisterDeflectPress();
         window = body.GetDeflectWindow();
@@ -97,7 +103,21 @@ public class DeflectState : BaseState
 
         UpdateStrafeParams(instant: false);
 
-        if (guardFlinchTimer > 0f)
+        if (waitingGuardHurt)
+        {
+            AnimatorStateInfo hurtInfo = body.Animator.GetCurrentAnimatorStateInfo(0);
+            if (AnimUtil.IsPlaying(hurtInfo, guardHurtAnim))
+            {
+                hasSeenGuardHurt = true;
+                if (hurtInfo.normalizedTime >= 0.95f)
+                    waitingGuardHurt = false;
+            }
+            else if (hasSeenGuardHurt && !body.Animator.IsInTransition(0))
+            {
+                waitingGuardHurt = false;
+            }
+        }
+        else if (guardFlinchTimer > 0f)
         {
             guardFlinchTimer -= Time.deltaTime;
             if (guardFlinchTimer <= 0f && !hasReleased && !inBegin)
@@ -177,14 +197,12 @@ public class DeflectState : BaseState
                 }
             }
 
-            float self = hit.postureDmg * (body.Config != null ? body.Config.DeflectSelfPostureFactor : 0.3f);
-            body.AccumulatePosture(self, allowBreak: false);
-
             CombatEventBus.TriggerWeaponDeflected(hit.hitPoint, DeflectType.Perfect);
             CombatEventBus.TriggerCameraShake(0.3f);
             CombatManager.Instance?.HitStop();
 
-            if (brokeAttackerPosture)
+            // 弹反忍杀确认窗口只给玩家（DeflectToFinsher）。Boss 打崩玩家后继续播弹反挥刀。
+            if (brokeAttackerPosture && AnimUtil.HasState(body.Animator, "DeflectToFinsher"))
             {
                 parent.SubStateMachine.ChangeState(
                     new FinisherReadyState(body, parent, hit.attacker));
@@ -209,13 +227,20 @@ public class DeflectState : BaseState
         }
 
         float posture = hit.postureDmg * (body.Config != null ? body.Config.GuardPostureFactor : 0.5f);
-        body.AccumulatePosture(posture);
+        if (body.AccumulatePosture(posture))
+        {
+            // 格挡把架势打满已经切崩解，不能再覆盖成 Hurt_Guard。
+            return true;
+        }
 
         inBegin = false;
         currentLoopAnim = null;
         HurtContext guardHurt = hit.knockback > 0f ? HurtContext.GuardHeavy : HurtContext.Guard;
-        body.Animator.CrossFade(body.ResolveHurtAnim(guardHurt), 0.03f);
-        guardFlinchTimer = 0.25f;
+        guardHurtAnim = body.ResolveHurtAnim(guardHurt);
+        waitingGuardHurt = true;
+        hasSeenGuardHurt = false;
+        guardFlinchTimer = 0f;
+        body.Animator.CrossFade(guardHurtAnim, 0.03f);
 
         CombatEventBus.TriggerWeaponDeflected(hit.hitPoint, DeflectType.Normal);
         return true;
@@ -291,16 +316,7 @@ public class DeflectState : BaseState
 
     private void SetStrafe(float x, float z, bool instant)
     {
-        if (instant)
-        {
-            body.Animator.SetFloat("MoveX", x);
-            body.Animator.SetFloat("MoveZ", z);
-        }
-        else
-        {
-            body.Animator.SetFloat("MoveX", x, 0.1f, Time.deltaTime);
-            body.Animator.SetFloat("MoveZ", z, 0.1f, Time.deltaTime);
-        }
+        body.SetMoveStrafe(x, z, instant);
     }
 
     private bool IsPlayingLocomotion()

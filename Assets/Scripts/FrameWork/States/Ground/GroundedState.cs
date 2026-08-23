@@ -18,7 +18,7 @@ public class GroundedState : HierarchicalState
     public override void OnUpdate()
     {
         // 踩空掉落（这属于物理环境变化,不需要去判断能否执行,不属于Command，所以保留在Update里）
-        if (!body.IsGrounded)
+        if (!body.IsGrounded && !body.IsPostureBroken)
         {
             body.MainStateMachine.ChangeState(new AirState(body));
             return;
@@ -30,6 +30,13 @@ public class GroundedState : HierarchicalState
     //所有的地面状态，都共用这个跳跃逻辑！
     protected override bool OnParentHandleCommand(ICommand cmd)
     {
+        // 崩解倒地由 StaggerBrokenState 吞命令。父层若先切跳跃/喝药，
+        // RecoverFromBreak 永远不会跑，架势条会卡满且无法忍杀。
+        if (body.IsPostureBroken)
+        {
+            return false;
+        }
+
         // 喝药期间只有移动会下钻到 HealState；跳跃和重复喝药在父层直接吞掉。
         if (body.IsHealing && (cmd is JumpCommand || cmd is HealCommand))
         {
@@ -60,14 +67,15 @@ public class GroundedState : HierarchicalState
             return true;
         }
 
-        // M10：拦截攻击指令时先查处决机会（Boss 崩解 + 距离近 → 处决优先于普通攻击）
-        if (cmd is AttackCommand)
+        // M10：只有玩家的攻击指令才查处决。Boss 的 AttackCommand 下钻到子状态。
+        // 正在出招时不抢：崩解那一刀不能直接变成处决，必须是新一次攻击。
+        if (cmd is AttackCommand &&
+            !body.IsAttacking &&
+            CombatManager.Instance != null &&
+            body == CombatManager.Instance.PlayerRef &&
+            CombatManager.Instance.TryExecuteFinisher(body, FinisherKind.Ground))
         {
-            if (CombatManager.Instance != null &&
-                CombatManager.Instance.TryExecuteFinisher(body, FinisherKind.Ground))
-            {
-                return true; // 触发处决，消耗指令
-            }
+            return true;
         }
 
         return false; // 不是跳跃，抛给子状态(Idle/Move)去处理。

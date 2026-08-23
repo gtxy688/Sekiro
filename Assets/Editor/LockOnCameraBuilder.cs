@@ -2,11 +2,12 @@ using Cinemachine;
 using UnityEditor;
 using UnityEngine;
 
-// 把锁定用的第三人称 VCam + CameraController 写进当前场景，方便在 Inspector 调机位。
-// 不跑菜单也能 Play：CameraController 运行时会自己补 LockOn Camera。
-// 用法：打开 GameScene → Tools/战斗/生成锁定相机
+// 把战斗用相机系统（FreeLook + LockOn Camera + Finisher Camera）及 CameraController 写入当前场景。
+// 不跑菜单也能 Play：CameraController 运行时也会动态自检和自补虚拟相机。
+// 用法：打开 GameScene -> 菜单 Tools/战斗/生成战斗相机
 public static class LockOnCameraBuilder
 {
+    [MenuItem("Tools/战斗/生成战斗相机")]
     [MenuItem("Tools/战斗/生成锁定相机")]
     public static void Build()
     {
@@ -15,12 +16,13 @@ public static class LockOnCameraBuilder
         CinemachineBrain brain = Object.FindObjectOfType<CinemachineBrain>();
         if (freeLook == null || player == null || brain == null)
         {
-            EditorUtility.DisplayDialog("生成锁定相机",
+            EditorUtility.DisplayDialog("生成战斗相机",
                 "场景里需要 FreeLook Camera、玩家（PlayerBrain）和挂了 CinemachineBrain 的主相机。请先打开 GameScene。",
                 "确定");
             return;
         }
 
+        // 1. 跟随代理点（CameraFollowTarget）
         CameraFollowTarget proxy = Object.FindObjectOfType<CameraFollowTarget>();
         if (proxy == null)
         {
@@ -36,6 +38,7 @@ public static class LockOnCameraBuilder
             proxy.source = player.transform;
         }
 
+        // 2. 配置 FreeLook Camera
         Undo.RecordObject(freeLook, "Wire FreeLook follow proxy");
         freeLook.Follow = proxy.transform;
         freeLook.LookAt = proxy.transform;
@@ -79,6 +82,7 @@ public static class LockOnCameraBuilder
         if (orbit == null)
             orbit = Undo.AddComponent<CinemachineOrbitInput>(freeLook.gameObject);
 
+        // 3. 配置 LockOn Camera
         GameObject lockGo = GameObject.Find("LockOn Camera");
         CinemachineVirtualCamera lockVcam = lockGo != null
             ? lockGo.GetComponent<CinemachineVirtualCamera>()
@@ -99,28 +103,28 @@ public static class LockOnCameraBuilder
         lockVcam.m_Transitions.m_BlendHint = CinemachineVirtualCameraBase.BlendHint.CylindricalPosition;
         lockVcam.m_Lens.FieldOfView = freeLook.m_Lens.FieldOfView;
 
-        CinemachineTransposer transposer = lockVcam.GetCinemachineComponent<CinemachineTransposer>();
-        if (transposer == null)
-            transposer = lockVcam.AddCinemachineComponent<CinemachineTransposer>();
-        transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
-        transposer.m_FollowOffset = new Vector3(0.35f, 0.2f, -3.4f);
-        transposer.m_XDamping = 0f;
-        transposer.m_YDamping = 0f;
-        transposer.m_ZDamping = 0f;
-        transposer.m_YawDamping = 0f;
+        CinemachineTransposer lockTransposer = lockVcam.GetCinemachineComponent<CinemachineTransposer>();
+        if (lockTransposer == null)
+            lockTransposer = lockVcam.AddCinemachineComponent<CinemachineTransposer>();
+        lockTransposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
+        lockTransposer.m_FollowOffset = new Vector3(0.35f, 0.2f, -3.4f);
+        lockTransposer.m_XDamping = 0f;
+        lockTransposer.m_YDamping = 0f;
+        lockTransposer.m_ZDamping = 0f;
+        lockTransposer.m_YawDamping = 0f;
 
-        CinemachineComposer composer = lockVcam.GetCinemachineComponent<CinemachineComposer>();
-        if (composer == null)
-            composer = lockVcam.AddCinemachineComponent<CinemachineComposer>();
-        composer.m_TrackedObjectOffset = new Vector3(0f, 1.2f, 0f);
-        composer.m_LookaheadTime = 0f;
-        composer.m_HorizontalDamping = 0f;
-        composer.m_VerticalDamping = 0f;
-        composer.m_ScreenY = 0.42f;
-        composer.m_DeadZoneWidth = 0f;
-        composer.m_DeadZoneHeight = 0f;
-        composer.m_SoftZoneWidth = 0.8f;
-        composer.m_SoftZoneHeight = 0.8f;
+        CinemachineComposer lockComposer = lockVcam.GetCinemachineComponent<CinemachineComposer>();
+        if (lockComposer == null)
+            lockComposer = lockVcam.AddCinemachineComponent<CinemachineComposer>();
+        lockComposer.m_TrackedObjectOffset = new Vector3(0f, 1.2f, 0f);
+        lockComposer.m_LookaheadTime = 0f;
+        lockComposer.m_HorizontalDamping = 0f;
+        lockComposer.m_VerticalDamping = 0f;
+        lockComposer.m_ScreenY = 0.42f;
+        lockComposer.m_DeadZoneWidth = 0f;
+        lockComposer.m_DeadZoneHeight = 0f;
+        lockComposer.m_SoftZoneWidth = 0.8f;
+        lockComposer.m_SoftZoneHeight = 0.8f;
         EditorUtility.SetDirty(lockVcam);
 
         CinemachineCollider lockCollider = lockVcam.GetComponent<CinemachineCollider>();
@@ -133,6 +137,56 @@ public static class LockOnCameraBuilder
         lockCollider.m_CameraRadius = 0.25f;
         EditorUtility.SetDirty(lockCollider);
 
+        // 4. 配置 Finisher Camera (只狼式主角后方特写)
+        GameObject finisherGo = GameObject.Find("Finisher Camera");
+        CinemachineVirtualCamera finisherVcam = finisherGo != null
+            ? finisherGo.GetComponent<CinemachineVirtualCamera>()
+            : null;
+        if (finisherVcam == null)
+        {
+            finisherGo = new GameObject("Finisher Camera");
+            Undo.RegisterCreatedObjectUndo(finisherGo, "Create Finisher Camera");
+            finisherVcam = finisherGo.AddComponent<CinemachineVirtualCamera>();
+        }
+
+        Undo.RecordObject(finisherVcam, "Configure Finisher Camera");
+        finisherVcam.Priority = 0;
+        finisherVcam.m_StandbyUpdate = CinemachineVirtualCameraBase.StandbyUpdateMode.Always;
+        finisherVcam.m_Transitions.m_InheritPosition = true;
+        finisherVcam.m_Transitions.m_BlendHint = CinemachineVirtualCameraBase.BlendHint.CylindricalPosition;
+        finisherVcam.m_Lens.FieldOfView = 46f;
+
+        CinemachineTransposer finisherTransposer = finisherVcam.GetCinemachineComponent<CinemachineTransposer>();
+        if (finisherTransposer == null)
+            finisherTransposer = finisherVcam.AddCinemachineComponent<CinemachineTransposer>();
+        finisherTransposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
+        finisherTransposer.m_FollowOffset = new Vector3(-0.48f, -0.05f, -2.65f);
+        finisherTransposer.m_XDamping = 0f;
+        finisherTransposer.m_YDamping = 0f;
+        finisherTransposer.m_ZDamping = 0f;
+
+        CinemachineComposer finisherComposer = finisherVcam.GetCinemachineComponent<CinemachineComposer>();
+        if (finisherComposer == null)
+            finisherComposer = finisherVcam.AddCinemachineComponent<CinemachineComposer>();
+        finisherComposer.m_TrackedObjectOffset = new Vector3(0f, 1.15f, 0f);
+        finisherComposer.m_LookaheadTime = 0f;
+        finisherComposer.m_HorizontalDamping = 0.05f;
+        finisherComposer.m_VerticalDamping = 0.05f;
+        finisherComposer.m_ScreenX = 0.5f;
+        finisherComposer.m_ScreenY = 0.48f;
+        EditorUtility.SetDirty(finisherVcam);
+
+        CinemachineCollider finisherCollider = finisherVcam.GetComponent<CinemachineCollider>();
+        if (finisherCollider == null)
+            finisherCollider = finisherVcam.gameObject.AddComponent<CinemachineCollider>();
+        finisherCollider.m_AvoidObstacles = true;
+        finisherCollider.m_CollideAgainst = (1 << 0) | (1 << 3);
+        finisherCollider.m_TransparentLayers = (1 << 5) | (1 << 6) | (1 << 7);
+        finisherCollider.m_Strategy = CinemachineCollider.ResolutionStrategy.PreserveCameraHeight;
+        finisherCollider.m_CameraRadius = 0.25f;
+        EditorUtility.SetDirty(finisherCollider);
+
+        // 5. 配置 CinemachineBrain
         Undo.RecordObject(brain, "Brain LateUpdate blend");
         brain.m_UpdateMethod = CinemachineBrain.UpdateMethod.LateUpdate;
         brain.m_BlendUpdateMethod = CinemachineBrain.BrainUpdateMethod.LateUpdate;
@@ -140,6 +194,7 @@ public static class LockOnCameraBuilder
             CinemachineBlendDefinition.Style.EaseInOut, 0.6f);
         EditorUtility.SetDirty(brain);
 
+        // 6. 配置 CameraController 挂载与引用
         CameraController controller = Object.FindObjectOfType<CameraController>();
         if (controller == null)
             controller = Undo.AddComponent<CameraController>(brain.gameObject);
@@ -147,6 +202,7 @@ public static class LockOnCameraBuilder
         SerializedObject so = new SerializedObject(controller);
         so.FindProperty("freeLook").objectReferenceValue = freeLook;
         so.FindProperty("lockVcam").objectReferenceValue = lockVcam;
+        so.FindProperty("finisherVcam").objectReferenceValue = finisherVcam;
         so.FindProperty("playerFollow").objectReferenceValue = player.transform;
         so.FindProperty("followProxy").objectReferenceValue = proxy;
         so.FindProperty("orbitInput").objectReferenceValue = orbit;
@@ -154,6 +210,6 @@ public static class LockOnCameraBuilder
         EditorUtility.SetDirty(controller);
 
         Selection.activeGameObject = lockGo;
-        Debug.Log("[LockOnCamera] 已生成 LockOn Camera，并接到 Main Camera 的 CameraController。Ctrl+S 存场景。");
+        Debug.Log("[CombatCamera] 已生成/配置 FreeLook、LockOn Camera 与 Finisher Camera（主角正后方特写机位），并自动绑定到 CameraController。请 Ctrl+S 保存场景。");
     }
 }

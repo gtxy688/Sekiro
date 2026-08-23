@@ -49,6 +49,9 @@ public static class CombatEventBus
     public static event Action<PerilousType> OnPerilousAttack;
     // 忍杀触发（位置）—— 处决音效/特效
     public static event Action<Vector3> OnFinisherTriggered;
+    // 处决完整生命周期（位置, 玩家, 受害者, 忍杀类型）—— 驱动处决运镜与特写
+    public static event Action<Vector3, CharacterBody, CharacterBody, FinisherKind> OnFinisherStarted;
+    public static event Action<CharacterBody, CharacterBody> OnFinisherEnded;
     // 相机震动（强度）—— 弹反/崩解/处决时触发
     public static event Action<float> OnCameraShake;
 
@@ -127,6 +130,21 @@ public static class CombatEventBus
     public static void TriggerFinisher(Vector3 pos)
     {
         OnFinisherTriggered?.Invoke(pos);
+    }
+
+    public static void TriggerFinisherStarted(
+        Vector3 pos,
+        CharacterBody player,
+        CharacterBody victim,
+        FinisherKind kind = FinisherKind.Ground)
+    {
+        OnFinisherTriggered?.Invoke(pos);
+        OnFinisherStarted?.Invoke(pos, player, victim, kind);
+    }
+
+    public static void TriggerFinisherEnded(CharacterBody player, CharacterBody victim)
+    {
+        OnFinisherEnded?.Invoke(player, victim);
     }
 
     public static void TriggerCameraShake(float intensity)

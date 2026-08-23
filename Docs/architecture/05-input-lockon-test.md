@@ -43,6 +43,21 @@
 - **连招不生效**：检查 `NextCombo`，并确认 `HitStartTime <= RecoveryWindowStart <= ComboWindowEnd <= StateDuration`
 - **长按仍是普攻**：检查 `ThrustAttack` 槽与 `CharacterConfig.AttackHoldDuration`
 
+## 暂停 / 自定义键位
+
+| # | 操作 | 预期 |
+|---|------|------|
+| P1 | 战斗中按 Esc（或手柄 Start） | 弹出暂停：继续 / 设置 / 退出战斗；角色和 Boss 停住 |
+| P2 | 点「继续」或再按 Esc | 菜单关掉，战斗恢复 |
+| P3 | 点「设置」 | 进入键位页，默认「键盘鼠标」Tab，六行战斗键 |
+| P4 | 点某一行，再按一个新键 | 该行显示新键名，回战斗后立即生效 |
+| P5 | 把攻击改成垫步正在用的键 | 两行对调，不会两个动作同一键 |
+| P6 | 切到「手柄」Tab 改 RT | 只动手柄绑定，键鼠页的键不变 |
+| P7 | 改键等待中按 Esc | 取消本次改键，不关设置页 |
+| P8 | 点「恢复默认」 | 当前 Tab 的六键回到资源默认值 |
+| P9 | 点「退出战斗」 | 重载当前场景，timeScale 恢复为 1 |
+| P10 | 改键后退出 Play 再进 | 上次改的键还在（PlayerPrefs） |
+
 ## 暂不验收（后续模块）
 
 - 无（M11 锁定 + M12 锁定相机见 `06-presentation-test.md`）

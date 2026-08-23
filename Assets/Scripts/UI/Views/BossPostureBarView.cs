@@ -1,4 +1,3 @@
-using DG.Tweening;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -52,29 +51,6 @@ public class BossPostureBarView : UIView
         // 还没涨过架势：保持隐藏。涨过之后归零：开始 5 秒倒计时
         if (everHadPosture) zeroTimer = hideDelay;
         else HideBar();
-    }
-
-    public void SetDanger(bool isDanger)
-    {
-        if (leftFill != null) leftFill.DOKill();
-        if (rightFill != null) rightFill.DOKill();
-
-        if (isDanger)
-        {
-            if (leftFill != null)
-                leftFill.DOColor(new Color(1f, 0.55f, 0.2f), 0.25f)
-                    .SetLoops(-1, LoopType.Yoyo)
-                    .SetEase(Ease.InOutSine);
-            if (rightFill != null)
-                rightFill.DOColor(new Color(1f, 0.55f, 0.2f), 0.25f)
-                    .SetLoops(-1, LoopType.Yoyo)
-                    .SetEase(Ease.InOutSine);
-        }
-        else
-        {
-            if (leftFill != null) leftFill.DOColor(Color.white, 0.2f);
-            if (rightFill != null) rightFill.DOColor(Color.white, 0.2f);
-        }
     }
 
     private void ShowBar()

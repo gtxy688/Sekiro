@@ -1,4 +1,3 @@
-using DG.Tweening;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -51,28 +50,5 @@ public class PlayerStatusView : UIView
         Vector2 size = img.rectTransform.sizeDelta;
         size.x = width;
         img.rectTransform.sizeDelta = size;
-    }
-
-    public void SetDanger(bool isDanger)
-    {
-        if (postureLeftFill != null) postureLeftFill.DOKill();
-        if (postureRightFill != null) postureRightFill.DOKill();
-
-        if (isDanger)
-        {
-            if (postureLeftFill != null)
-                postureLeftFill.DOColor(new Color(1f, 0.55f, 0.2f), 0.25f)
-                    .SetLoops(-1, LoopType.Yoyo)
-                    .SetEase(Ease.InOutSine);
-            if (postureRightFill != null)
-                postureRightFill.DOColor(new Color(1f, 0.55f, 0.2f), 0.25f)
-                    .SetLoops(-1, LoopType.Yoyo)
-                    .SetEase(Ease.InOutSine);
-        }
-        else
-        {
-            if (postureLeftFill != null) postureLeftFill.DOColor(Color.white, 0.2f);
-            if (postureRightFill != null) postureRightFill.DOColor(Color.white, 0.2f);
-        }
     }
 }

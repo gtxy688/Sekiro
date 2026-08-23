@@ -49,6 +49,7 @@ public class PlayerBrain : BrainBase
         // started: 按下按键的第一帧。我们生成对应的 Command 并丢进基类的缓冲池
         attackAction.started += _ =>
         {
+            if (!CanAcceptPlayInput()) return;
             attackPressed = true;
             holdAttackTriggered = false;
             holdThresholdChecked = false;
@@ -56,28 +57,67 @@ public class PlayerBrain : BrainBase
         };
         attackAction.canceled += _ =>
         {
-            if (attackPressed && !holdAttackTriggered && isActiveAndEnabled)
+            if (attackPressed && !holdAttackTriggered && CanAcceptPlayInput())
             {
                 body.ActiveAttack = null;
                 BufferCommand(new AttackCommand());
             }
             attackPressed = false;
         };
-        map.FindAction("Jump").started += _ => BufferCommand(new JumpCommand());
-        map.FindAction("Deflect").started += _ => BufferCommand(new DeflectCommand());
+        map.FindAction("Jump").started += _ =>
+        {
+            if (CanAcceptPlayInput()) BufferCommand(new JumpCommand());
+        };
+        map.FindAction("Deflect").started += _ =>
+        {
+            if (CanAcceptPlayInput()) BufferCommand(new DeflectCommand());
+        };
         // 松手时发 IdleCommand，让 DeflectState 退出回待机（防御按住不放的语义）
-        map.FindAction("Deflect").canceled += _ => BufferCommand(new IdleCommand());
-        map.FindAction("Dodge").started += _ => BufferCommand(new DodgeCommand());
-        map.FindAction("Heal").started += _ => BufferCommand(new HealCommand());
+        map.FindAction("Deflect").canceled += _ =>
+        {
+            if (CanAcceptPlayInput()) BufferCommand(new IdleCommand());
+        };
+        map.FindAction("Dodge").started += _ =>
+        {
+            if (CanAcceptPlayInput()) BufferCommand(new DodgeCommand());
+        };
+        map.FindAction("Heal").started += _ =>
+        {
+            if (CanAcceptPlayInput()) BufferCommand(new HealCommand());
+        };
         // M11：锁定/解锁（单 Boss）
         map.FindAction("LockOn").started += _ =>
         {
+            if (!CanAcceptPlayInput()) return;
             if (LockOnManager.Instance != null) LockOnManager.Instance.Toggle();
         };
+
+        GamePause.OnChanged += HandlePauseChanged;
+    }
+
+    private void OnDestroy()
+    {
+        GamePause.OnChanged -= HandlePauseChanged;
+    }
+
+    private void HandlePauseChanged(bool paused)
+    {
+        if (!paused) return;
+        attackPressed = false;
+        holdAttackTriggered = false;
+        holdThresholdChecked = false;
+        currentMoveInput = Vector2.zero;
+    }
+
+    private bool CanAcceptPlayInput()
+    {
+        return isActiveAndEnabled && !GamePause.IsPaused;
     }
 
     protected override void Update()
     {
+        if (GamePause.IsPaused) return;
+
         ProcessHeldAttack();
 
         // 1. 调用基类的 Update，让它去处理缓冲池里的 攻击、弹反、跳跃 指令
@@ -128,6 +168,8 @@ public class PlayerBrain : BrainBase
     // 挂 Player Input 组件时由其 Auto Enable Inputs 负责启用
     private void OnEnable()
     {
+        // 挂了 Player Input 时由它管资产启用，这里再 Enable 会把所有 Map 一起打开
+        if (playerInput != null) return;
         if (actions != null) actions.Enable();
     }
 
@@ -136,6 +178,7 @@ public class PlayerBrain : BrainBase
         attackPressed = false;
         holdAttackTriggered = false;
         holdThresholdChecked = false;
+        if (playerInput != null) return;
         if (actions != null) actions.Disable();
     }
 }

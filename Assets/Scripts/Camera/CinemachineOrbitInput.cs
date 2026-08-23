@@ -29,7 +29,7 @@ public class CinemachineOrbitInput : MonoBehaviour
 
     private void Update()
     {
-        if (freeLook == null) return;
+        if (freeLook == null || GamePause.IsPaused) return;
         Mouse mouse = Mouse.current;
         if (mouse == null) return;
 
