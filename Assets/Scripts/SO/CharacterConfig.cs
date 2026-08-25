@@ -30,7 +30,7 @@ public class CharacterConfig : ScriptableObject
     public float DeflectPostureGain = 30f;         // 完美弹反成功：攻击者涨的架势
     public float DeflectSelfPostureFactor = 0f;    // 已废弃：完美弹反不再涨自己架势，保留字段以免序列化丢失
     public float GuardPostureFactor = 0.5f;        // 格挡时自己涨架势的比例（×对方架势伤害）
-    public float ParriedDuration = 0.35f;          // 被完美弹反后的硬直时长
+    public float ParriedDuration = 0.7f;          // 被完美弹反后的硬直时长（M7 攻防转换：给弹反成功方反击窗口，对齐只狼惩罚感）
     public float DeflectMashLimit = 3;             // 抖刀惩罚：0.5s 内连点次数阈值
     public float DeflectMashWindow = 0.5f;         // 抖刀判定窗口
     public float DeflectMashPenalty = 0.75f;       // 每次超限惩罚系数

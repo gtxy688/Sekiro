@@ -8,13 +8,13 @@ public class BTBrain : MonoBehaviour
     public Transform PlayerTarget;
     public CharacterBody PlayerBody;
 
-    [Header("简单 AI（先看效果）")]
+    [Header("追击")]
     public float attackRange = 3.0f;
-    public float attackCooldown = 2.5f;   // 打完一刀后隔多久再打
-    public float deflectRange = 2.5f;
-    public float deflectCooldown = 1.5f;
 
-    public AttackConfig BowShotConfig; // 保留槽位，这版简单树不用
+    [Header("完整 AI")]
+    public BossMoveTable moveTable;
+
+    public AttackConfig BowShotConfig; // 保留槽位，弓在表里，不再单独挂
 
     private CharacterBody body;
     private Node behaviorTreeRoot;
@@ -48,6 +48,13 @@ public class BTBrain : MonoBehaviour
             return;
         }
 
+        if (moveTable == null)
+        {
+            Debug.LogError($"{name} 的 BTBrain 缺少 moveTable，AI 已停用。");
+            enabled = false;
+            return;
+        }
+
         if (body.LightAttack == null)
         {
             Debug.LogError($"{name} 的 CharacterBody 缺少 LightAttack，AI 已停用。");
@@ -59,6 +66,9 @@ public class BTBrain : MonoBehaviour
         blackboard.Set("target", PlayerTarget);
         body.CombatTarget = PlayerTarget;
         body.MoveUsesWorldDir = true;
+        // M7 被动防御（只狼攻防转换）：玩家命中 Boss 的瞬间做防御判定（普通格挡/计数升级弹反）。
+        // 取代旧的"AI 短按防御 + 1.5s 格挡 CD"主动方案，Boss 不再裸受击。
+        body.EnablePassiveDeflect = true;
         behaviorTreeRoot = ConstructBehaviorTree();
         behaviorTreeRoot.SetBlackboard(blackboard);
     }
@@ -77,33 +87,27 @@ public class BTBrain : MonoBehaviour
         body.CombatTarget = null;
     }
 
-    private float Distance()
-    {
-        return Vector3.Distance(body.transform.position, PlayerTarget.position);
-    }
+    private BT_ExecuteMove activeExecutor;
+    private BT_ExecuteMove kengekiExecutor;
+    private BT_ExecuteMove interruptExecutor;
 
-    // 简单树：你砍我就格 → 够近且冷却好了就砍一刀 → 否则追过来
+    // 完整树：崩解跳过 → 交锋 → 喝药重箭 → 主动抽招 → 追击
+    // 招架层已由 CharacterBody.TryPassiveDeflect（受击拦截）替代，不再挂 BT_DeflectIf。
     private Node ConstructBehaviorTree()
     {
+        activeExecutor = new BT_ExecuteMove(body, moveTable);
+        kengekiExecutor = new BT_ExecuteMove(body, moveTable);
+        interruptExecutor = new BT_ExecuteMove(body, moveTable);
+
         return new Selector(new List<Node>
         {
-            new Sequence(new List<Node>
-            {
-                new ConditionNode(() =>
-                    PlayerBody != null && PlayerBody.IsAttacking
-                    && !blackboard.IsOnCooldown("deflect", deflectCooldown)
-                    && Distance() <= deflectRange),
-                new BT_Deflect(body)
-            }),
+            new ConditionNode(() => body.IsPostureBroken),
 
-            new Sequence(new List<Node>
-            {
-                new ConditionNode(() =>
-                    !body.IsPostureBroken
-                    && Distance() <= attackRange
-                    && !blackboard.IsOnCooldown("attack", attackCooldown)),
-                new BT_HitOnce(body)
-            }),
+            new BT_Kengeki(body, moveTable, PlayerTarget, kengekiExecutor),
+
+            new BT_HealPunish(body, moveTable, PlayerBody, interruptExecutor),
+
+            new BT_PickActive(body, moveTable, PlayerTarget, activeExecutor),
 
             new BT_MoveToTarget(body, PlayerTarget, attackRange)
         });

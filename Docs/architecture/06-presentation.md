@@ -27,6 +27,7 @@ OnFinisherStarted(Vector3 pos, CharacterBody player, CharacterBody victim) // �
 OnFinisherEnded(CharacterBody player, CharacterBody victim)   // 忍杀运镜退回
 OnCameraShake(float intensity)        // 震屏
 OnLockOnChanged(bool isLocked)        // 锁定点 UI + 相机 VCam 切换（M11 触发）
+OnAttackSfx(AudioClip clip, Vector3 worldPos)  // 出招音效（AttackState 按 sfxCues 触发）
 ```
 
 > 保留：`OnPerilousAttack`（危字提示，M17 保留）。
@@ -43,8 +44,8 @@ OnLockOnChanged(bool isLocked)        // 锁定点 UI + 相机 VCam 切换（M11
 - Cinemachine FreeLook。**Follow 和 Look At 都是 `CameraFollowTarget`**（独立空物体，位置硬贴玩家胸口，旋转 identity），**不要拖玩家根**：根运动步伐晃和角色 yaw 都会进镜头。
 - 三个 Rig 的 Aim = **Hard Look At**（不用 Composer + DeadZone 跟步伐拉锯）。
 - Body X/Y/Z Damping = **0**。Heading = Position Delta，**Velocity Filter = 0**（Cinemachine 2.10 的 Heading 没有 World 项）。
-- Binding Mode = **World Space**。未锁定走位相对相机；朝向只跟鼠标。
-- 鼠标环绕由 `CinemachineOrbitInput` 驱动（关掉 `CinemachineInputProvider`；FreeLook Axis Max Speed = 0）。
+- Binding Mode = **World Space**。未锁定走位相对相机；朝向跟鼠标或手柄右摇杆。
+- 环绕由 `CinemachineOrbitInput` 驱动（关掉 `CinemachineInputProvider`；FreeLook Axis Max Speed = 0）。键鼠用鼠标位移，手柄用右摇杆。锁定时关掉该组件，避免和锁定相抢轴。
 
 ### 2. 锁定模式（LockOn Camera）
 

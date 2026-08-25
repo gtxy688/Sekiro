@@ -5360,6 +5360,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   castRadius: 0.1
+  shaftRadius: 0.3
   targetLayers:
     serializedVersion: 2
     m_Bits: 64
@@ -6225,7 +6226,6 @@ GameObject:
   m_Component:
   - component: {fileID: 3722418557332764452}
   - component: {fileID: 9171670659750347343}
-  - component: {fileID: 7055760032808345171}
   - component: {fileID: 6488541215612605551}
   - component: {fileID: 2450765929263648437}
   - component: {fileID: 1174970246510782482}
@@ -6285,18 +6285,6 @@ Rigidbody:
   m_Interpolate: 1
   m_Constraints: 112
   m_CollisionDetection: 0
---- !u!114 &7055760032808345171
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5242769244002619023}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: edba9b91b56a5f540a0147b2ab30c3da, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!114 &6488541215612605551
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6377,6 +6365,9 @@ MonoBehaviour:
     m_Bits: 8
   GameCamera: {fileID: 0}
   groundHysteresisFrames: 2
+  EnablePassiveDeflect: 0
+  passiveDeflectThreshold: 2
+  passiveDeflectResetWindow: 2.5
 --- !u!114 &4434846815590756149
 MonoBehaviour:
   m_ObjectHideFlags: 0

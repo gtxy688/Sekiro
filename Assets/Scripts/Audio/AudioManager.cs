@@ -40,6 +40,7 @@ public class AudioManager : MonoBehaviour
         CombatEventBus.OnGourdUsed += HandleGourdUsed;
         CombatEventBus.OnReviveAvailable += HandleReviveAvailable;
         CombatEventBus.OnVictory += HandleVictory;
+        CombatEventBus.OnAttackSfx += HandleAttackSfx;
     }
 
     // 取消订阅
@@ -53,6 +54,7 @@ public class AudioManager : MonoBehaviour
         CombatEventBus.OnGourdUsed -= HandleGourdUsed;
         CombatEventBus.OnReviveAvailable -= HandleReviveAvailable;
         CombatEventBus.OnVictory -= HandleVictory;
+        CombatEventBus.OnAttackSfx -= HandleAttackSfx;
     }
 
     // ===== 事件处理 =====
@@ -125,5 +127,12 @@ public class AudioManager : MonoBehaviour
         {
             audioSource.PlayOneShot(victorySfx);
         }
+    }
+
+    // 出招音：clip 由事件携带；第一版忽略 worldPos
+    private void HandleAttackSfx(AudioClip clip, Vector3 worldPos)
+    {
+        if (clip == null || audioSource == null) return;
+        audioSource.PlayOneShot(clip);
     }
 }

@@ -124,10 +124,10 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 
 ### 攻击前摇
 
-- Hitbox：**`HitStartTime` 开判定，`RecoveryWindowStart` 关判定**（退出再兜底关）。可取消 = 这一刀已经打完，收刀动画不再扫人。
-- `stateTimer < HitStartTime`：允许格挡/垫步取消。
-- `HitStartTime <= stateTimer < RecoveryWindowStart`：动作锁定，离散命令进入 0.2s 输入缓冲。
-- `RecoveryWindowStart <= stateTimer <= ComboWindowEnd`：判定已关；攻击接 `NextCombo`；移动、格挡、垫步、跳跃、喝药可立即取消。动画仍播到 `StateDuration`。
+- Hitbox：**动画时间 `t`（`AttackAnimClock.ReadSeconds`）到 `HitStartTime` 开判定，到 `RecoveryWindowStart` 关判定**（退出再兜底关）。有 `hitPulses` 时按各段 `[start,end)` 开关刀，并回填这两个字段给取消/连招。可取消 = 这一刀已经打完，收刀动画不再扫人。
+- `t < HitStartTime`：允许格挡/垫步取消。
+- `HitStartTime <= t < RecoveryWindowStart`：动作锁定，离散命令进入 0.2s 输入缓冲。
+- `RecoveryWindowStart <= t <= ComboWindowEnd`：判定已关；攻击接 `NextCombo`；移动、格挡、垫步、跳跃、喝药可立即取消。动画仍播到 `StateDuration`（`t >= StateDuration` 回 Idle）。
 - `ComboWindowEnd` 后不再接本段 `NextCombo`，尚未过期的命令由动作结束后的状态处理。
 - `ComboWindowStart` 已更名为 `RecoveryWindowStart`，使用序列化迁移保留旧 SO 数值。
 - `HitStartTime = 0`：进招不可取消（判定仍然一进攻击就开）。

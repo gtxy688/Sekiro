@@ -71,7 +71,7 @@ public class Sequence : Node
 }
 ```
 
-Selector 同理，遇到 Success 记住索引；Running 记住索引。
+Selector **只**对实现 `ISelectorLock` 的 Running 子节点记住索引。`BT_MoveToTarget` 不实现该接口，追击时下一帧仍从树顶重评，招架才能插进去。
 
 ### 新增 BT 节点（通用）
 
@@ -92,7 +92,13 @@ Selector 同理，遇到 Success 记住索引；Running 记住索引。
 |--------|-----------|------|
 | 主动计划 (Goal.Activate) | 按距离选招式 | 每帧 |
 | 交锋计划 (Goal.Kengeki_Activate) | 被弹开后变招 | 玩家弹反成功时 |
-| 变招/防御 (Goal.Interrupt + Parry) | 玩家攻击时防御/招架 | 玩家攻击命中前 |
+| 变招/防御 (Goal.Interrupt + Parry) | **被动防御判定**（命中瞬间强制格挡/计数升级弹反） | 玩家攻击命中前 |
+
+> 招架层已从"AI 短按防御键"（旧 `BT_DeflectIf`/`BT_Deflect`，1.5s 格挡 CD）改为 **`CharacterBody.TryPassiveDeflect` 被动防御**（M7 攻防转换）：
+> - Boss 非攻击/非硬直/非崩解时被玩家命中 → 命中瞬间强制转格挡判定（无 CD、无概率）；
+> - 普通格挡：`Hurt_Guard`/GuardLoop 姿态 + 架势上涨（`GuardPostureFactor` 削弱架势伤害），Boss 留在防御姿态（连续防御分支）；
+> - 连续格挡达 `passiveDeflectThreshold`（默认 2）次 → 下一次命中升级**强制完美弹反**：弹开玩家（`ForceParryStun`）+ 打铁火花/顿帧，抢回主动权；
+> - 危字攻击（`isPerilous`）与 Boss **攻击中**（可被抓前摇）不进入被动防御，走常规受击/识破/跳踩。
 
 ### 距离分段（主动计划）
 
@@ -103,20 +109,28 @@ Selector 同理，遇到 Success 记住索引；Running 记住索引。
 距离 ≤ 3m  → 贴身战（横砍+转身/踢一脚）+ 跳跃下刺
 ```
 
-> 当前实现是**简单版**（追击 + 隔一会儿砍一刀 + 你挥刀时格挡），用来看手感。完整弦一郎三层（连段/射箭/飞舟/交锋变招）尚未接上。
+> 当前实现已换成**完整薄树 + 招式表**。受击/崩解/忍杀结算不改。`BT_Combo` 的 AttackSet 下标连招不再作为弦一郎正路。
 
-### 简单树
+### 完整薄树
 
 ```
 Selector:
-├─ 玩家正在攻击 且 距离 ≤ deflectRange 且 格挡冷却好了 → BT_Deflect
-├─ 距离 ≤ attackRange 且 攻击冷却好了 → BT_HitOnce（一刀，等 AttackState 结束）
-└─ BT_MoveToTarget（世界方向追玩家，到距离后停下并转向）
+├─ 崩解中 → Success（不选招）
+├─ BT_Kengeki（KengekiArmed 且硬直结束、距离≤2.5 → 交锋表）
+├─ 玩家 IsHealing → Bow_Heavy
+├─ BT_PickActive（距离档加权）
+└─ BT_MoveToTarget
 ```
 
-Inspector：`attackRange` 默认 3、`attackCooldown` 默认 2.5、`deflectRange` 默认 2.5。场景里必须拖 `PlayerTarget` / `PlayerBody`。
+Selector 只对实现 `ISelectorLock` 的 Running 子节点续跑，**不**记住 `BT_MoveToTarget`，否则追击时招架抢不到。
 
-> 保留：Boss 有危字招式 `BT_Thrust`（突刺，识破反制）/`BT_Sweep`（横扫，跳踩反制），M7 实现时补进树（招式细节暂缓）。
+数据：`BossMoveTable`（`Assets/SO/Boss/GenichiroMoveTable.asset`）。出招前 `BossAttackBaker` 烤成运行时 `AttackConfig`，写入 `ActiveAttack` 再发 `AttackCommand`。
+
+一条 Clip 要砍多刀：在对应 `windows[i].hitPulses` 填多段 `[start,end)`（见 `03-hit-detection.md`）。`Boat` 的 `Boat1` 已按 5 段占位；其它招空数组 = 仍一刀。
+
+约定：`Slash_Spin`+`Elbow` 一行 `Slash_SpinElbow`；`Boat` ≠ `Boat_Full`；`Kengeki_Slash` 五片随机；`Kengeki_Bow` 先 3031 再二选一。缺 Animator 状态的招权重为 0。
+
+Inspector：必须拖 `PlayerTarget` / `PlayerBody` / `moveTable`。
 
 ### 黑板数据
 
@@ -130,12 +144,13 @@ blackboard["lastComboIndex"]     = 连段当前第几刀
 
 ### 新增 BT 节点（Boss 专用）
 
-- `BT_Combo`：近战连段，内部维护第几刀，每刀间隔 0.3-0.5s
-- `BT_BowShot`：后跳射箭
-- `BT_Deflect`：玩家连续攻击时招架
+- `BT_ExecuteMove`：按表行多段出招
+- `BT_Kengeki`：被弹后还击
+- `BT_HealPunish`：喝药重箭
+- `BT_PickActive`：主动层抽招
 - `BT_MoveToTarget`（已有）
 
-> 保留：`BT_Thrust`（突刺危字）/`BT_Sweep`（横扫危字）。
+`BT_Combo` / `BT_HitOnce` / `BT_BowShot` / `BT_DeflectIf` / `BT_Deflect` 文件可留，树里不挂（招架职责由 `CharacterBody.TryPassiveDeflect` 承担）。
 
 ### 冷却机制
 
@@ -149,13 +164,9 @@ blackboard["lastComboIndex"]     = 连段当前第几刀
 
 ## 涉及文件
 
-- 新建：`Assets/Scripts/Boss/BehaviourTree/Blackboard.cs`
-- 修改：`Assets/Scripts/Boss/BehaviourTree/Node.cs`（SetBlackboard）
-- 修改：`Assets/Scripts/Boss/BehaviourTree/Sequence.cs`（Running 记忆）
-- 修改：`Assets/Scripts/Boss/BehaviourTree/Selector.cs`（Running 记忆）
-- 修改：`Assets/Scripts/Boss/BehaviourTree/BT/BT_MoveToTarget.cs`（黑板）
-- 修改：`Assets/Scripts/Boss/BehaviourTree/BT/BT_Attack.cs`（黑板）
-- 新建：`Assets/Scripts/Boss/BehaviourTree/BT/BT_HitOnce.cs`
-- 新建：`Assets/Scripts/Boss/BehaviourTree/BT/BT_BowShot.cs`
-- 新建：`Assets/Scripts/Boss/BehaviourTree/BT/BT_Deflect.cs`
-- 修改：`Assets/Scripts/Boss/BTBrain.cs`（黑板注入 + 完整树）
+- 招式表：`Assets/Scripts/Boss/BossMoveTable.cs`、`BossMoveEntry.cs`、`BossMoveWindow.cs`、`BossAnimSequence.cs`、`BossMoveLayer.cs`、`BossMoveExtra.cs`
+- 抽招 / 烘焙：`BossMovePicker.cs`、`BossAttackBaker.cs`、`GenichiroMoveCatalog.cs`
+- 行为树：`BTBrain.cs`、`Selector.cs`（`ISelectorLock`）、`BT_ExecuteMove.cs`、`BT_Kengeki.cs`、`BT_DeflectIf.cs`、`BT_HealPunish.cs`、`BT_PickActive.cs`
+- 武装：`CharacterBody.KengekiArmed` / `IsParried`，`ParriedState`
+- 数据：`Assets/SO/Boss/GenichiroMoveTable.asset`
+- Editor：`Assets/Editor/BossMoveTableEditor.cs`

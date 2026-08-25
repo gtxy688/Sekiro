@@ -19,6 +19,7 @@ public class ParriedState : BaseState
     {
         timer = 0f;
         hasSeenAnim = false;
+        body.IsParried = true;
 
         if (!AnimUtil.HasState(body.Animator, DeflectedAnim))
         {
@@ -61,5 +62,10 @@ public class ParriedState : BaseState
     public override bool HandleCommand(ICommand cmd)
     {
         return true;
+    }
+
+    public override void OnExit()
+    {
+        body.IsParried = false;
     }
 }

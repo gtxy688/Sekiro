@@ -6,13 +6,29 @@ using UnityEngine;
 //   格挡中再按 → Deflect_Repeat（抖刀），刷新弹反窗口；没有 Repeat 状态则回退抬刀
 //   窗口内挡住 → Deflect_Slash；窗口外挡住 → 普通格挡受击
 //   长按松手 → Deflect_Cancel（收刀）；短按松手姿态不变，窗口结束回待机
+//
+// M7 被动防御：只狼模式中 Boss 的格挡不是"AI 按按钮"，而是玩家命中瞬间的
+// 防御判定。DeflectEntryMode.PassiveGuard（普通格挡，留下防御姿态）与
+// DeflectEntryMode.PerfectParry（强制完美弹反，弹开攻击者）由 CharacterBody
+// 的 TryPassiveDeflect 路由进入，不参与抖刀惩罚，处理完锁定中的命中后保持姿态片刻退出。
+public enum DeflectEntryMode
+{
+    Normal,       // 玩家/BT 主动按防御（原 M4 流程）
+    PassiveGuard, // 被动防御：本次命中按窗口外处理（普通格挡 Block + 架势涨）
+    PerfectParry  // 被动防御升级：强制完美弹反（弹开攻击者，抢回主动权）
+}
+
 public class DeflectState : BaseState
 {
     private HierarchicalState parent;
     private readonly bool remash;
+    private readonly DeflectEntryMode mode;
+    private readonly HitData? pendingHit;
     private float enterTime;
     private float window;
     private bool hasReleased;
+    private const float PassiveHoldDuration = 0.25f; // 普通格挡姿态保持时长（玩家连打会被连续重进场）
+    private const float PerfectHoldMax = 1.2f;    // 完美弹反兜底：弹反挥刀动画缺失/异常时强制收刀
     private float guardFlinchTimer;
     private float beginTimer;
     private float beginFailsafe = 0.55f;
@@ -28,10 +44,13 @@ public class DeflectState : BaseState
     private bool hasSeenGuardHurt;
     private float rotationSpeed = 720f;
 
-    public DeflectState(CharacterBody body, HierarchicalState parent, bool remash = false) : base(body)
+    public DeflectState(CharacterBody body, HierarchicalState parent, bool remash = false,
+        DeflectEntryMode mode = DeflectEntryMode.Normal, HitData? pendingHit = null) : base(body)
     {
         this.parent = parent;
         this.remash = remash;
+        this.mode = mode;
+        this.pendingHit = pendingHit;
         if (body.Config != null) rotationSpeed = body.Config.RotationSpeed;
     }
 
@@ -48,9 +67,26 @@ public class DeflectState : BaseState
         waitingGuardHurt = false;
         hasSeenGuardHurt = false;
 
+        body.IsGuarding = true;
+
+        // M7 被动防御入口：不参与抖刀惩罚、无抬刀动画，直接处理锁定中的命中，
+        // 处理完保持防御姿态，由 OnUpdate 的被动退出逻辑按时收刀。
+        if (mode != DeflectEntryMode.Normal)
+        {
+            window = 0f;
+            if (pendingHit.HasValue)
+            {
+                if (mode == DeflectEntryMode.PerfectParry)
+                    HandlePerfectParry(pendingHit.Value);
+                else
+                    HandleGuardHit(pendingHit.Value);
+            }
+            PlayGuardLoop(force: true);
+            return;
+        }
+
         body.RegisterDeflectPress();
         window = body.GetDeflectWindow();
-        body.IsGuarding = true;
 
         // 格挡中再按：抖刀，不要重播抬刀。没有 Repeat Clip（Boss）则走原来的抬刀/走路融合
         if (remash && AnimUtil.HasState(body.Animator, "Deflect_Repeat"))
@@ -89,6 +125,36 @@ public class DeflectState : BaseState
             return;
         }
 
+        // M7 被动防御：处理完命中后保持防御姿态一段时间即收刀回待机，
+        // 玩家连打时每次命中都会重新进场（GetDeflectState），姿态得以延续。
+        if (mode != DeflectEntryMode.Normal)
+        {
+            // 普通格挡受击动画（Hurt_Guard）也要播完，再按持姿态时长收刀
+            if (waitingGuardHurt) UpdateGuardHurt();
+
+            if (mode == DeflectEntryMode.PerfectParry)
+            {
+                // 完美弹反后不滞留防御发呆：弹反挥刀动画播完立即收刀回 Idle，
+                // 把反击窗口交给 AI（下帧 BT 立刻抽招），避免白白浪费弹反主动权。
+                var info = body.Animator.GetCurrentAnimatorStateInfo(0);
+                bool deflectAnimDone = AnimUtil.IsPlaying(info, "Deflect_Slash")
+                    || AnimUtil.IsPlaying(info, "Deflect_HeavySlash");
+                if ((deflectAnimDone && info.normalizedTime >= 0.95f)
+                    || Time.time - enterTime >= PerfectHoldMax)
+                {
+                    parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+                }
+                return;
+            }
+
+            // PassiveGuard：普通格挡姿态保持 PassiveHoldDuration 后收刀
+            if (Time.time - enterTime >= PassiveHoldDuration)
+            {
+                parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+            }
+            return;
+        }
+
         if (inBegin)
         {
             beginTimer += Time.deltaTime;
@@ -105,17 +171,7 @@ public class DeflectState : BaseState
 
         if (waitingGuardHurt)
         {
-            AnimatorStateInfo hurtInfo = body.Animator.GetCurrentAnimatorStateInfo(0);
-            if (AnimUtil.IsPlaying(hurtInfo, guardHurtAnim))
-            {
-                hasSeenGuardHurt = true;
-                if (hurtInfo.normalizedTime >= 0.95f)
-                    waitingGuardHurt = false;
-            }
-            else if (hasSeenGuardHurt && !body.Animator.IsInTransition(0))
-            {
-                waitingGuardHurt = false;
-            }
+            UpdateGuardHurt();
         }
         else if (guardFlinchTimer > 0f)
         {
@@ -134,6 +190,22 @@ public class DeflectState : BaseState
         if (hasReleased && Time.time - enterTime >= window)
         {
             parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+        }
+    }
+
+    // 格挡受击动画（Hurt_Guard/Hurt_GuardHeavy）播放进度跟踪：播完复位，等待下一击
+    private void UpdateGuardHurt()
+    {
+        AnimatorStateInfo hurtInfo = body.Animator.GetCurrentAnimatorStateInfo(0);
+        if (AnimUtil.IsPlaying(hurtInfo, guardHurtAnim))
+        {
+            hasSeenGuardHurt = true;
+            if (hurtInfo.normalizedTime >= 0.95f)
+                waitingGuardHurt = false;
+        }
+        else if (hasSeenGuardHurt && !body.Animator.IsInTransition(0))
+        {
+            waitingGuardHurt = false;
         }
     }
 
@@ -183,49 +255,64 @@ public class DeflectState : BaseState
 
         if (elapsed <= window)
         {
-            bool brokeAttackerPosture = false;
-            if (hit.attacker != null)
-            {
-                float gain = body.Config != null ? body.Config.DeflectPostureGain : 30f;
-                brokeAttackerPosture = hit.attacker.AccumulatePosture(
-                    gain,
-                    allowBreak: true,
-                    source: PostureBreakSource.Deflect);
-                if (!brokeAttackerPosture)
-                {
-                    hit.attacker.ForceParryStun();
-                }
-            }
+            return HandlePerfectParry(hit);
+        }
 
-            CombatEventBus.TriggerWeaponDeflected(hit.hitPoint, DeflectType.Perfect);
-            CombatEventBus.TriggerCameraShake(0.3f);
-            CombatManager.Instance?.HitStop();
+        return HandleGuardHit(hit);
+    }
 
-            // 弹反忍杀确认窗口只给玩家（DeflectToFinsher）。Boss 打崩玩家后继续播弹反挥刀。
-            if (brokeAttackerPosture && AnimUtil.HasState(body.Animator, "DeflectToFinsher"))
+    // 完美弹反：弹开攻击者 + 打铁表现。玩家弹反 Boss 且 Boss 架势崩时给玩家处决确认窗口。
+    private bool HandlePerfectParry(HitData hit)
+    {
+        bool brokeAttackerPosture = false;
+        if (hit.attacker != null)
+        {
+            float gain = body.Config != null ? body.Config.DeflectPostureGain : 30f;
+            brokeAttackerPosture = hit.attacker.AccumulatePosture(
+                gain,
+                allowBreak: true,
+                source: PostureBreakSource.Deflect);
+            if (!brokeAttackerPosture)
             {
-                parent.SubStateMachine.ChangeState(
-                    new FinisherReadyState(body, parent, hit.attacker));
-                return true;
+                hit.attacker.ForceParryStun();
             }
+        }
 
-            inBegin = false;
-            currentLoopAnim = null;
-            string deflectAnim = hit.knockback > 0f
-                ? "Deflect_HeavySlash"
-                : "Deflect_Slash";
-            if (!AnimUtil.HasState(body.Animator, deflectAnim))
-            {
-                Debug.LogError($"{body.name} 的 Animator 缺少弹反状态：{deflectAnim}");
-            }
-            else
-            {
-                body.Animator.CrossFade(deflectAnim, 0.05f);
-            }
-            guardFlinchTimer = 0.25f;
+        CombatEventBus.TriggerWeaponDeflected(hit.hitPoint, DeflectType.Perfect);
+        CombatEventBus.TriggerCameraShake(0.3f);
+        CombatManager.Instance?.HitStop();
+
+        // 弹反忍杀确认窗口只给玩家（DeflectToFinsher）。Boss 被动弹反玩家不进入处决准备；
+        // Boss 打崩玩家后继续播弹反挥刀（Normal 且攻击者是玩家时 mode 也是 Normal，此处靠
+        // FinisherReadyState 的准入 + 该分支共同约束）。
+        if (brokeAttackerPosture && mode == DeflectEntryMode.Normal &&
+            AnimUtil.HasState(body.Animator, "DeflectToFinsher"))
+        {
+            parent.SubStateMachine.ChangeState(
+                new FinisherReadyState(body, parent, hit.attacker));
             return true;
         }
 
+        inBegin = false;
+        currentLoopAnim = null;
+        string deflectAnim = hit.knockback > 0f
+            ? "Deflect_HeavySlash"
+            : "Deflect_Slash";
+        if (!AnimUtil.HasState(body.Animator, deflectAnim))
+        {
+            Debug.LogError($"{body.name} 的 Animator 缺少弹反状态：{deflectAnim}");
+        }
+        else
+        {
+            body.Animator.CrossFade(deflectAnim, 0.05f);
+        }
+        guardFlinchTimer = 0.25f;
+        return true;
+    }
+
+    // 窗口外挡住：普通格挡受击（GuardHurt 动画 + 架势上涨，格挡系数削弱架势伤害）
+    private bool HandleGuardHit(HitData hit)
+    {
         float posture = hit.postureDmg * (body.Config != null ? body.Config.GuardPostureFactor : 0.5f);
         if (body.AccumulatePosture(posture))
         {

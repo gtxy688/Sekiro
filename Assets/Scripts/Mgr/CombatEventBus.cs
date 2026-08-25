@@ -54,6 +54,8 @@ public static class CombatEventBus
     public static event Action<CharacterBody, CharacterBody> OnFinisherEnded;
     // 相机震动（强度）—— 弹反/崩解/处决时触发
     public static event Action<float> OnCameraShake;
+    // 出招音效（clip, 世界坐标）—— clip 由 AttackSfxCue 经事件传入，表现层不持有资源
+    public static event Action<AudioClip, Vector3> OnAttackSfx;
 
     // ========== 2. 修改触发器 ==========
 
@@ -150,5 +152,11 @@ public static class CombatEventBus
     public static void TriggerCameraShake(float intensity)
     {
         OnCameraShake?.Invoke(intensity);
+    }
+
+    public static void TriggerAttackSfx(AudioClip clip, Vector3 worldPos)
+    {
+        if (clip == null) return;
+        OnAttackSfx?.Invoke(clip, worldPos);
     }
 }

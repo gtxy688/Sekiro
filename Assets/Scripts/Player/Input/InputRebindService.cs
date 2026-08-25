@@ -40,7 +40,7 @@ public static class InputRebindService
     {
         if (action == null) return -1;
 
-        // 同一 Scheme 取第一条完整绑定（LockOn 手柄的 rightStick/down 排在后面，不会进改键）
+        // 同一 Scheme 取第一条完整绑定（LockOn 手柄只保留 rightStickPress）
         for (int i = 0; i < action.bindings.Count; i++)
         {
             InputBinding binding = action.bindings[i];
@@ -82,44 +82,59 @@ public static class InputRebindService
     {
         string oldPath = action.bindings[bindingIndex].effectivePath;
 
-        InputActionRebindingExtensions.RebindingOperation operation = action
-            .PerformInteractiveRebinding(bindingIndex)
-            .WithCancelingThrough(group == KeyboardMouseGroup
-                ? "<Keyboard>/escape"
-                : "<Gamepad>/buttonEast")
-            .WithControlsExcluding("<Mouse>/position")
-            .WithControlsExcluding("<Mouse>/delta")
-            .WithControlsExcluding("<Mouse>/scroll")
-            .WithControlsExcluding("<Keyboard>/escape")
-            .WithControlsExcluding("<Gamepad>/startButton")
-            .OnMatchWaitForAnother(0.1f);
+        // PerformInteractiveRebinding 要求 Action 处于 Disable；暂停时 Player Map 仍是开的
+        bool wasEnabled = action.enabled;
+        action.Disable();
 
-        if (group == KeyboardMouseGroup)
+        InputActionRebindingExtensions.RebindingOperation operation;
+        try
         {
-            operation.WithControlsExcluding("<Gamepad>");
-            operation.WithControlsExcluding("<XInputController>");
+            operation = action
+                .PerformInteractiveRebinding(bindingIndex)
+                .WithCancelingThrough(group == KeyboardMouseGroup
+                    ? "<Keyboard>/escape"
+                    : "<Gamepad>/buttonEast")
+                .WithControlsExcluding("<Mouse>/position")
+                .WithControlsExcluding("<Mouse>/delta")
+                .WithControlsExcluding("<Mouse>/scroll")
+                .WithControlsExcluding("<Keyboard>/escape")
+                .WithControlsExcluding("<Gamepad>/startButton")
+                .OnMatchWaitForAnother(0.1f);
+
+            if (group == KeyboardMouseGroup)
+            {
+                operation.WithControlsExcluding("<Gamepad>");
+                operation.WithControlsExcluding("<XInputController>");
+            }
+            else
+            {
+                operation.WithControlsExcluding("<Keyboard>");
+                operation.WithControlsExcluding("<Mouse>");
+            }
+
+            operation
+                .OnComplete(op =>
+                {
+                    SwapDuplicates(action.actionMap.asset, action, bindingIndex, group, oldPath);
+                    Save(action.actionMap.asset);
+                    op.Dispose();
+                    if (wasEnabled) action.Enable();
+                    onApplied?.Invoke();
+                })
+                .OnCancel(op =>
+                {
+                    op.Dispose();
+                    if (wasEnabled) action.Enable();
+                    onCancel?.Invoke();
+                });
+
+            return operation.Start();
         }
-        else
+        catch
         {
-            operation.WithControlsExcluding("<Keyboard>");
-            operation.WithControlsExcluding("<Mouse>");
+            if (wasEnabled) action.Enable();
+            throw;
         }
-
-        operation
-            .OnComplete(op =>
-            {
-                SwapDuplicates(action.actionMap.asset, action, bindingIndex, group, oldPath);
-                Save(action.actionMap.asset);
-                op.Dispose();
-                onApplied?.Invoke();
-            })
-            .OnCancel(op =>
-            {
-                op.Dispose();
-                onCancel?.Invoke();
-            });
-
-        return operation.Start();
     }
 
     private static void SwapDuplicates(

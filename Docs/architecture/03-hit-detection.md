@@ -10,9 +10,10 @@
 
 ```
 攻击动画播放
-  ├─ 动画事件 "EnableHitbox" → 开启判定
+  ├─ AttackState 读本招动画时间 t
+  ├─ t 进入判定窗 → EnableWeaponHit
   ├─ 每帧 BoxCast（武器上一帧位置 → 当前帧位置）→ 扫到 Hurtbox 或对方 Hitbox
-  └─ 动画事件 "DisableHitbox" → 关闭判定
+  └─ t 离开判定窗 / 退出状态 → DisableWeaponHit
 ```
 
 BoxCast 用"上一帧位置 → 当前帧位置"扫一段，防止高速挥砍穿透。
@@ -26,7 +27,9 @@ BoxCast 用"上一帧位置 → 当前帧位置"扫一段，防止高速挥砍�
 | `Hitbox.targetLayers` | 含对方 Hurtbox 所在层 |
 | 刀网格 | **不要**另挂会挡扫描的 Collider；Hitbox 只是扫描点 |
 
-代码侧：到 `HitStartTime` 才开判定，到 `RecoveryWindowStart` 关判定（可取消 = 判定段结束；退出再兜底关）。开判定时已重叠的目标先不算，等刀离开再扫进（连招防秒中）；每帧 SphereCast + OverlapSphere。
+代码侧：到 `HitStartTime` 才开判定，到 `RecoveryWindowStart` 关判定（时钟是本招动画时间 `t`，可取消 = 判定段结束；退出再兜底关）。开判定时已重叠的目标先不算，等刀离开再扫进（连招防秒中）；每帧 SphereCast + OverlapSphere。
+
+Boss **一条 Clip 多段出伤**：`hitPulses` 非空时，`AttackState` 按每段 `[start,end)` 脉冲开关刀。每次 `Enable` 清空 `hitTargets`，所以每段对同一目标只结算一次。空数组仍走上面的一对开关。玩家通常长度为 1（一刀）；用 `ARPG/攻击时间轴` 对着动画拖。
 
 ## 二、组件拆分
 

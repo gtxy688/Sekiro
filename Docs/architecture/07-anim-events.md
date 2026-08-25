@@ -10,9 +10,8 @@
 
 ```
 攻击动画播放
-  ├─ 动画事件 "EnableHitbox"（起始帧）→ 调用 Hitbox.Enable()
-  ├─ 动画事件 "DisableHitbox"（结束帧）→ 调用 Hitbox.Disable()
-  └─ 忍杀动画：不配事件。`FinisherState` 在动画结束时代码结算。
+  ├─ AttackState 读本招动画时间 t → 开/关 Hitbox、播 sfxCues
+  └─ 一次性动画事件只保留：射箭生成帧
 ```
 
 ## 二、动画事件接收（代码侧）
@@ -34,26 +33,20 @@ public void OnDrinkGourdAnimEvent() { /* 补血动作完成时回调 */ }
 
 ## 三、Unity Editor 配置步骤（每段攻击动画）
 
-1. 打开 Animator，选中攻击动画 Clip。
-2. 菜单 Window → Animation 打开 Animation 窗口。
-3. 选中 Clip，按时间轴：
-   - 在**武器开始有判定的那一帧**（通常挥出后 1-2 帧）：
-     - 点 Events → Add Animation Event
-     - Function 填 `EnableHitbox`
-   - 在**判定结束帧**（武器收回前）：
-     - 再 Add Event，Function 填 `DisableHitbox`
-4. 每个攻击招式（轻击/重击/连段每一段/危字招）都配一遍。
+1. 菜单 **ARPG → 攻击时间轴**。
+2. 第一次把玩家 Prefab、Boss Prefab 拖进窗口上方。
+3. 拖入要编的 `AttackConfig` 或 Boss 招式表，拖进度看刀，拖红条标判定，插 ♪ 标音效，点保存。
 
 ## 四、需要配置的动画清单
 
 | 动画 | 事件 |
 |------|------|
-| 玩家 5 段连招 Attack1-5 | 代码驱动（AttackState 按配置时间开/关判定） |
+| 玩家 5 段连招 Attack1-5 | 代码驱动（AttackState 按动画时间开/关判定） |
 | 玩家连段每段 | 同上 |
-| Boss 近战连段 | EnableHitbox / DisableHitbox |
-| Boss 突刺 (Thrust) | EnableHitbox / DisableHitbox |
-| Boss 横扫 (Sweep) | EnableHitbox / DisableHitbox |
-| Boss 射箭 | （箭是弹道，暂用 Hitbox 或单独箭对象） |
+| Boss 近战连段 | 同上（招式表 `hitPulses` / `sfxCues`） |
+| Boss 突刺 (Thrust) | 同上 |
+| Boss 横扫 (Sweep) | 同上 |
+| Boss 射箭 | 动画事件只保留出箭帧 |
 | 玩家 `Finsher_Ground` / `Finsher_Deflect` / `Finsher_Mikiri` | 无事件；动画结束由 `FinisherState` 清命 |
 | Boss 三组成对忍杀 | 无清命事件，只同步播放 |
 | 喝葫芦 | 无事件；进入 HealState 时立即消耗并回血 |
@@ -61,7 +54,7 @@ public void OnDrinkGourdAnimEvent() { /* 补血动作完成时回调 */ }
 
 ## 五、注意事项
 
-- **M8 起攻击 Hitbox 由 `AttackState` 开关**：`HitStartTime` 开判定，`RecoveryWindowStart` 关判定（可取消 = 判定结束），退出再兜底关。`CrossFade` 必须带 `layer: 0`，两参数重载会把 layer 当成 -1，嵌套子状态机里的 `Attack1` 会 `GotoState` 失败。动画事件只保留一次性回调：射箭生成帧。
+- **攻击 Hitbox 与出招音效由 `AttackState` 开关**：时钟是本招动画已播放时间 `t`（`AttackAnimClock`）。`HitStartTime` / `hitPulses` 开判定，`RecoveryWindowStart` 关判定；`sfxCues` 到点发 `OnAttackSfx`。对着动画标时间用菜单 **ARPG/攻击时间轴**，数据写在 `AttackConfig` / Boss 招式表，不写 Animation Event。`CrossFade` 必须带 `layer: 0`。动画事件只保留一次性回调：射箭生成帧。
 - 忍杀清命由 `FinisherState` 在动画结束时代码驱动。Clip 上即使残留 `ExecuteFinisher` 也不会重复扣命（`CombatManager` 幂等）。
 - 喝药采用 Base Layer 慢走 + UpperBody `Drink_UpperBody`，不依赖动画事件结算回血。
 - 动画事件调用的方法必须在挂 Hitbox 的 GameObject 或引用到的对象上。

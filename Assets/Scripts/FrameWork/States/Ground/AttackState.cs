@@ -4,8 +4,9 @@ public class AttackState : BaseState
     private readonly HierarchicalState parent;
     private readonly AttackConfig config; // 当前动作的全部数值与窗口均来自 SO
 
-    private float stateTimer;
+    private float animTime;
     private bool weaponHitEnabled;
+    private bool[] sfxFired;
 
     // 构造函数只接收一个光盘（配置）
     public AttackState(CharacterBody body, HierarchicalState parent, AttackConfig config) : base(body)
@@ -23,7 +24,8 @@ public class AttackState : BaseState
             return;
         }
 
-        stateTimer = 0f;
+        animTime = 0f;
+        sfxFired = null;
         body.IsAttackRecoveryOpen = false;
 
         // ActiveAttack 是 Brain 对“下一次攻击”的一次性选择，状态取得后立即清空。
@@ -49,14 +51,9 @@ public class AttackState : BaseState
             body.Animator.CrossFade(config.AnimName, config.TransitionDuration, 0);
         }
 
-        // 前摇不开判定：贴身时刀还在蓄力就会扫到。到 HitStartTime 再开。
-        // HitStartTime=0 且尚未到 RecoveryWindowStart：进招即开。
+        // 前摇不开判定：贴身时刀还在蓄力就会扫到。到 HitStartTime / 第一段 pulse 再开。
         weaponHitEnabled = false;
-        if (config.HitStartTime <= 0f && config.RecoveryWindowStart > 0f)
-        {
-            body.EnableWeaponHit(config);
-            weaponHitEnabled = true;
-        }
+        ApplyHitbox();
 
         // Boss AI 反制判定标记（M7 用，避免查状态类型）
         body.IsAttacking = true;
@@ -72,25 +69,13 @@ public class AttackState : BaseState
     {
         if (config == null) return;
 
-        stateTimer += Time.deltaTime;
-        body.IsAttackRecoveryOpen = stateTimer >= config.RecoveryWindowStart;
+        animTime = AttackAnimClock.ReadSeconds(body.Animator, config.AnimName);
+        body.IsAttackRecoveryOpen = animTime >= config.RecoveryWindowStart;
 
-        // 可取消 = 这一刀判定段结束。关了之后不能因 HitStartTime 再开。
-        if (stateTimer >= config.RecoveryWindowStart)
-        {
-            if (weaponHitEnabled)
-            {
-                body.DisableWeaponHit();
-                weaponHitEnabled = false;
-            }
-        }
-        else if (!weaponHitEnabled && stateTimer >= config.HitStartTime)
-        {
-            body.EnableWeaponHit(config);
-            weaponHitEnabled = true;
-        }
+        ApplyHitbox();
+        ApplySfx();
 
-        if (config.AllowRotation && stateTimer <= config.RotationWindowEnd)
+        if (config.AllowRotation && animTime <= config.RotationWindowEnd)
         {
             RotateDuringAttack();
         }
@@ -99,7 +84,7 @@ public class AttackState : BaseState
         // 代码只负责状态时长与连招窗口判定
 
         // 动作彻底结束
-        if (stateTimer >= config.StateDuration)
+        if (animTime >= config.StateDuration)
         {
             parent.SubStateMachine.ChangeState(new IdleState(body, parent));
         }
@@ -117,8 +102,8 @@ public class AttackState : BaseState
         if (config == null) return false;
 
         // 前摇可以主动取消；命中段锁定；进入后摇后重新开放所有非攻击行为。
-        bool canCancel = stateTimer < config.HitStartTime ||
-                         stateTimer >= config.RecoveryWindowStart;
+        bool canCancel = animTime < config.HitStartTime ||
+                         animTime >= config.RecoveryWindowStart;
 
         if (cmd is DeflectCommand)
         {
@@ -143,8 +128,8 @@ public class AttackState : BaseState
         if (cmd is AttackCommand)
         {
             if (config.NextCombo != null &&
-                stateTimer >= config.RecoveryWindowStart &&
-                stateTimer <= config.ComboWindowEnd)
+                animTime >= config.RecoveryWindowStart &&
+                animTime <= config.ComboWindowEnd)
             {
                 parent.SubStateMachine.ChangeState(
                     new AttackState(body, parent, config.NextCombo));
@@ -156,7 +141,7 @@ public class AttackState : BaseState
         if (cmd is MoveCommand moveCmd)
         {
             body.MoveDirection = moveCmd.Direction;
-            if (stateTimer >= config.RecoveryWindowStart &&
+            if (animTime >= config.RecoveryWindowStart &&
                 moveCmd.Direction.sqrMagnitude >= 0.01f)
             {
                 // 锁定攻击接移动时直接进入四向循环。
@@ -181,14 +166,86 @@ public class AttackState : BaseState
             config.RotationWindowEnd >= 0f &&
             config.RotationWindowEnd <= config.StateDuration;
 
+        if (valid && HasHitPulses())
+            valid = ValidateHitPulses();
+
         if (!valid)
         {
             Debug.LogError(
                 $"{config.name} 的攻击窗口非法，必须满足 " +
                 "0 <= HitStartTime <= RecoveryWindowStart <= ComboWindowEnd <= StateDuration，" +
-                "且 RotationWindowEnd 位于动作时长内。");
+                "且 RotationWindowEnd 位于动作时长内。多段判定的 start<end 且落在时长内。");
         }
         return valid;
+    }
+
+    private bool HasHitPulses()
+    {
+        return config.hitPulses != null && config.hitPulses.Length > 0;
+    }
+
+    private bool IsInHitPulse()
+    {
+        HitPulse[] pulses = config.hitPulses;
+        for (int i = 0; i < pulses.Length; i++)
+        {
+            HitPulse p = pulses[i];
+            if (p == null) continue;
+            if (animTime >= p.start && animTime < p.end)
+                return true;
+        }
+        return false;
+    }
+
+    private bool ValidateHitPulses()
+    {
+        HitPulse[] pulses = config.hitPulses;
+        for (int i = 0; i < pulses.Length; i++)
+        {
+            HitPulse p = pulses[i];
+            if (p == null) return false;
+            if (p.start < 0f || p.end > config.StateDuration || p.start >= p.end)
+                return false;
+        }
+        return true;
+    }
+
+    // 有 hitPulses：按段脉冲开关，每段 Enable 会清 hitTargets，所以每刀只打一次。
+    // 无 hitPulses：沿用 HitStartTime → RecoveryWindowStart 一对开关。
+    private void ApplyHitbox()
+    {
+        bool wantOn = HasHitPulses()
+            ? IsInHitPulse()
+            : (animTime >= config.HitStartTime && animTime < config.RecoveryWindowStart);
+
+        if (wantOn && !weaponHitEnabled)
+        {
+            body.EnableWeaponHit(config);
+            weaponHitEnabled = true;
+        }
+        else if (!wantOn && weaponHitEnabled)
+        {
+            body.DisableWeaponHit();
+            weaponHitEnabled = false;
+        }
+    }
+
+    private void ApplySfx()
+    {
+        AttackSfxCue[] cues = config.sfxCues;
+        if (cues == null || cues.Length == 0) return;
+        if (sfxFired == null || sfxFired.Length != cues.Length)
+            sfxFired = new bool[cues.Length];
+
+        for (int i = 0; i < cues.Length; i++)
+        {
+            if (sfxFired[i]) continue;
+            AttackSfxCue cue = cues[i];
+            if (cue == null || cue.clip == null) continue;
+            if (animTime < cue.time) continue;
+            sfxFired[i] = true;
+            CombatEventBus.TriggerAttackSfx(cue.clip, body.transform.position);
+        }
     }
 
     private void RotateDuringAttack()

@@ -30,8 +30,8 @@ public abstract class Node
         this.children = children;
     }
 
-    // 黑板注入（M5）：递归传给所有子节点
-    public void SetBlackboard(Blackboard bb)
+    // 黑板注入（M5）：递归传给所有子节点。持有树外执行器的节点应 override 再往下传。
+    public virtual void SetBlackboard(Blackboard bb)
     {
         blackboard = bb;
         foreach (Node child in children)

@@ -66,6 +66,7 @@ public class CombatUIController : MonoBehaviour
         playerStatusView?.OnViewInit();
         itemSlotView?.OnViewInit();
         BindLockOnView();
+        BindPerilousView();
         perilousWarningView?.OnViewInit();
         revivePromptView?.OnViewInit();
         gameOverView?.OnViewInit();
@@ -215,6 +216,8 @@ public class CombatUIController : MonoBehaviour
 
     private void HandlePerilousAttack(PerilousType type)
     {
+        if (perilousWarningView == null)
+            BindPerilousView();
         perilousWarningView?.ShowWarning(type);
     }
 
@@ -258,5 +261,32 @@ public class CombatUIController : MonoBehaviour
         lockOnIndicatorView.gameObject.SetActive(true);
         lockOnIndicatorView.BindFollowTarget(bossBody);
         lockOnIndicatorView.OnViewInit();
+    }
+
+    private void BindPerilousView()
+    {
+        if (perilousWarningView == null)
+        {
+            GameObject named = GameObject.Find("PerilousWarning");
+            if (named != null)
+                perilousWarningView = named.GetComponent<PerilousWarningView>();
+        }
+
+        if (perilousWarningView == null)
+        {
+            PerilousWarningView[] views = FindObjectsOfType<PerilousWarningView>(true);
+            for (int i = 0; i < views.Length; i++)
+            {
+                if (views[i] != null && views[i].gameObject.scene.IsValid())
+                {
+                    perilousWarningView = views[i];
+                    break;
+                }
+            }
+        }
+
+        if (perilousWarningView == null) return;
+        perilousWarningView.enabled = true;
+        perilousWarningView.OnViewInit();
     }
 }

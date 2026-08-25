@@ -3133,6 +3133,7 @@ MonoBehaviour:
   attackCooldown: 2.5
   deflectRange: 2.5
   deflectCooldown: 1.5
+  moveTable: {fileID: 11400000, guid: 1faf9c7b419569445a4e8ae958e47176, type: 2}
   BowShotConfig: {fileID: 0}
 --- !u!1 &4335963503947929138
 GameObject:

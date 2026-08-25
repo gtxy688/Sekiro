@@ -5222,6 +5222,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   PlayerTarget: {fileID: 0}
   PlayerBody: {fileID: 0}
+  moveTable: {fileID: 11400000, guid: 1faf9c7b419569445a4e8ae958e47176, type: 2}
   BowShotConfig: {fileID: 0}
   attackRange: 3
 --- !u!1 &7208916427261880731

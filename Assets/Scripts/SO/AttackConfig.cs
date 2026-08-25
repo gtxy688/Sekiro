@@ -1,5 +1,21 @@
+using System;
 using UnityEngine;
 using UnityEngine.Serialization;
+
+// 一条动画里的一次出伤开/关。空数组 = 仍用 HitStartTime / RecoveryWindowStart 单窗。
+[Serializable]
+public class HitPulse
+{
+    public float start;
+    public float end;
+}
+
+[Serializable]
+public class AttackSfxCue
+{
+    public float time;
+    public AudioClip clip;
+}
 
 // 这个标签让你可以在 Unity 项目的右键菜单里直接创建这个配置文件
 [CreateAssetMenu(fileName = "NewAttackConfig", menuName = "Combat/Attack Configuration")]
@@ -36,5 +52,13 @@ public class AttackConfig : ScriptableObject
 
     [Header("连招派生")]
     // 极其关键：指向下一段攻击的配置！如果没有下一段，留空即可
-    public AttackConfig NextCombo;      
+    public AttackConfig NextCombo;
+
+    [Header("出伤脉冲（玩家 1 段 / Boss 多段）")]
+    [Tooltip("有元素时按每段 [start,end) 开关刀并清空已命中；空则走上面的单窗。玩家通常 1 段，Boss 可多段")]
+    public HitPulse[] hitPulses;
+
+    [Header("出招音效（可选）")]
+    [Tooltip("相对本招动画 0 点的秒。与判定窗独立。clip 为空则跳过")]
+    public AttackSfxCue[] sfxCues;
 }

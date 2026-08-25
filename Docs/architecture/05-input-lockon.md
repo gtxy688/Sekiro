@@ -112,10 +112,15 @@ public class LockOnManager : MonoBehaviour
 - 新建：`Assets/Scripts/Player/Control/LockOnManager.cs`
 - 修改：`Assets/Scripts/FrameWork/States/Ground/MoveState.cs`（锁定面向）
 - 修改：`Assets/Scripts/FrameWork/States/Ground/DodgeState.cs`（锁定四向垫步）
+- 新建：`Assets/Scripts/Mgr/GamePause.cs`
+- 新建：`Assets/Scripts/Player/Input/InputRebindService.cs`
+- 新建：`Assets/Scripts/UI/PauseMenuController.cs`
 
 ## 三、暂停与自定义键位
 
-Esc / 手柄 Start 打开暂停（`PauseMenuController`）。`Time.timeScale = 0` 冻战斗；`GamePause.IsPaused` 让 `PlayerBrain` 忽略玩法输入，避免点菜单时误触发攻击。
+Esc / 手柄 Start 打开暂停（`PauseMenuController`）。`Time.timeScale = 0` 冻战斗；暂停时关掉 Player Map，避免摇杆抢 UI。打开菜单会选中「继续战斗」，左摇杆 / 十字键上下选，A 确认。Esc / 手柄 B 返回上一级（设置→根页，根页则继续战斗）；Start 直接关掉暂停。当前选中项用亮金底 + 深色字，和未选中的深灰底区分。
+
+手柄锁定只绑 `rightStickPress`（按下右摇杆），推右摇杆不再索敌。
 
 设置页两个 Tab（`KeyboardMouse` / `Gamepad`），只改 Attack / Deflect / Dodge / Jump / Heal / LockOn。改键走 `PerformInteractiveRebinding`，同一 Scheme 撞键自动对调，override 存 `PlayerPrefs`。Move / Look 不开放。
 

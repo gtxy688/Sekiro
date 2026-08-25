@@ -1,0 +1,47 @@
+using UnityEngine;
+
+// 被完美弹刀后：硬直中等待，结束后在交锋距离内抽还击招。
+public class BT_Kengeki : Node, ISelectorLock
+{
+    private readonly CharacterBody body;
+    private readonly BossMoveTable table;
+    private readonly Transform target;
+    private readonly BT_ExecuteMove executor;
+
+    public BT_Kengeki(CharacterBody body, BossMoveTable table, Transform target, BT_ExecuteMove executor)
+    {
+        this.body = body;
+        this.table = table;
+        this.target = target;
+        this.executor = executor;
+    }
+
+    public override void SetBlackboard(Blackboard bb)
+    {
+        base.SetBlackboard(bb);
+        executor?.SetBlackboard(bb);
+    }
+
+    public override NodeState Evaluate()
+    {
+        if (executor != null && executor.IsBusy)
+            return executor.Evaluate();
+
+        if (body.IsPostureBroken) return NodeState.Failure;
+        if (!body.KengekiArmed && !body.IsParried) return NodeState.Failure;
+        if (body.IsParried) return NodeState.Running;
+
+        float dist = Vector3.Distance(body.transform.position, target.position);
+        if (dist > table.kengekiMaxRange)
+        {
+            body.KengekiArmed = false;
+            return NodeState.Failure;
+        }
+
+        BossMoveEntry move = BossMovePicker.Pick(
+            table, BossMoveLayer.Kengeki, body, body.Animator, blackboard, dist);
+        body.KengekiArmed = false;
+        if (move == null) return NodeState.Failure;
+        return executor.Begin(move);
+    }
+}

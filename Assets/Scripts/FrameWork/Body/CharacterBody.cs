@@ -58,6 +58,11 @@ public class CharacterBody : MonoBehaviour
     public bool IsAttackRecoveryOpen { get; set; }
     public bool IsHealing { get; set; }
 
+    // 被完美弹刀硬直中（避免查 ParriedState 类型）
+    public bool IsParried { get; set; }
+    // 硬直结束后交锋层可抽一招；距离过远或抽空则清掉
+    public bool KengekiArmed { get; set; }
+
     // Boss 招式集（AI 切换招式用）：AttackCommand 不携带配置（用户决策 9），
     // BT 节点先设置 ActiveAttack，AttackState 优先读它，null 则回退 LightAttack
     public AttackConfig[] AttackSet;
@@ -412,7 +417,45 @@ public class CharacterBody : MonoBehaviour
         EnsureRuntimeReady();
         IsAttacking = false;
         DisableWeaponHit();
+        KengekiArmed = true;
         MainStateMachine.ChangeState(new GroundedState(this, new ParriedState(this)));
+    }
+
+    // ===== M7 Boss 被动防御（只狼攻防转换）=====
+    // 只狼模式：Boss 非攻击/非硬直时被玩家命中 → 强制格挡判定；连续格挡达阈值后
+    // 升级为完美弹反（弹开玩家、抢回主动权）。由 BTBrain 启动时对 Boss 开启。
+    public bool EnablePassiveDeflect;
+    public int passiveDeflectThreshold = 2;        // 连续格挡几次后升级完美弹反（2 = 第 3 刀必弹反）
+    public float passiveDeflectResetWindow = 2.5f; // 放下防御/停止被压制多久后清零连续计数
+    private int passiveDeflectCount;
+    private float lastPassiveDeflectTime;
+
+    public bool TryPassiveDeflect(HitData hit)
+    {
+        if (!EnablePassiveDeflect) return false;
+        if (hit.isPerilous || hit.attacker == null) return false;
+        // 攻击中（可被抓前摇）/ 被弹硬直 / 崩解中 → 不回防御，走常规受击
+        if (IsAttacking || IsParried || IsPostureBroken) return false;
+
+        float now = Time.time;
+        if (passiveDeflectCount > 0 && now - lastPassiveDeflectTime > passiveDeflectResetWindow)
+            passiveDeflectCount = 0;
+        lastPassiveDeflectTime = now;
+
+        bool upgraded = passiveDeflectCount >= passiveDeflectThreshold;
+        passiveDeflectCount = upgraded ? 0 : passiveDeflectCount + 1;
+
+        // 强制进格挡姿态并当场处理这次命中（PerfectParry 弹开攻击者 / PassiveGuard 普通格挡）。
+        // 空中（AirState）等不可防御场景返回 false，交回常规受击链路。
+        if (MainStateMachine?.CurrentState is GroundedState ground)
+        {
+            ground.SubStateMachine.ChangeState(new DeflectState(this, ground,
+                remash: false,
+                mode: upgraded ? DeflectEntryMode.PerfectParry : DeflectEntryMode.PassiveGuard,
+                pendingHit: hit));
+            return true;
+        }
+        return false;
     }
 
     // 架势崩解硬直入口（M9）：玩家 = 击飞倒地（不被处决）；Boss = 处决窗口（红点）。
@@ -421,6 +464,7 @@ public class CharacterBody : MonoBehaviour
         EnsureRuntimeReady();
         IsAttacking = false;
         DisableWeaponHit();
+        KengekiArmed = false;
         CombatEventBus.TriggerCameraShake(0.8f); // 崩解震屏
 
         // 弹反/识破受害姿态只给 Boss：玩家没有这些状态，崩解走普通击飞倒地。
@@ -644,6 +688,10 @@ public class CharacterBody : MonoBehaviour
             perilousType = perilousType,
             knockback = knockback              // 受击表现接口：击退强度
         };
+
+        // 0. M7 Boss 被动防御（只狼攻防转换）：可防御时命中强制转格挡判定。
+        //    先于状态拦截，保证玩家连打压制时 Boss 始终先进入防御反应，而不是裸受击。
+        if (TryPassiveDeflect(hit)) return;
 
         // 1. 先问当前状态层级：能拦截吗？（防御/垫步/识破/受击期间）
         //    MainStateMachine 顶层只装 HierarchicalState，OnHitReceived 会逐层下钻到叶子状态
