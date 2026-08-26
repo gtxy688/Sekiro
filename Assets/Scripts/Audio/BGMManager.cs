@@ -8,10 +8,11 @@ public class BGMManager : MonoBehaviour
     [Header("背景音乐")]
     public AudioClip bgm;            // 默认战斗 BGM（循环）
     public AudioClip phase2Bgm;      // Boss 第二条命 BGM（可选，为空则不切）
-    public AudioClip victoryBgm;     // 胜利 BGM（可选，为空则淡出停止）
 
     [Header("播放参数")]
-    [Range(0f, 1f)] public float volume = 0.8f; // 运行时忽略，音量走 AudioVolumeSettings
+    [Range(0.01f, 1f)]
+    [Tooltip("暂停菜单音乐 100% 时的基础响度。曲子本身很大就调低这里，不要靠滑条贴 1%。")]
+    public float volume = 0.14f;
     public float fadeDuration = 1f;  // 切换时的淡入淡出时长
 
     private AudioSource source;
@@ -130,6 +131,6 @@ public class BGMManager : MonoBehaviour
     private void ApplyOutputVolume()
     {
         if (source == null) return;
-        source.volume = AudioVolumeSettings.Bgm * fadeWeight;
+        source.volume = volume * AudioVolumeSettings.Bgm * fadeWeight;
     }
 }
