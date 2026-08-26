@@ -36,22 +36,27 @@ public class ParriedState : BaseState
         timer += Time.deltaTime;
 
         AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
+        bool animDone = false;
         if (AnimUtil.IsPlaying(info, DeflectedAnim))
         {
             hasSeenAnim = true;
-            if (info.normalizedTime >= 0.95f)
-            {
-                body.MainStateMachine.ChangeState(new GroundedState(body));
-                return;
-            }
+            if (info.normalizedTime >= 0.95f) animDone = true;
         }
         else if (hasSeenAnim && !body.Animator.IsInTransition(0))
+        {
+            animDone = true;
+        }
+
+        // 硬直 = max(被弹动画, 配置下限)：ParriedDuration 是"最小硬直"而非"没动画的兜底"。
+        // 只有配置下限到位，弹反方（Boss 弹反玩家时）才能在玩家恢复前完成收刀+反击出手，
+        // 回合制才成立：被弹方稳定被压出一段反击窗口。
+        if (animDone && timer >= duration)
         {
             body.MainStateMachine.ChangeState(new GroundedState(body));
             return;
         }
 
-        // 没接到 Deflected 时用配置时长兜底，避免卡死
+        // 没接到 Deflected 动画时用配置时长兜底，避免卡死
         if (!hasSeenAnim && timer >= duration)
         {
             body.MainStateMachine.ChangeState(new GroundedState(body));

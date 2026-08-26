@@ -103,11 +103,11 @@ InitTestScene*.unity*
 /[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Flow/UnitOptions.db.meta
 /[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers
 /[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers.meta
-/Assets/Seriko
+/Assets/Sekrio
 /Assets/Prefabs
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
-
+/Assets/Space_Exploration_GUI_Kit
 # 解包语音文件（体积大，不需要版本控制）
 **/Voice/
 **/声音/
@@ -117,3 +117,6 @@ Assets/Resources/
 # 场景美术源文件（Blender 等，本地使用，不上传云端）
 Assets/Scenes/简洁/
 Assets/Scenes/简洁.meta
+
+# 视觉头脑风暴会话（本地预览，不入库）
+.superpowers/

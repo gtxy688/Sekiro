@@ -48,8 +48,9 @@ public static class CombatHUDBuilder
         BossPostureBarView bossPosture = BuildBossPosture(hud.transform, uiSprite);
         PlayerStatusView playerStatus = BuildPlayerStatus(hud.transform, uiSprite);
         ItemSlotView items = BuildItemSlot(hud.transform, uiSprite);
-        PerilousWarningView perilous = BuildCenterText(hud.transform, "PerilousWarning", "危",
-            new Color(0.85f, 0.05f, 0.05f), 160);
+        PerilousWarningView perilous = Object.FindObjectOfType<PerilousWarningView>(true);
+        if (perilous == null)
+            Debug.LogWarning("[CombatHUD] 场景里没有危字 Billboard。先跑 Tools/战斗/生成危字特效。");
         RevivePromptView revive = BuildPrompt(hud.transform, "RevivePrompt", "回生", "按攻击键复活",
             new Color(1f, 0.4f, 0.55f));
         GameOverView gameOver = BuildPromptAsGameOver(hud.transform);
@@ -201,25 +202,6 @@ public static class CombatHUDBuilder
         SerializedObject so = new SerializedObject(view);
         so.FindProperty("gourdIcon").objectReferenceValue = icon;
         so.FindProperty("countText").objectReferenceValue = count;
-        so.ApplyModifiedProperties();
-        return view;
-    }
-
-    private static PerilousWarningView BuildCenterText(Transform parent, string name, string text,
-        Color color, float fontSize)
-    {
-        GameObject root = CreateUi(name, parent);
-        Rect(root, new Vector2(0.5f, 0.6f), new Vector2(0.5f, 0.6f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, new Vector2(400, 200));
-        TextMeshProUGUI tmp = CreateText(root.transform, "Text", text, fontSize, TextAlignmentOptions.Center);
-        RectStretch(tmp.rectTransform);
-        tmp.color = color;
-        tmp.fontStyle = FontStyles.Bold;
-        root.SetActive(false);
-
-        PerilousWarningView view = root.AddComponent<PerilousWarningView>();
-        SerializedObject so = new SerializedObject(view);
-        so.FindProperty("warningText").objectReferenceValue = tmp;
         so.ApplyModifiedProperties();
         return view;
     }

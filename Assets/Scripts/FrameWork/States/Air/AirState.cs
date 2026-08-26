@@ -1,10 +1,22 @@
 using UnityEngine;
 
-// 空中父状态：跳跃/下落共用一个子状态（AirIdleState）
-// 全权根运动：跳跃上升由 Jump 动画 Root 曲线驱动，代码不给初速度
+// 空中父状态：子状态按 Jump → Jumping → Fall 切动画。
+// 根运动保持开启（XZ 跟贴图）；高度走 JumpSpeed + 重力。
 public class AirState : HierarchicalState
 {
     public AirState(CharacterBody body) : base(body) { }
+
+    public override void OnEnter()
+    {
+        body.IsAirborne = true;
+        base.OnEnter();
+    }
+
+    public override void OnExit()
+    {
+        body.IsAirborne = false;
+        base.OnExit();
+    }
 
     protected override BaseState GetInitialSubState()
     {
@@ -13,23 +25,21 @@ public class AirState : HierarchicalState
 
     public override void OnUpdate()
     {
-        // 只要碰地，直接切回地面，不属于 command。
-        // 崩解中若被跳走，落地必须回到倒地，不能进 Idle 却仍 IsPostureBroken。
-        if (body.IsGrounded)
-        {
-            if (body.IsPostureBroken)
-            {
-                body.MainStateMachine.ChangeState(
-                    new GroundedState(body, new StaggerBrokenState(body)));
-            }
-            else
-            {
-                body.MainStateMachine.ChangeState(new GroundedState(body));
-            }
-            return;
-        }
-
         base.OnUpdate();
+
+        AirIdleState air = SubStateMachine.CurrentState as AirIdleState;
+        if (air == null || !air.CanLeaveAir) return;
+
+        // Fall 播完（或崩解落地跳过 Fall）再回地面。
+        if (body.IsPostureBroken)
+        {
+            body.MainStateMachine.ChangeState(
+                new GroundedState(body, new StaggerBrokenState(body)));
+        }
+        else
+        {
+            body.MainStateMachine.ChangeState(new GroundedState(body));
+        }
     }
 
     // 没有其他要拦截的了，直接返回 false

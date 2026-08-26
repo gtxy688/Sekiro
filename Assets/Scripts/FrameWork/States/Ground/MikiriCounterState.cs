@@ -47,7 +47,9 @@ public class MikiriCounterState : BaseState
         }
 
         // 表现：打铁音效/火花（Perfect 级别）
-        CombatEventBus.TriggerWeaponDeflected(body.transform.position, DeflectType.Perfect);
+        CombatEventBus.TriggerWeaponDeflected(
+            CombatFxPoint.BetweenWeapons(attacker, body, body.transform.position + Vector3.up * 1.2f),
+            DeflectType.Perfect);
     }
 
     public override void OnUpdate()

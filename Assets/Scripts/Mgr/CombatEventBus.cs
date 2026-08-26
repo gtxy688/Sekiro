@@ -56,6 +56,9 @@ public static class CombatEventBus
     public static event Action<float> OnCameraShake;
     // 出招音效（clip, 世界坐标）—— clip 由 AttackSfxCue 经事件传入，表现层不持有资源
     public static event Action<AudioClip, Vector3> OnAttackSfx;
+    // 出刀瞬间（Hitbox 打开）—— 玩家挥刀刀光
+    public static event Action<CharacterBody> OnAttackSwingStart;
+    public static event Action<CharacterBody> OnAttackSwingEnd;
 
     // ========== 2. 修改触发器 ==========
 
@@ -158,5 +161,17 @@ public static class CombatEventBus
     {
         if (clip == null) return;
         OnAttackSfx?.Invoke(clip, worldPos);
+    }
+
+    public static void TriggerAttackSwingStart(CharacterBody attacker)
+    {
+        if (attacker == null) return;
+        OnAttackSwingStart?.Invoke(attacker);
+    }
+
+    public static void TriggerAttackSwingEnd(CharacterBody attacker)
+    {
+        if (attacker == null) return;
+        OnAttackSwingEnd?.Invoke(attacker);
     }
 }

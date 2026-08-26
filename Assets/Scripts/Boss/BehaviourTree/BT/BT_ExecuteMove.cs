@@ -11,6 +11,7 @@ public class BT_ExecuteMove : Node, ISelectorLock
     private int segment;
     private bool started;
     private bool waitingAttack;
+    private bool allowInterrupt;
 
     public bool IsBusy => started;
 
@@ -24,12 +25,13 @@ public class BT_ExecuteMove : Node, ISelectorLock
     {
         started = false;
         waitingAttack = false;
+        allowInterrupt = false;
         entry = null;
         sequence = null;
         segment = 0;
     }
 
-    public NodeState Begin(BossMoveEntry move)
+    public NodeState Begin(BossMoveEntry move, bool interruptCurrent = false)
     {
         ResetMove();
         if (move == null) return NodeState.Failure;
@@ -38,6 +40,7 @@ public class BT_ExecuteMove : Node, ISelectorLock
         entry = move;
         started = true;
         segment = 0;
+        allowInterrupt = interruptCurrent;
         return FireCurrentSegment();
     }
 
@@ -45,7 +48,7 @@ public class BT_ExecuteMove : Node, ISelectorLock
     {
         if (!started) return NodeState.Failure;
 
-        if (body.IsParried || body.IsPostureBroken)
+        if (body.IsParried || body.IsPostureBroken || body.IsFinisherLocked)
         {
             ResetMove();
             return NodeState.Failure;
@@ -91,8 +94,9 @@ public class BT_ExecuteMove : Node, ISelectorLock
     {
         string anim = sequence.states[segment];
         BossMoveWindow w = BossMovePicker.WindowFor(entry, segment);
-        body.ActiveAttack = BossAttackBaker.Bake(entry, anim, w);
-        if (!body.TryExecuteCommand(new AttackCommand()))
+        AttackConfig baked = BossAttackBaker.Bake(entry, anim, w);
+        body.ActiveAttack = baked;
+        if (!body.StartAttack(baked, allowInterrupt))
         {
             ResetMove();
             return NodeState.Failure;

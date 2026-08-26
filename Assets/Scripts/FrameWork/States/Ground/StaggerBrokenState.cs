@@ -14,6 +14,7 @@ public class StaggerBrokenState : BaseState
     private float timer;
     private float duration;
     private bool triedNestedPath;
+    private bool seenStart;
 
     public StaggerBrokenState(CharacterBody body) : base(body)
     {
@@ -23,6 +24,7 @@ public class StaggerBrokenState : BaseState
     {
         timer = 0f;
         triedNestedPath = false;
+        seenStart = false;
         duration = FallbackDuration;
         animName = body.Config != null && !string.IsNullOrEmpty(body.Config.HurtAnim_Broken)
             ? body.Config.HurtAnim_Broken : "Hurt_Ground";
@@ -54,18 +56,24 @@ public class StaggerBrokenState : BaseState
         AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
         if (AnimUtil.IsPlaying(info, animName))
         {
-            if (info.length > 0.05f)
+            // Play(0) 当帧可能仍带着上一圈末尾的 normalizedTime>=0.99。
+            // 必须先看到开头，否则会立刻 RecoverFromBreak，后续连段被 StunnedState 二次受击全吞。
+            if (info.normalizedTime < 0.5f)
             {
-                duration = info.length;
+                seenStart = true;
+                if (info.length > 0.05f)
+                {
+                    duration = info.length;
+                }
             }
 
-            if (info.normalizedTime >= 0.99f && !body.Animator.IsInTransition(0))
+            if (seenStart && info.normalizedTime >= 0.99f && !body.Animator.IsInTransition(0))
             {
                 FinishBreak();
                 return;
             }
         }
-        else if (!triedNestedPath && timer > 0.05f && body.Animator != null)
+        else if (!triedNestedPath && timer > 0.05f)
         {
             // 等 Animator 吃到 OnEnter 的 Play；仍对不上再走 _Hurt 子状态机路径
             triedNestedPath = true;

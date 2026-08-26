@@ -118,7 +118,7 @@ public class LockOnManager : MonoBehaviour
 
 ## 三、暂停与自定义键位
 
-Esc / 手柄 Start 打开暂停（`PauseMenuController`）。`Time.timeScale = 0` 冻战斗；暂停时关掉 Player Map，避免摇杆抢 UI。打开菜单会选中「继续战斗」，左摇杆 / 十字键上下选，A 确认。Esc / 手柄 B 返回上一级（设置→根页，根页则继续战斗）；Start 直接关掉暂停。当前选中项用亮金底 + 深色字，和未选中的深灰底区分。
+Esc / 手柄 Start 打开暂停（`PauseMenuController`）。`Time.timeScale = 0` 冻战斗；暂停时关掉 Player Map，避免摇杆抢 UI。打开菜单会选中「继续战斗」，左摇杆 / 十字键上下选，A 确认。点「设置」进入设置页：上面两条音量滑条（音乐 / 音效，0–100），下面「键位设置」。Esc / B 返回上一级：改键 → 设置 → 根页 → 继续战斗。Start 任意页直接关暂停。当前选中项用亮金底 + 深色字。拖滑条立刻改 `BGMManager` / `AudioManager` 的 Source 音量，存 `PlayerPrefs`（`audio.bgm` / `audio.sfx`）。不上 AudioMixer。音乐实际音量 = 用户音乐音量 × 淡入淡出权重。
 
 手柄锁定只绑 `rightStickPress`（按下右摇杆），推右摇杆不再索敌。
 

@@ -30,7 +30,8 @@ public class CharacterConfig : ScriptableObject
     public float DeflectPostureGain = 30f;         // 完美弹反成功：攻击者涨的架势
     public float DeflectSelfPostureFactor = 0f;    // 已废弃：完美弹反不再涨自己架势，保留字段以免序列化丢失
     public float GuardPostureFactor = 0.5f;        // 格挡时自己涨架势的比例（×对方架势伤害）
-    public float ParriedDuration = 0.7f;          // 被完美弹反后的硬直时长（M7 攻防转换：给弹反成功方反击窗口，对齐只狼惩罚感）
+    public float ParriedDuration = 1.0f;          // 被完美弹反后的最小硬直（下限，动画播完仍保底）。M7 攻防转换：给弹反成功方稳定反击窗口，回合制才成立
+    public float ParryCounterHitDelay = 0.1f;     // 完美弹反后，反击命中时刻 = 被弹方硬直结束 + 该值（推荐 0~0.15）。命中早于玩家攻击前摇 → 贪刀必被罚；发起时刻由代码按反击招 HitStartTime 倒推
     public float DeflectMashLimit = 3;             // 抖刀惩罚：0.5s 内连点次数阈值
     public float DeflectMashWindow = 0.5f;         // 抖刀判定窗口
     public float DeflectMashPenalty = 0.75f;       // 每次超限惩罚系数
@@ -55,6 +56,30 @@ public class CharacterConfig : ScriptableObject
     [Header("移动")]
     // 移动速度由动画 Root 曲线决定（全权根运动），这里只留转身速度
     public float RotationSpeed = 720f;
+
+    [Header("跳跃")]
+    [Tooltip("false = 不进 AirState、不接跳跃（Boss 用）")]
+    public bool UseAirState = true;
+
+    // 只狼跳跃高度写在 TAE 里，hkx 的 Root Y 几乎不离地，所以用初速度补高度
+    public float JumpSpeed = 6f;
+
+    [Header("跳跃动画时机（代码切 Jump / Jumping / Fall）")]
+    [Tooltip("Jump 播到这个归一化时间就切 Jumping。起跳还在播人已经在空中 → 调小（0.4~0.7）")]
+    [Range(0.1f, 1f)]
+    public float JumpToJumpingNormalized = 0.55f;
+
+    [Tooltip("过最高点（速度转负）也立刻切 Jumping。起跳太长、空中还在抬腿时勾上")]
+    public bool SwitchJumpingAtApex = true;
+
+    [Tooltip("离地还有这么高就开始播 Fall。落地动作含下坠后半段 → 加大（0.2~0.6）；Fall 只是触地缓冲 → 填 0")]
+    public float LandEarlyHeight = 0.35f;
+
+    [Tooltip("Jump ↔ Jumping 融合秒数")]
+    public float JumpAnimBlend = 0.08f;
+
+    [Tooltip("切到 Fall 的融合秒数")]
+    public float LandAnimBlend = 0.05f;
 
     [Header("攻击输入")]
     public float AttackHoldDuration = 0.3f; // 按住攻击达到该时长后自动触发突刺

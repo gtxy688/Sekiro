@@ -21,14 +21,38 @@ public class FinisherState : BaseState
     {
         hasSeenAnim = false;
         hasCompleted = false;
+        body.IsFinisherLocked = true;
         body.IsAttacking = false;
+        body.MoveDirection = Vector3.zero;
         body.DisableWeaponHit();
-        body.Animator.CrossFade(animName, 0.05f);
+        if (body.Rb != null)
+        {
+            Vector3 v = body.Rb.velocity;
+            body.Rb.velocity = new Vector3(0f, v.y, 0f);
+        }
+
+        if (victim != null)
+        {
+            Vector3 toVictim = victim.transform.position - body.transform.position;
+            body.SnapYaw(toVictim, animName);
+        }
+
+        if (!AnimUtil.TryPlay(body.Animator, animName))
+        {
+            Debug.LogError($"{body.name} 的 Animator 缺少忍杀状态：{animName}");
+        }
+    }
+
+    public override void OnExit()
+    {
+        body.IsFinisherLocked = false;
     }
 
     public override void OnUpdate()
     {
         if (hasCompleted) return;
+
+        body.MoveDirection = Vector3.zero;
 
         AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
         if (AnimUtil.IsPlaying(info, animName))

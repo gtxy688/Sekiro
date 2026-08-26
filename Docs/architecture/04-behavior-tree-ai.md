@@ -91,7 +91,7 @@ Selector **只**对实现 `ISelectorLock` 的 Running 子节点记住索引。`B
 | 参考层 | 对应行为树 | 触发 |
 |--------|-----------|------|
 | 主动计划 (Goal.Activate) | 按距离选招式 | 每帧 |
-| 交锋计划 (Goal.Kengeki_Activate) | 被弹开后变招 | 玩家弹反成功时 |
+| 交锋计划 (Goal.Kengeki_Activate) | 被弹开后变招 / **弹反成功后抢先还击** | 玩家弹反 Boss 时；Boss 弹反玩家成功时（`DeflectState.HandlePerfectParry` 设自身 `KengekiArmed`） |
 | 变招/防御 (Goal.Interrupt + Parry) | **被动防御判定**（命中瞬间强制格挡/计数升级弹反） | 玩家攻击命中前 |
 
 > 招架层已从"AI 短按防御键"（旧 `BT_DeflectIf`/`BT_Deflect`，1.5s 格挡 CD）改为 **`CharacterBody.TryPassiveDeflect` 被动防御**（M7 攻防转换）：
@@ -117,12 +117,14 @@ Selector **只**对实现 `ISelectorLock` 的 Running 子节点记住索引。`B
 Selector:
 ├─ 崩解中 → Success（不选招）
 ├─ BT_Kengeki（KengekiArmed 且硬直结束、距离≤2.5 → 交锋表）
-├─ 玩家 IsHealing → Bow_Heavy
+├─ 玩家 IsHealing → Bow_Heavy（打断当前近战/交锋，不走该招冷却）
 ├─ BT_PickActive（距离档加权）
-└─ BT_MoveToTarget
+└─ BT_MoveToTarget（远追近绕：>attackRange 追击；≤attackRange 绕玩家侧向走位，选招冷却期不罚站）
 ```
 
-Selector 只对实现 `ISelectorLock` 的 Running 子节点续跑，**不**记住 `BT_MoveToTarget`，否则追击时招架抢不到。
+Selector 只对实现 `ISelectorLock` 的 Running 子节点续跑，**不**记住 `BT_MoveToTarget`，否则追击时招架抢不到。`BT_MoveToTarget` 近距离改走位返回 Running 后仍不被记住，PickActive 冷却转好即可抢走出招。
+
+> 近身走位参数在 BTBrain Inspector：`roamStrafeDuration`（换边周期）/ `roamStrafeStrength`（绕圈强度）/ `roamApproachStrength`（逼近分量）。
 
 数据：`BossMoveTable`（`Assets/SO/Boss/GenichiroMoveTable.asset`）。出招前 `BossAttackBaker` 烤成运行时 `AttackConfig`，写入 `ActiveAttack` 再发 `AttackCommand`。
 
@@ -146,7 +148,7 @@ blackboard["lastComboIndex"]     = 连段当前第几刀
 
 - `BT_ExecuteMove`：按表行多段出招
 - `BT_Kengeki`：被弹后还击
-- `BT_HealPunish`：喝药重箭
+- `BT_HealPunish`：喝药重箭（玩家 `IsHealing` 时抢出 `Bow_Heavy`，可打断正在播的主动/交锋招）
 - `BT_PickActive`：主动层抽招
 - `BT_MoveToTarget`（已有）
 

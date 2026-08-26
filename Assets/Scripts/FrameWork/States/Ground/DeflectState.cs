@@ -28,7 +28,19 @@ public class DeflectState : BaseState
     private float window;
     private bool hasReleased;
     private const float PassiveHoldDuration = 0.25f; // 普通格挡姿态保持时长（玩家连打会被连续重进场）
-    private const float PerfectHoldMax = 1.2f;    // 完美弹反兜底：弹反挥刀动画缺失/异常时强制收刀
+    private const float PerfectHoldMax = 1.1f;    // 完美弹反兜底：弹反挥刀动画缺失/异常时强制收刀
+    // 弹反收刀阈值：动画主体基本播完才收刀——弹反的"弹开表现"必须完整呈现，
+    // 直接砍掉动画立刻反手会显得 Boss"莫名其妙就打人"，且玩家失去格挡窗口。
+    private const float PerfectExitNormalized = 0.9f;
+
+    // 完美弹反后收到的反击攻击配置：BT_Kengeki 在弹反瞬间抽好，先存下，
+    // 反击的发起时刻按"目标命中时刻 - 该招 HitStartTime"倒推（counterFireTime），
+    // 保证不管抽到哪招，命中都落在"被弹方硬直结束 + ParryCounterHitDelay"附近：
+    // 玩家恢复瞬间的刀（前摇 ~0.15s）永远晚于反击命中 → 贪刀必被罚；
+    // 弹反动画正常播放作为表现，到点直接切入反击攻击（弹开表现已完整）。
+    private AttackConfig pendingCounter;
+    private float counterFireTime;
+    private float parriedDurationOnHit; // 弹反瞬间记录的被弹方硬直（为准就算 hit.attacker.Config）
     private float guardFlinchTimer;
     private float beginTimer;
     private float beginFailsafe = 0.55f;
@@ -66,6 +78,9 @@ public class DeflectState : BaseState
         guardHurtAnim = null;
         waitingGuardHurt = false;
         hasSeenGuardHurt = false;
+        pendingCounter = null;
+        counterFireTime = 0f;
+        parriedDurationOnHit = 0f;
 
         body.IsGuarding = true;
 
@@ -134,12 +149,22 @@ public class DeflectState : BaseState
 
             if (mode == DeflectEntryMode.PerfectParry)
             {
-                // 完美弹反后不滞留防御发呆：弹反挥刀动画播完立即收刀回 Idle，
-                // 把反击窗口交给 AI（下帧 BT 立刻抽招），避免白白浪费弹反主动权。
+                // 弹反动画正常播放作为表现（弹开火花完整呈现）；反击发起时刻由
+                // counterFireTime 决定（命中对齐被弹方硬直结束 + 补偿，与动画时长无关）。
+                // 动画播完但没到发起时刻 → 保持防御姿态稍作停顿，等点发起；
+                // 到点直接切入反击攻击（此时弹反动画关键表现已播完，剪尾无碍观感）。
+                if (pendingCounter != null && Time.time >= counterFireTime)
+                {
+                    parent.SubStateMachine.ChangeState(
+                        new AttackState(body, parent, pendingCounter));
+                    return;
+                }
+
+                // 无反击命令（BT 抽招失败等）：动画播完收刀回 Idle，交给 BT 常规路径
                 var info = body.Animator.GetCurrentAnimatorStateInfo(0);
                 bool deflectAnimDone = AnimUtil.IsPlaying(info, "Deflect_Slash")
                     || AnimUtil.IsPlaying(info, "Deflect_HeavySlash");
-                if ((deflectAnimDone && info.normalizedTime >= 0.95f)
+                if ((deflectAnimDone && info.normalizedTime >= PerfectExitNormalized)
                     || Time.time - enterTime >= PerfectHoldMax)
                 {
                     parent.SubStateMachine.ChangeState(new IdleState(body, parent));
@@ -229,6 +254,28 @@ public class DeflectState : BaseState
             return true;
         }
 
+        // M7 完美弹反后的反击命令：BT_Kengeki（KengekiArmed 已置位）在弹反瞬间抽好反击招下发。
+        // 不立即出招——按"目标命中时刻 - 该招 HitStartTime"倒推出发起时刻，
+        // 让反击无论抽到哪招都在被弹方硬直结束 + ParryCounterHitDelay 附近命中。
+        // 玩家恢复瞬间的刀（前摇 ~0.15s）永远晚于反击命中 → 贪刀必被罚。
+        // 只对被动完美弹反（Boss）生效；玩家主动弹反走 Normal 模式不受影响。
+        if (mode == DeflectEntryMode.PerfectParry && cmd is AttackCommand)
+        {
+            if (body.ActiveAttack != null)
+            {
+                float hitDelay = body.Config != null ? body.Config.ParryCounterHitDelay : 0.1f;
+                float parryDur = parriedDurationOnHit > 0f ? parriedDurationOnHit
+                    : (body.Config != null ? body.Config.ParriedDuration : 1.0f);
+                // 目标命中 = 弹反开始 + 被弹方硬直 + 补偿；发起 = 命中 - 本招判定前摇
+                counterFireTime = enterTime + parryDur + hitDelay - body.ActiveAttack.HitStartTime;
+                pendingCounter = body.ActiveAttack;
+                return true;
+            }
+            // 反击招未就绪（BT 抽招失败/距离超展开）：直接收刀回 Idle，交给 BT 常规路径
+            parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+            return true;
+        }
+
         if (canceling) return true;
 
         if (cmd is MoveCommand moveCmd)
@@ -248,7 +295,12 @@ public class DeflectState : BaseState
 
     public override bool OnHitReceived(HitData hit)
     {
-        if (hit.isPerilous) return false;
+        // 危字应对规则（M17）：仅横扫不可防御（必须跳/躲或踩头）；
+        // 突刺/跳跃突刺/抓取防御系依然有效（弹反窗口内弹开 / 窗口外格挡）。
+        if (hit.isPerilous && hit.perilousType == PerilousType.Sweep)
+        {
+            return false;
+        }
         if (canceling) return false;
 
         float elapsed = Time.time - enterTime;
@@ -278,7 +330,17 @@ public class DeflectState : BaseState
             }
         }
 
-        CombatEventBus.TriggerWeaponDeflected(hit.hitPoint, DeflectType.Perfect);
+        // 弹反成功方获得优先反击权（回合制）：
+        // Boss 弹反玩家后 KengekiArmed=true → BT_Kengeki 层（树序优先、短前摇）立刻抽交锋还击招，
+        // 保证"弹反方的下一步动作一定快于被弹方"（被弹方还在 Parried 最小硬直里）。
+        body.KengekiArmed = true;
+        // 精确记录被弹方硬直：反击命中时刻基准是"被弹方恢复"，不是弹反方自己的配置
+        parriedDurationOnHit = hit.attacker != null && hit.attacker.Config != null
+            ? hit.attacker.Config.ParriedDuration
+            : (body.Config != null ? body.Config.ParriedDuration : 1.0f);
+
+        CombatEventBus.TriggerWeaponDeflected(
+            CombatFxPoint.BetweenWeapons(hit.attacker, body, hit.hitPoint), DeflectType.Perfect);
         CombatEventBus.TriggerCameraShake(0.3f);
         CombatManager.Instance?.HitStop();
 
@@ -329,7 +391,8 @@ public class DeflectState : BaseState
         guardFlinchTimer = 0f;
         body.Animator.CrossFade(guardHurtAnim, 0.03f);
 
-        CombatEventBus.TriggerWeaponDeflected(hit.hitPoint, DeflectType.Normal);
+        CombatEventBus.TriggerWeaponDeflected(
+            CombatFxPoint.BetweenWeapons(hit.attacker, body, hit.hitPoint), DeflectType.Normal);
         return true;
     }
 

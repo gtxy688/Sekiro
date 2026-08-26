@@ -1,104 +1,147 @@
 using DG.Tweening;
 using UnityEngine;
-using UnityEngine.UI;
 
-// "危"字警告：Boss 放危字攻击时弹出
-// 场景/Prefab 里实际是 Image（imgWarn），HUD 生成器才挂 TMP。两套都支持。
+// "危"字警告：钉在 Boss 头顶的世界空间 Billboard，不走屏幕中央 HUD。
 public class PerilousWarningView : UIView
 {
-    [SerializeField] private TMPro.TextMeshProUGUI warningText;
-    [SerializeField] private Image warningImage;
-    [SerializeField] private Image glow;
+    [SerializeField] private Transform followTarget;
+    [SerializeField] private float headOffset = 0.55f;
+    [SerializeField] private MeshRenderer glowRenderer;
+    [SerializeField] private MeshRenderer coreRenderer;
     [SerializeField] private float showDuration = 0.8f;
+
+    private const float PopDuration = 0.12f;
+    private const float FadeDuration = 0.15f;
+
+    private float intensity;
+    private Tweener intensityTween;
+    // 必须写全名：全局命名空间已有行为树 Sequence，会盖住 using DG.Tweening
+    private DG.Tweening.Sequence showSeq;
+    private MaterialPropertyBlock block;
 
     public override void OnViewInit()
     {
         BindRefs();
+        ApplyIntensity(0f);
+        Hide();
     }
 
-    private void BindRefs()
+    public void BindFollowTarget(CharacterBody boss)
     {
-        if (warningText == null)
-            warningText = GetComponentInChildren<TMPro.TextMeshProUGUI>(true);
-
-        if (warningImage == null)
-        {
-            Image[] images = GetComponentsInChildren<Image>(true);
-            for (int i = 0; i < images.Length; i++)
-            {
-                if (images[i] == null || images[i] == glow) continue;
-                warningImage = images[i];
-                break;
-            }
-        }
+        if (boss == null) return;
+        Transform found = FindDeep(boss.transform, "Head")
+            ?? FindDeep(boss.transform, "Spine1")
+            ?? FindDeep(boss.transform, "Spine");
+        followTarget = found != null ? found : boss.transform;
     }
 
     public void ShowWarning(PerilousType type)
     {
         BindRefs();
-
-        if (warningText != null)
-        {
-            warningText.DOKill();
-            warningText.transform.DOKill();
-        }
-        if (warningImage != null)
-        {
-            warningImage.DOKill();
-            warningImage.transform.DOKill();
-        }
-        if (glow != null) glow.DOKill();
-
-        Transform main = warningText != null
-            ? warningText.transform
-            : (warningImage != null ? warningImage.transform : null);
-
-        Show();
-        if (warningImage != null && !warningImage.gameObject.activeSelf)
-            warningImage.gameObject.SetActive(true);
-
-        if (main == null)
+        if (glowRenderer == null && coreRenderer == null)
             return;
 
-        main.localScale = Vector3.zero;
-        if (warningText != null)
-        {
-            Color c = warningText.color;
-            warningText.color = new Color(c.r, c.g, c.b, 0f);
-        }
-        if (warningImage != null)
-        {
-            Color c = warningImage.color;
-            warningImage.color = new Color(c.r, c.g, c.b, 0f);
-        }
-        if (glow != null)
-            glow.color = new Color(glow.color.r, glow.color.g, glow.color.b, 0f);
+        KillTweens();
+        Show();
+        BindRefs();
 
-        DG.Tweening.Sequence seq = DOTween.Sequence();
-        seq.Append(main.DOScale(Vector3.one, 0.12f).SetEase(Ease.OutBack));
-        if (warningText != null)
+        transform.localScale = Vector3.zero;
+        ApplyIntensity(0f);
+
+        showSeq = DOTween.Sequence();
+        showSeq.Append(transform.DOScale(Vector3.one, PopDuration).SetEase(Ease.OutBack));
+        showSeq.Join(TweenIntensity(1f, 0.08f));
+        float hold = Mathf.Max(0f, showDuration - PopDuration - FadeDuration);
+        showSeq.AppendInterval(hold);
+        showSeq.Append(transform.DOScale(Vector3.one * 0.8f, FadeDuration).SetEase(Ease.InQuad));
+        showSeq.Join(TweenIntensity(0f, FadeDuration));
+        showSeq.OnComplete(Hide);
+    }
+
+    private void LateUpdate()
+    {
+        if (!isActiveAndEnabled || !gameObject.activeInHierarchy)
+            return;
+
+        BindRefs();
+        FollowWorld();
+    }
+
+    private void OnDisable()
+    {
+        KillTweens();
+    }
+
+    private void FollowWorld()
+    {
+        Vector3 pos = followTarget != null
+            ? followTarget.position + Vector3.up * headOffset
+            : transform.position;
+
+        Camera cam = Camera.main;
+        if (cam == null) return;
+
+        Vector3 to = pos - cam.transform.position;
+        bool behind = Vector3.Dot(cam.transform.forward, to) <= 0f;
+        SetRenderersVisible(!behind);
+        if (behind) return;
+
+        transform.position = pos;
+        transform.rotation = Quaternion.LookRotation(cam.transform.forward, Vector3.up);
+    }
+
+    private Tweener TweenIntensity(float to, float duration)
+    {
+        intensityTween = DOTween.To(() => intensity, v => ApplyIntensity(v), to, duration);
+        return intensityTween;
+    }
+
+    private void ApplyIntensity(float value)
+    {
+        intensity = value;
+        if (block == null) block = new MaterialPropertyBlock();
+        block.SetFloat("_Intensity", intensity);
+        if (glowRenderer != null) glowRenderer.SetPropertyBlock(block);
+        if (coreRenderer != null) coreRenderer.SetPropertyBlock(block);
+    }
+
+    private void SetRenderersVisible(bool visible)
+    {
+        if (glowRenderer != null) glowRenderer.enabled = visible;
+        if (coreRenderer != null) coreRenderer.enabled = visible;
+    }
+
+    private void KillTweens()
+    {
+        if (showSeq != null && showSeq.IsActive()) showSeq.Kill();
+        showSeq = null;
+        if (intensityTween != null && intensityTween.IsActive()) intensityTween.Kill();
+        intensityTween = null;
+        transform.DOKill();
+    }
+
+    private void BindRefs()
+    {
+        if (glowRenderer == null)
         {
-            Color c = warningText.color;
-            seq.Join(warningText.DOColor(new Color(c.r, c.g, c.b, 1f), 0.08f));
+            Transform t = transform.Find("Glow");
+            if (t != null) glowRenderer = t.GetComponent<MeshRenderer>();
         }
-        if (warningImage != null)
-            seq.Join(warningImage.DOFade(1f, 0.08f));
-        if (glow != null)
-            seq.Join(glow.DOColor(new Color(1f, 0.3f, 0.1f, 0.6f), 0.12f).SetLoops(-1, LoopType.Yoyo).SetEase(Ease.InOutSine));
-
-        seq.AppendInterval(showDuration);
-
-        seq.Append(main.DOScale(Vector3.one * 0.8f, 0.15f).SetEase(Ease.InQuad));
-        if (warningText != null)
+        if (coreRenderer == null)
         {
-            Color c = warningText.color;
-            seq.Join(warningText.DOColor(new Color(c.r, c.g, c.b, 0f), 0.15f));
+            Transform t = transform.Find("Core");
+            if (t != null) coreRenderer = t.GetComponent<MeshRenderer>();
         }
-        if (warningImage != null)
-            seq.Join(warningImage.DOFade(0f, 0.15f));
-        if (glow != null)
-            seq.Join(glow.DOFade(0f, 0.15f));
+    }
 
-        seq.OnComplete(Hide);
+    private static Transform FindDeep(Transform root, string name)
+    {
+        if (root.name == name) return root;
+        for (int i = 0; i < root.childCount; i++)
+        {
+            Transform found = FindDeep(root.GetChild(i), name);
+            if (found != null) return found;
+        }
+        return null;
     }
 }

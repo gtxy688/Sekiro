@@ -11,30 +11,62 @@ using UnityEngine.UI;
 // 暂停菜单：Esc / Start 打开。战斗 HUD 不管这里。
 public class PauseMenuController : MonoBehaviour
 {
+    private enum PausePage { Root, Hub, Keybind }
+
     [SerializeField] private PlayerInput playerInput;
+    [SerializeField] private Sprite volumeTrackSprite;
+    [SerializeField] private Sprite settingsDividerSprite;
+    [SerializeField] private Sprite closeIconSprite;
 
     private InputActionAsset actions;
     private InputActionMap playerMap;
     private InputSystemUIInputModule uiModule;
     private string currentGroup = InputRebindService.KeyboardMouseGroup;
-    private bool settingsOpen;
+    private PausePage page = PausePage.Root;
     private bool rebindInProgress;
     private int ignorePauseFrames;
     private InputActionRebindingExtensions.RebindingOperation rebindOperation;
 
     private GameObject pauseCanvas;
     private GameObject rootPanel;
+    private GameObject hubPanel;
     private GameObject settingsPanel;
     private TextMeshProUGUI waitingHint;
     private readonly List<TextMeshProUGUI> bindingLabels = new List<TextMeshProUGUI>();
     private Button resumeButton;
     private Button openSettingsButton;
     private Button quitButton;
+    private Button hubKeybindButton;
+    private Button hubBackButton;
+    private Button hubCloseButton;
+    private Image hubCloseIcon;
     private Button keyboardTabButton;
     private Button gamepadTabButton;
     private Button resetButton;
     private Button backButton;
+    private Slider bgmSlider;
+    private Slider sfxSlider;
+    private Image bgmHandle;
+    private Image sfxHandle;
+    private Image bgmFill;
+    private Image sfxFill;
+    private Image bgmTick;
+    private Image sfxTick;
+    private TextMeshProUGUI bgmTitleLabel;
+    private TextMeshProUGUI sfxTitleLabel;
+    private TextMeshProUGUI bgmValueLabel;
+    private TextMeshProUGUI sfxValueLabel;
     private readonly List<Button> rebindRowButtons = new List<Button>();
+    private readonly List<Texture2D> generatedTextures = new List<Texture2D>();
+    private Sprite diamondSprite;
+    private Sprite fillBarSprite;
+
+    private const string KitTrackPath =
+        "Assets/Space_Exploration_GUI_Kit/Settings_&_Menu_Components/Large/sound-bar-container-large.png";
+    private const string KitDividerPath =
+        "Assets/Space_Exploration_GUI_Kit/Settings_&_Menu_Components/Large/settings-divider-large.png";
+    private const string KitClosePath =
+        "Assets/Space_Exploration_GUI_Kit/Picto_Icons/White/cross-64.png";
 
     private static readonly Color PanelColor = new Color(0.07f, 0.07f, 0.07f, 0.96f);
     private static readonly Color ButtonColor = new Color(0.18f, 0.18f, 0.18f, 1f);
@@ -42,7 +74,15 @@ public class PauseMenuController : MonoBehaviour
     private static readonly Color SelectedFill = new Color(0.95f, 0.78f, 0.22f, 1f);
     private static readonly Color TextColor = new Color(0.92f, 0.88f, 0.78f, 1f);
     private static readonly Color SelectedTextColor = new Color(0.12f, 0.1f, 0.05f, 1f);
-    private static readonly Color AccentColor = new Color(0.95f, 0.78f, 0.22f, 1f);
+    private static readonly Color AccentColor = new Color(0.89f, 0.64f, 0.22f, 1f);
+    private static readonly Color HandleIdle = new Color(0.86f, 0.6f, 0.18f, 1f);
+    private static readonly Color HandleSelected = new Color(1f, 0.82f, 0.38f, 1f);
+    private static readonly Color FillIdle = new Color(0.9f, 0.68f, 0.24f, 1f);
+    private static readonly Color FillSelected = new Color(1f, 0.82f, 0.4f, 1f);
+    // 套件槽是深紫，乘暖色压掉青紫，只留暗槽形
+    private static readonly Color TrackTint = new Color(0.92f, 0.78f, 0.48f, 1f);
+    private static readonly Color DividerColor = new Color(0.89f, 0.64f, 0.22f, 0.4f);
+    private static readonly Color SliderLabelIdle = new Color(0.93f, 0.93f, 0.93f, 1f);
 
     private void Start()
     {
@@ -58,6 +98,7 @@ public class PauseMenuController : MonoBehaviour
         }
 
         InputRebindService.Load(actions);
+        AudioVolumeSettings.Load();
         playerMap = actions.FindActionMap("Player");
         EnsureEventSystem();
         BuildUI();
@@ -70,6 +111,12 @@ public class PauseMenuController : MonoBehaviour
         CancelRebind();
         SetGameplayInput(true);
         if (GamePause.IsPaused) GamePause.SetPaused(false);
+        for (int i = 0; i < generatedTextures.Count; i++)
+        {
+            if (generatedTextures[i] != null)
+                Destroy(generatedTextures[i]);
+        }
+        generatedTextures.Clear();
     }
 
     private void Update()
@@ -114,7 +161,13 @@ public class PauseMenuController : MonoBehaviour
             return;
         }
 
-        if (settingsOpen)
+        if (page == PausePage.Keybind)
+        {
+            ShowHub();
+            return;
+        }
+
+        if (page == PausePage.Hub)
         {
             ShowRoot();
             return;
@@ -149,17 +202,33 @@ public class PauseMenuController : MonoBehaviour
 
     private void ShowRoot()
     {
-        settingsOpen = false;
         CancelRebind();
+        page = PausePage.Root;
         rootPanel.SetActive(true);
+        hubPanel.SetActive(false);
         settingsPanel.SetActive(false);
         SelectButton(resumeButton);
     }
 
+    private void ShowHub()
+    {
+        CancelRebind();
+        page = PausePage.Hub;
+        rootPanel.SetActive(false);
+        hubPanel.SetActive(true);
+        settingsPanel.SetActive(false);
+        AudioVolumeSettings.Load();
+        bgmSlider.SetValueWithoutNotify(Mathf.Round(AudioVolumeSettings.Bgm * 100f));
+        sfxSlider.SetValueWithoutNotify(Mathf.Round(AudioVolumeSettings.Sfx * 100f));
+        RefreshAudioLabels();
+        SelectSelectable(bgmSlider);
+    }
+
     private void ShowSettings()
     {
-        settingsOpen = true;
+        page = PausePage.Keybind;
         rootPanel.SetActive(false);
+        hubPanel.SetActive(false);
         settingsPanel.SetActive(true);
         RefreshBindingLabels();
         RefreshTabs();
@@ -168,8 +237,10 @@ public class PauseMenuController : MonoBehaviour
 
     private void HideMenu()
     {
-        settingsOpen = false;
+        CancelRebind();
+        page = PausePage.Root;
         rootPanel.SetActive(false);
+        hubPanel.SetActive(false);
         settingsPanel.SetActive(false);
         if (EventSystem.current != null)
             EventSystem.current.SetSelectedGameObject(null);
@@ -202,6 +273,9 @@ public class PauseMenuController : MonoBehaviour
         ApplyButtonVisual(resumeButton, false, IsUiSelected(resumeButton, selected));
         ApplyButtonVisual(openSettingsButton, false, IsUiSelected(openSettingsButton, selected));
         ApplyButtonVisual(quitButton, false, IsUiSelected(quitButton, selected));
+        ApplyButtonVisual(hubKeybindButton, false, IsUiSelected(hubKeybindButton, selected));
+        ApplyButtonVisual(hubBackButton, false, IsUiSelected(hubBackButton, selected));
+        ApplyCloseVisual(hubCloseButton, hubCloseIcon, selected);
         ApplyButtonVisual(keyboardTabButton,
             currentGroup == InputRebindService.KeyboardMouseGroup,
             IsUiSelected(keyboardTabButton, selected));
@@ -212,6 +286,8 @@ public class PauseMenuController : MonoBehaviour
             ApplyButtonVisual(rebindRowButtons[i], false, IsUiSelected(rebindRowButtons[i], selected));
         ApplyButtonVisual(resetButton, false, IsUiSelected(resetButton, selected));
         ApplyButtonVisual(backButton, false, IsUiSelected(backButton, selected));
+        ApplySliderVisual(bgmSlider, bgmHandle, bgmFill, bgmTick, bgmTitleLabel, bgmValueLabel);
+        ApplySliderVisual(sfxSlider, sfxHandle, sfxFill, sfxTick, sfxTitleLabel, sfxValueLabel);
     }
 
     private static bool IsUiSelected(Button button)
@@ -243,6 +319,31 @@ public class PauseMenuController : MonoBehaviour
         if (label != null) label.color = TextColor;
     }
 
+    private static void ApplyCloseVisual(Button button, Image icon, GameObject selected)
+    {
+        if (icon == null) return;
+        icon.color = IsUiSelected(button, selected) ? AccentColor : TextColor;
+    }
+
+    private void ApplySliderVisual(
+        Slider slider,
+        Image handle,
+        Image fill,
+        Image tick,
+        TextMeshProUGUI titleLabel,
+        TextMeshProUGUI valueLabel)
+    {
+        if (slider == null) return;
+        bool selected = EventSystem.current != null
+                        && EventSystem.current.currentSelectedGameObject == slider.gameObject;
+        Color text = selected ? AccentColor : SliderLabelIdle;
+        if (titleLabel != null) titleLabel.color = text;
+        if (valueLabel != null) valueLabel.color = text;
+        if (handle != null) handle.color = selected ? HandleSelected : HandleIdle;
+        if (fill != null) fill.color = selected ? FillSelected : FillIdle;
+        if (tick != null) tick.enabled = selected;
+    }
+
     private void RefreshBindingLabels()
     {
         for (int i = 0; i < InputRebindService.RemappableActions.Length; i++)
@@ -253,6 +354,14 @@ public class PauseMenuController : MonoBehaviour
         }
 
         waitingHint.text = string.Empty;
+    }
+
+    private void RefreshAudioLabels()
+    {
+        if (bgmValueLabel != null && bgmSlider != null)
+            bgmValueLabel.text = Mathf.RoundToInt(bgmSlider.value) + "%";
+        if (sfxValueLabel != null && sfxSlider != null)
+            sfxValueLabel.text = Mathf.RoundToInt(sfxSlider.value) + "%";
     }
 
     private void OnRowClicked(int rowIndex)
@@ -364,6 +473,7 @@ public class PauseMenuController : MonoBehaviour
 
     private void BuildUI()
     {
+        EnsureSliderSprites();
         GameObject canvasObject = new GameObject("PauseCanvas");
         canvasObject.transform.SetParent(transform, false);
         pauseCanvas = canvasObject;
@@ -384,8 +494,18 @@ public class PauseMenuController : MonoBehaviour
         rootPanel = CreatePanel(canvasObject.transform, "RootPanel", new Vector2(460f, 420f));
         CreateLabel(rootPanel.transform, "暂停", 42f, TextAlignmentOptions.Center, new Vector2(0f, 150f), new Vector2(400f, 60f));
         resumeButton = CreateMenuButton(rootPanel.transform, "继续战斗", new Vector2(0f, 50f), Resume);
-        openSettingsButton = CreateMenuButton(rootPanel.transform, "设置", new Vector2(0f, -20f), ShowSettings);
+        openSettingsButton = CreateMenuButton(rootPanel.transform, "设置", new Vector2(0f, -20f), ShowHub);
         quitButton = CreateMenuButton(rootPanel.transform, "退出战斗", new Vector2(0f, -90f), RestartScene);
+
+        hubPanel = CreatePanel(canvasObject.transform, "HubPanel", new Vector2(560f, 500f));
+        CreateLabel(hubPanel.transform, "设置", 42f, TextAlignmentOptions.Center,
+            new Vector2(0f, 190f), new Vector2(500f, 60f));
+        hubCloseButton = CreateCloseButton(hubPanel.transform, ShowRoot);
+        hubCloseIcon = hubCloseButton.transform.Find("Icon").GetComponent<Image>();
+        CreateSliderRow(hubPanel.transform, "音乐音量", new Vector2(0f, 100f), true);
+        CreateSliderRow(hubPanel.transform, "音效音量", new Vector2(0f, 36f), false);
+        hubKeybindButton = CreateMenuButton(hubPanel.transform, "键位设置", new Vector2(0f, -50f), ShowSettings);
+        hubBackButton = CreateMenuButton(hubPanel.transform, "返回", new Vector2(0f, -118f), ShowRoot);
 
         settingsPanel = CreatePanel(canvasObject.transform, "SettingsPanel", new Vector2(640f, 720f));
         CreateLabel(settingsPanel.transform, "键位设置", 36f, TextAlignmentOptions.Center, new Vector2(0f, 310f), new Vector2(560f, 50f));
@@ -406,7 +526,7 @@ public class PauseMenuController : MonoBehaviour
         waitingHint.color = AccentColor;
 
         resetButton = CreateMenuButton(settingsPanel.transform, "恢复默认", new Vector2(-140f, -270f), ResetCurrentGroup, new Vector2(240f, 44f));
-        backButton = CreateMenuButton(settingsPanel.transform, "返回", new Vector2(140f, -270f), ShowRoot, new Vector2(240f, 44f));
+        backButton = CreateMenuButton(settingsPanel.transform, "返回", new Vector2(140f, -270f), ShowHub, new Vector2(240f, 44f));
     }
 
     private void CreateRebindRow(Transform parent, int rowIndex, float y)
@@ -426,6 +546,217 @@ public class PauseMenuController : MonoBehaviour
         TextMeshProUGUI label = rowButton.GetComponentInChildren<TextMeshProUGUI>();
         bindingLabels.Add(label);
         rebindRowButtons.Add(rowButton);
+    }
+
+    private void CreateSliderRow(Transform parent, string title, Vector2 position, bool isBgm)
+    {
+        EnsureSliderSprites();
+
+        GameObject row = new GameObject(title + "Row", typeof(RectTransform));
+        row.transform.SetParent(parent, false);
+        RectTransform rowRect = row.GetComponent<RectTransform>();
+        rowRect.anchorMin = rowRect.anchorMax = rowRect.pivot = new Vector2(0.5f, 0.5f);
+        rowRect.sizeDelta = new Vector2(500f, 56f);
+        rowRect.anchoredPosition = position;
+
+        Image tick = CreateImage(row.transform, "Tick", AccentColor);
+        RectTransform tickRect = tick.rectTransform;
+        tickRect.anchorMin = tickRect.anchorMax = tickRect.pivot = new Vector2(0f, 0.5f);
+        tickRect.sizeDelta = new Vector2(3f, 22f);
+        tickRect.anchoredPosition = new Vector2(4f, 0f);
+        tick.raycastTarget = false;
+        tick.enabled = false;
+
+        TextMeshProUGUI titleLabel = CreateLabel(row.transform, title, 24f, TextAlignmentOptions.Left,
+            new Vector2(-168f, 0f), new Vector2(140f, 36f));
+        titleLabel.color = SliderLabelIdle;
+
+        TextMeshProUGUI valueLabel = CreateLabel(row.transform, "80%", 24f, TextAlignmentOptions.Right,
+            new Vector2(-48f, 0f), new Vector2(68f, 36f));
+        valueLabel.color = SliderLabelIdle;
+
+        Image hit = CreateImage(row.transform, "Slider", new Color(1f, 1f, 1f, 0f));
+        RectTransform hitRect = hit.rectTransform;
+        hitRect.anchorMin = hitRect.anchorMax = hitRect.pivot = new Vector2(0.5f, 0.5f);
+        hitRect.sizeDelta = new Vector2(248f, 40f);
+        hitRect.anchoredPosition = new Vector2(126f, 0f);
+
+        Image track = CreateImage(hit.transform, "Track", TrackTint);
+        track.sprite = volumeTrackSprite;
+        track.preserveAspect = false;
+        track.raycastTarget = false;
+        RectTransform trackRect = track.rectTransform;
+        trackRect.anchorMin = new Vector2(0f, 0.5f);
+        trackRect.anchorMax = new Vector2(1f, 0.5f);
+        trackRect.pivot = new Vector2(0.5f, 0.5f);
+        trackRect.sizeDelta = new Vector2(0f, 26f);
+        trackRect.anchoredPosition = Vector2.zero;
+        Mask trackMask = track.gameObject.AddComponent<Mask>();
+        trackMask.showMaskGraphic = true;
+
+        GameObject fillArea = new GameObject("Fill Area", typeof(RectTransform));
+        fillArea.transform.SetParent(track.transform, false);
+        RectTransform fillAreaRect = fillArea.GetComponent<RectTransform>();
+        fillAreaRect.anchorMin = new Vector2(0f, 0.5f);
+        fillAreaRect.anchorMax = new Vector2(1f, 0.5f);
+        fillAreaRect.pivot = new Vector2(0.5f, 0.5f);
+        fillAreaRect.sizeDelta = new Vector2(-16f, 16f);
+        fillAreaRect.anchoredPosition = Vector2.zero;
+
+        Image fill = CreateImage(fillArea.transform, "Fill", FillIdle);
+        fill.sprite = fillBarSprite;
+        fill.type = Image.Type.Simple;
+        fill.raycastTarget = false;
+        RectTransform fillRect = fill.rectTransform;
+        fillRect.anchorMin = new Vector2(0f, 0f);
+        fillRect.anchorMax = new Vector2(0f, 1f);
+        fillRect.pivot = new Vector2(0f, 0.5f);
+        fillRect.offsetMin = Vector2.zero;
+        fillRect.offsetMax = Vector2.zero;
+        fillRect.sizeDelta = Vector2.zero;
+
+        GameObject handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
+        handleArea.transform.SetParent(hit.transform, false);
+        RectTransform handleAreaRect = handleArea.GetComponent<RectTransform>();
+        handleAreaRect.anchorMin = new Vector2(0f, 0f);
+        handleAreaRect.anchorMax = new Vector2(1f, 1f);
+        handleAreaRect.offsetMin = new Vector2(10f, 0f);
+        handleAreaRect.offsetMax = new Vector2(-10f, 0f);
+
+        GameObject handleRoot = new GameObject("Handle", typeof(RectTransform));
+        handleRoot.transform.SetParent(handleArea.transform, false);
+        RectTransform handleRect = handleRoot.GetComponent<RectTransform>();
+        handleRect.anchorMin = handleRect.anchorMax = handleRect.pivot = new Vector2(0.5f, 0.5f);
+        handleRect.sizeDelta = Vector2.zero;
+
+        Image handle = CreateImage(handleRoot.transform, "HandleGraphic", HandleIdle);
+        handle.sprite = diamondSprite;
+        handle.preserveAspect = true;
+        handle.raycastTarget = false;
+        RectTransform handleGraphicRect = handle.rectTransform;
+        handleGraphicRect.anchorMin = handleGraphicRect.anchorMax = handleGraphicRect.pivot = new Vector2(0.5f, 0.5f);
+        handleGraphicRect.sizeDelta = new Vector2(16f, 26f);
+
+        Slider slider = hit.gameObject.AddComponent<Slider>();
+        slider.transition = Selectable.Transition.None;
+        slider.minValue = 0f;
+        slider.maxValue = 100f;
+        slider.wholeNumbers = true;
+        slider.fillRect = fillRect;
+        slider.handleRect = handleRect;
+        slider.targetGraphic = handle;
+        slider.direction = Slider.Direction.LeftToRight;
+        slider.navigation = new Navigation { mode = Navigation.Mode.Explicit };
+
+        Image divider = CreateImage(row.transform, "Divider", DividerColor);
+        divider.sprite = settingsDividerSprite;
+        divider.preserveAspect = false;
+        divider.raycastTarget = false;
+        RectTransform dividerRect = divider.rectTransform;
+        dividerRect.anchorMin = new Vector2(0.5f, 0f);
+        dividerRect.anchorMax = new Vector2(0.5f, 0f);
+        dividerRect.pivot = new Vector2(0.5f, 0.5f);
+        dividerRect.sizeDelta = new Vector2(480f, 6f);
+        dividerRect.anchoredPosition = Vector2.zero;
+
+        if (isBgm)
+        {
+            bgmSlider = slider;
+            bgmHandle = handle;
+            bgmFill = fill;
+            bgmTick = tick;
+            bgmTitleLabel = titleLabel;
+            bgmValueLabel = valueLabel;
+            slider.onValueChanged.AddListener(v =>
+            {
+                AudioVolumeSettings.SetBgm(v / 100f);
+                RefreshAudioLabels();
+            });
+        }
+        else
+        {
+            sfxSlider = slider;
+            sfxHandle = handle;
+            sfxFill = fill;
+            sfxTick = tick;
+            sfxTitleLabel = titleLabel;
+            sfxValueLabel = valueLabel;
+            slider.onValueChanged.AddListener(v =>
+            {
+                AudioVolumeSettings.SetSfx(v / 100f);
+                RefreshAudioLabels();
+            });
+        }
+    }
+
+    private void EnsureSliderSprites()
+    {
+        if (diamondSprite == null)
+            diamondSprite = CreateDiamondSprite();
+        if (fillBarSprite == null)
+            fillBarSprite = CreateFillBarSprite();
+        if (volumeTrackSprite == null)
+            volumeTrackSprite = LoadKitSprite(KitTrackPath);
+        if (settingsDividerSprite == null)
+            settingsDividerSprite = LoadKitSprite(KitDividerPath);
+        if (closeIconSprite == null)
+            closeIconSprite = LoadKitSprite(KitClosePath);
+    }
+
+    private static Sprite LoadKitSprite(string assetPath)
+    {
+#if UNITY_EDITOR
+        UnityEngine.Object[] assets = UnityEditor.AssetDatabase.LoadAllAssetsAtPath(assetPath);
+        for (int i = 0; i < assets.Length; i++)
+        {
+            Sprite sprite = assets[i] as Sprite;
+            if (sprite != null)
+                return sprite;
+        }
+#endif
+        return null;
+    }
+
+    private Sprite CreateFillBarSprite()
+    {
+        const int size = 8;
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        tex.wrapMode = TextureWrapMode.Clamp;
+        tex.filterMode = FilterMode.Bilinear;
+        Color[] pixels = new Color[size * size];
+        for (int i = 0; i < pixels.Length; i++)
+            pixels[i] = Color.white;
+        tex.SetPixels(pixels);
+        tex.Apply(false, false);
+        generatedTextures.Add(tex);
+        return Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
+    }
+
+    private Sprite CreateDiamondSprite()
+    {
+        const int size = 64;
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        tex.wrapMode = TextureWrapMode.Clamp;
+        tex.filterMode = FilterMode.Bilinear;
+        Color[] pixels = new Color[size * size];
+        float cx = (size - 1) * 0.5f;
+        float cy = (size - 1) * 0.5f;
+        float hw = 15.5f;
+        float hh = 26.5f;
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float d = Mathf.Abs(x - cx) / hw + Mathf.Abs(y - cy) / hh;
+                float alpha = Mathf.Clamp01((1.08f - d) / 0.12f);
+                pixels[y * size + x] = new Color(1f, 1f, 1f, alpha * alpha);
+            }
+        }
+
+        tex.SetPixels(pixels);
+        tex.Apply(false, false);
+        generatedTextures.Add(tex);
+        return Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 64f);
     }
 
     private GameObject CreatePanel(Transform parent, string name, Vector2 size)
@@ -453,6 +784,32 @@ public class PauseMenuController : MonoBehaviour
         button.onClick.AddListener(onClick);
 
         CreateLabel(image.transform, text, 26f, TextAlignmentOptions.Center, Vector2.zero, rect.sizeDelta);
+        return button;
+    }
+
+    private Button CreateCloseButton(Transform parent, UnityEngine.Events.UnityAction onClick)
+    {
+        Image hit = CreateImage(parent, "Close", new Color(1f, 1f, 1f, 0f));
+        RectTransform rect = hit.rectTransform;
+        rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
+        rect.pivot = new Vector2(1f, 1f);
+        rect.sizeDelta = new Vector2(44f, 44f);
+        rect.anchoredPosition = new Vector2(-10f, -10f);
+
+        Image icon = CreateImage(hit.transform, "Icon", TextColor);
+        icon.sprite = closeIconSprite;
+        icon.preserveAspect = true;
+        icon.raycastTarget = false;
+        RectTransform iconRect = icon.rectTransform;
+        iconRect.anchorMin = iconRect.anchorMax = iconRect.pivot = new Vector2(0.5f, 0.5f);
+        iconRect.sizeDelta = new Vector2(22f, 22f);
+        iconRect.anchoredPosition = Vector2.zero;
+
+        Button button = hit.gameObject.AddComponent<Button>();
+        button.transition = Selectable.Transition.None;
+        button.navigation = new Navigation { mode = Navigation.Mode.None };
+        button.targetGraphic = icon;
+        button.onClick.AddListener(onClick);
         return button;
     }
 
@@ -505,6 +862,17 @@ public class PauseMenuController : MonoBehaviour
         SetNav(openSettingsButton, resumeButton, quitButton, null, null);
         SetNav(quitButton, openSettingsButton, null, null, null);
 
+        SetSliderNav(bgmSlider, null, sfxSlider);
+        SetSliderNav(sfxSlider, bgmSlider, hubKeybindButton);
+        Navigation keybindNav = new Navigation
+        {
+            mode = Navigation.Mode.Explicit,
+            selectOnUp = sfxSlider,
+            selectOnDown = hubBackButton
+        };
+        hubKeybindButton.navigation = keybindNav;
+        SetNav(hubBackButton, hubKeybindButton, null, null, null);
+
         Button firstRow = rebindRowButtons.Count > 0 ? rebindRowButtons[0] : resetButton;
         Button lastRow = rebindRowButtons.Count > 0 ? rebindRowButtons[rebindRowButtons.Count - 1] : keyboardTabButton;
 
@@ -536,19 +904,36 @@ public class PauseMenuController : MonoBehaviour
         button.navigation = navigation;
     }
 
-    private void SelectButton(Button button)
+    private static void SetSliderNav(Slider slider, Selectable up, Selectable down)
     {
-        if (button == null || EventSystem.current == null) return;
-        EventSystem.current.SetSelectedGameObject(null);
-        EventSystem.current.SetSelectedGameObject(button.gameObject);
-        StartCoroutine(SelectButtonNextFrame(button));
+        if (slider == null) return;
+        Navigation navigation = new Navigation
+        {
+            mode = Navigation.Mode.Explicit,
+            selectOnUp = up,
+            selectOnDown = down
+        };
+        slider.navigation = navigation;
     }
 
-    private IEnumerator SelectButtonNextFrame(Button button)
+    private void SelectButton(Button button)
+    {
+        SelectSelectable(button);
+    }
+
+    private void SelectSelectable(Selectable selectable)
+    {
+        if (selectable == null || EventSystem.current == null) return;
+        EventSystem.current.SetSelectedGameObject(null);
+        EventSystem.current.SetSelectedGameObject(selectable.gameObject);
+        StartCoroutine(SelectNextFrame(selectable.gameObject));
+    }
+
+    private IEnumerator SelectNextFrame(GameObject target)
     {
         yield return null;
-        if (button == null || EventSystem.current == null) yield break;
-        if (!button.gameObject.activeInHierarchy) yield break;
-        EventSystem.current.SetSelectedGameObject(button.gameObject);
+        if (target == null || EventSystem.current == null) yield break;
+        if (!target.activeInHierarchy) yield break;
+        EventSystem.current.SetSelectedGameObject(target);
     }
 }

@@ -13,16 +13,32 @@ public class FinisherVictimState : BaseState
 
     public override void OnEnter()
     {
+        body.IsFinisherLocked = true;
         body.IsAttacking = false;
+        body.MoveDirection = Vector3.zero;
         body.DisableWeaponHit();
-
-        if (!AnimUtil.HasState(body.Animator, animName))
+        if (body.Rb != null)
         {
-            Debug.LogError($"{body.name} 的 Animator 缺少忍杀受害状态：{animName}");
-            return;
+            Vector3 v = body.Rb.velocity;
+            body.Rb.velocity = new Vector3(0f, v.y, 0f);
         }
 
-        body.Animator.CrossFade(animName, 0.05f);
+        if (CombatManager.Instance != null && CombatManager.Instance.PlayerRef != null)
+        {
+            Vector3 toPlayer =
+                CombatManager.Instance.PlayerRef.transform.position - body.transform.position;
+            body.SnapYaw(toPlayer, animName);
+        }
+
+        if (!AnimUtil.TryPlay(body.Animator, animName))
+        {
+            Debug.LogError($"{body.name} 的 Animator 缺少忍杀受害状态：{animName}");
+        }
+    }
+
+    public override void OnExit()
+    {
+        body.IsFinisherLocked = false;
     }
 
     public override bool HandleCommand(ICommand cmd)

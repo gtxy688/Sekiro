@@ -83,11 +83,42 @@ public class AttackState : BaseState
         // 位移不在此处理：突进/前移完全由攻击动画的 Root 曲线驱动（全权根运动），
         // 代码只负责状态时长与连招窗口判定
 
-        // 动作彻底结束
-        if (animTime >= config.StateDuration)
+        // 动作彻底结束：stateDuration 到点，或（无连招的招）动画实际播完且判定段已全部关闭。
+        // 后一条专治"stateDuration 大于实际 clip 长度"的末帧冻结罚站——射箭/收弓段最容易踩：
+        // 动画播完停在最后一帧，animTime 却永远达不到 stateDuration，角色僵在原地等时长。
+        bool animPlayedOut = config.NextCombo == null
+            && animTime >= LastHitWindowEnd()
+            && IsAnimFinished(config.AnimName);
+        if (animTime >= config.StateDuration || animPlayedOut)
         {
             parent.SubStateMachine.ChangeState(new IdleState(body, parent));
         }
+    }
+
+    // 最后一个判定窗结束时间：多段脉冲取末段 end，单段取 RecoveryWindowStart
+    private float LastHitWindowEnd()
+    {
+        if (HasHitPulses())
+        {
+            HitPulse[] pulses = config.hitPulses;
+            float last = config.RecoveryWindowStart;
+            for (int i = 0; i < pulses.Length; i++)
+            {
+                if (pulses[i] != null && pulses[i].end > last) last = pulses[i].end;
+            }
+            return last;
+        }
+        return config.RecoveryWindowStart;
+    }
+
+    // 动画是否已真正播完（当前状态就是本招且不在过渡中、进度到 1）
+    private bool IsAnimFinished(string animName)
+    {
+        Animator animator = body.Animator;
+        if (animator.IsInTransition(0)) return false;
+        AnimatorStateInfo current = animator.GetCurrentAnimatorStateInfo(0);
+        return current.shortNameHash == Animator.StringToHash(animName)
+            && current.normalizedTime >= 1f;
     }
 
     public override void OnExit()
@@ -127,6 +158,21 @@ public class AttackState : BaseState
 
         if (cmd is AttackCommand)
         {
+            if (CombatManager.Instance != null &&
+                CombatManager.Instance.TryExecuteAvailableFinisher(body))
+            {
+                return true;
+            }
+
+            // 崩解窗口把攻击键留给处决，不能接 NextCombo。
+            if (CombatManager.Instance != null &&
+                body == CombatManager.Instance.PlayerRef &&
+                CombatManager.Instance.BossRef != null &&
+                CombatManager.Instance.BossRef.IsPostureBroken)
+            {
+                return false;
+            }
+
             if (config.NextCombo != null &&
                 animTime >= config.RecoveryWindowStart &&
                 animTime <= config.ComboWindowEnd)
@@ -172,8 +218,11 @@ public class AttackState : BaseState
         if (!valid)
         {
             Debug.LogError(
-                $"{config.name} 的攻击窗口非法，必须满足 " +
-                "0 <= HitStartTime <= RecoveryWindowStart <= ComboWindowEnd <= StateDuration，" +
+                $"{config.name}（Anim={config.AnimName}）的攻击窗口非法：" +
+                $"HitStart={config.HitStartTime}, Recover={config.RecoveryWindowStart}, " +
+                $"ComboEnd={config.ComboWindowEnd}, Duration={config.StateDuration}, " +
+                $"RotateEnd={config.RotationWindowEnd}。" +
+                "必须满足 0 <= HitStartTime <= RecoveryWindowStart <= ComboWindowEnd <= StateDuration，" +
                 "且 RotationWindowEnd 位于动作时长内。多段判定的 start<end 且落在时长内。");
         }
         return valid;

@@ -109,7 +109,8 @@ public class CombatManager : MonoBehaviour
             b.Owner.AccumulatePosture(a.Config.PostureDamage * clashPostureMultiplier);
 
         // 表现层事件：打铁音效/火花（M13/M15 订阅）
-        CombatEventBus.TriggerWeaponDeflected(point, DeflectType.Normal);
+        CombatEventBus.TriggerWeaponDeflected(
+            CombatFxPoint.BetweenHitboxes(a, b, point), DeflectType.Normal);
     }
 
     // ===== 顿帧（打击感）：短暂减速全局时间，营造命中重量感 =====
@@ -159,10 +160,18 @@ public class CombatManager : MonoBehaviour
             return false;
         }
 
+        AlignFinisherFacing(initiator, BossRef, animName);
+
         activeFinisherPlayer = initiator;
         activeFinisherVictim = BossRef;
         finisherResolved = false;
         initiator.ActiveAttack = null;
+        initiator.MoveDirection = Vector3.zero;
+        BossRef.MoveDirection = Vector3.zero;
+        initiator.IsFinisherLocked = true;
+        BossRef.IsFinisherLocked = true;
+        initiator.KengekiArmed = false;
+        BossRef.KengekiArmed = false;
 
         initiator.DisableWeaponHit();
         BossRef.DisableWeaponHit();
@@ -177,6 +186,44 @@ public class CombatManager : MonoBehaviour
             BossRef.transform.position, initiator, BossRef, kind);
         CombatEventBus.TriggerCameraShake(1f);
         return true;
+    }
+
+    // 按当前崩解来源选忍杀类型。连招窗口里再按攻击也走这里，优先于 NextCombo。
+    public bool TryExecuteAvailableFinisher(CharacterBody initiator)
+    {
+        if (BossRef == null || !BossRef.IsPostureBroken) return false;
+
+        FinisherKind kind;
+        switch (BossRef.CurrentPostureBreakSource)
+        {
+            case PostureBreakSource.Deflect:
+                kind = FinisherKind.Deflect;
+                break;
+            case PostureBreakSource.Mikiri:
+                kind = FinisherKind.Mikiri;
+                break;
+            default:
+                kind = FinisherKind.Ground;
+                break;
+        }
+
+        return TryExecuteFinisher(initiator, kind);
+    }
+
+    // 只转朝向、不瞬移。成对 Root 才能对上。
+    private static void AlignFinisherFacing(
+        CharacterBody player,
+        CharacterBody boss,
+        string animName)
+    {
+        if (player == null || boss == null) return;
+
+        Vector3 toBoss = boss.transform.position - player.transform.position;
+        toBoss.y = 0f;
+        if (toBoss.sqrMagnitude < 0.0001f) return;
+
+        player.SnapYaw(toBoss, animName);
+        boss.SnapYaw(-toBoss, animName);
     }
 
     // 动画结束由 FinisherState 调用；若 Clip 仍残留事件也不会重复清命。
@@ -202,6 +249,8 @@ public class CombatManager : MonoBehaviour
         if (player == null || player != activeFinisherPlayer) return;
 
         CharacterBody victim = activeFinisherVictim;
+        if (player != null) player.IsFinisherLocked = false;
+        if (victim != null) victim.IsFinisherLocked = false;
         activeFinisherPlayer = null;
         activeFinisherVictim = null;
         finisherResolved = false;

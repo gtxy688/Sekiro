@@ -1,34 +1,63 @@
 using UnityEngine;
+
 public class AirIdleState : BaseState
 {
-    private HierarchicalState parent;
-    private bool wasFalling; // 上一帧是否已进入下落（只切一次，避免每帧 CrossFade）
+    private const float MinAirTime = 0.08f;
+    private const float TakeoffFailsafe = 0.25f;
+
+    private enum Phase
+    {
+        Takeoff,  // Jump：起跳
+        Airborne, // Jumping：空中持续
+        Landing   // Fall：落地
+    }
+
+    private Phase phase;
+    private float enterTime;
+    private float landingStartTime;
+
+    // AirState 落地后要等 Fall 播完才回地面
+    public bool CanLeaveAir { get; private set; }
 
     public AirIdleState(CharacterBody body, HierarchicalState parent) : base(body)
     {
-        this.parent = parent;
     }
 
     public override void OnEnter()
     {
-        // 进空中的第一帧就按当前垂直速度决定动画：
-        //   跳跃进入（velocity.y 向上/0）→ 播 Jump（起跳，上升由 Root 曲线驱动）
-        //   踩空掉落进入（velocity.y 向下）→ 直接播 Fall（下落）
-        wasFalling = body.Rb.velocity.y < 0f;
-        body.Animator.CrossFade(wasFalling ? "Fall" : "Jump", 0.1f);
+        enterTime = Time.time;
+        CanLeaveAir = false;
+
+        // 踩空：没有起跳，直接空中持续
+        if (body.Rb.velocity.y < 0f)
+        {
+            Play("Jumping", JumpBlend);
+            phase = Phase.Airborne;
+            return;
+        }
+
+        Play("Jump", JumpBlend);
+        phase = Phase.Takeoff;
     }
 
     public override void OnUpdate()
     {
-        // 起跳 → 过最高点（velocity.y 转负）→ 切下落动画，只切一次
-        bool falling = body.Rb.velocity.y < 0f;
-        if (falling && !wasFalling)
+        if (phase == Phase.Takeoff)
         {
-            wasFalling = true;
-            body.Animator.CrossFade("Fall", 0.1f);
+            TryEnterAirborne();
         }
 
-        // 空中转向（相机相对，与地面移动一致）：按住方向键时朝输入方向转身
+        if (phase != Phase.Landing)
+        {
+            TryStartLanding();
+        }
+        else
+        {
+            TryFinishLanding();
+        }
+
+        if (phase == Phase.Landing) return;
+
         Vector2 inputDir = body.MoveDirection;
         if (inputDir.sqrMagnitude > 0.01f && body.Config != null)
         {
@@ -39,14 +68,10 @@ public class AirIdleState : BaseState
 
     public override bool HandleCommand(ICommand cmd)
     {
-        // 空中攻击/格挡已移除（无对应动画资源）
-        // 攻击/防御指令在空中不被消费，会留在缓冲池 0.2s 后自动丢弃，落地前按的不会带下来
+        // 空中攻击/格挡已移除。落地动画期间仍在 AirState，指令留给缓冲，落地后再执行。
         return false;
     }
 
-    // 受击拦截（M17 横扫跳踩）：
-    //   空中被横扫危字扫到 → 跳踩反制：涨攻击者架势 + Perfect 事件，自身不掉血
-    //   （普通攻击在空中 → 放行硬吃）
     public override bool OnHitReceived(HitData hit)
     {
         if (hit.isPerilous && hit.perilousType == PerilousType.Sweep)
@@ -55,12 +80,104 @@ public class AirIdleState : BaseState
             {
                 float gain = body.Config != null ? body.Config.MikiriPostureGain : 30f;
                 hit.attacker.AccumulatePosture(gain);
-                hit.attacker.ForceParryStun(); // 被踩硬直（复用被弹反硬直）
+                hit.attacker.ForceParryStun();
             }
-            CombatEventBus.TriggerWeaponDeflected(hit.hitPoint, DeflectType.Perfect);
+            CombatEventBus.TriggerWeaponDeflected(
+                CombatFxPoint.BetweenWeapons(hit.attacker, body, hit.hitPoint), DeflectType.Perfect);
             CombatManager.Instance?.HitStop();
             return true;
         }
         return false;
+    }
+
+    private float JumpToJumpingNorm
+    {
+        get
+        {
+            float v = body.Config != null ? body.Config.JumpToJumpingNormalized : 0.55f;
+            return Mathf.Clamp(v, 0.1f, 1f);
+        }
+    }
+
+    private bool SwitchAtApex => body.Config == null || body.Config.SwitchJumpingAtApex;
+
+    private float LandEarlyHeight => body.Config != null ? Mathf.Max(0f, body.Config.LandEarlyHeight) : 0.35f;
+
+    private float JumpBlend => body.Config != null ? Mathf.Max(0f, body.Config.JumpAnimBlend) : 0.08f;
+
+    private float LandBlend => body.Config != null ? Mathf.Max(0f, body.Config.LandAnimBlend) : 0.05f;
+
+    private void TryEnterAirborne()
+    {
+        AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
+        bool jumpFinished = AnimUtil.IsPlaying(info, "Jump")
+            && info.normalizedTime >= JumpToJumpingNorm
+            && !body.Animator.IsInTransition(0);
+        bool atApex = SwitchAtApex
+            && body.Rb.velocity.y < 0f
+            && Time.time - enterTime >= MinAirTime;
+        // Jump 已经切走，或起跳播太久：进空中持续
+        bool jumpGone = !AnimUtil.IsPlaying(info, "Jump")
+            && Time.time - enterTime >= TakeoffFailsafe;
+
+        if (!jumpFinished && !atApex && !jumpGone) return;
+
+        Play("Jumping", JumpBlend);
+        phase = Phase.Airborne;
+    }
+
+    private void TryStartLanding()
+    {
+        bool rising = body.Rb.velocity.y > 0.1f;
+        if (Time.time - enterTime < MinAirTime || rising) return;
+        if (!body.IsGrounded && !IsNearGround()) return;
+
+        // 崩解中跳走：落地直接回倒地，不播 Fall
+        if (body.IsPostureBroken)
+        {
+            CanLeaveAir = true;
+            return;
+        }
+
+        landingStartTime = Time.time;
+        Play("Fall", LandBlend);
+        phase = Phase.Landing;
+    }
+
+    private bool IsNearGround()
+    {
+        float early = LandEarlyHeight;
+        if (early <= 0.01f) return false;
+
+        Transform origin = body.groundCheckPoint != null ? body.groundCheckPoint : body.transform;
+        float radius = body.groundCheckRadius > 0f ? body.groundCheckRadius : 0.2f;
+        return Physics.SphereCast(
+            origin.position + Vector3.up * 0.05f,
+            radius,
+            Vector3.down,
+            out _,
+            early,
+            body.groundLayer,
+            QueryTriggerInteraction.Ignore);
+    }
+
+    private void TryFinishLanding()
+    {
+        AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
+        bool fallDone = AnimUtil.IsPlaying(info, "Fall")
+            && info.normalizedTime >= 0.95f
+            && !body.Animator.IsInTransition(0);
+        bool timeout = Time.time - landingStartTime >= Mathf.Max(0.4f, info.length + 0.1f);
+
+        if (fallDone || timeout)
+        {
+            CanLeaveAir = true;
+        }
+    }
+
+    private void Play(string stateName, float blend)
+    {
+        if (!AnimUtil.HasState(body.Animator, stateName)) return;
+        body.Animator.CrossFade(stateName, blend, 0);
     }
 }

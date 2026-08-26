@@ -218,6 +218,7 @@ public class CombatUIController : MonoBehaviour
     {
         if (perilousWarningView == null)
             BindPerilousView();
+        perilousWarningView?.BindFollowTarget(bossBody);
         perilousWarningView?.ShowWarning(type);
     }
 
@@ -287,6 +288,7 @@ public class CombatUIController : MonoBehaviour
 
         if (perilousWarningView == null) return;
         perilousWarningView.enabled = true;
+        perilousWarningView.BindFollowTarget(bossBody);
         perilousWarningView.OnViewInit();
     }
 }

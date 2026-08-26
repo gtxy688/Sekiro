@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 [CreateAssetMenu(fileName = "BossMoveTable", menuName = "Combat/Boss Move Table")]
 public class BossMoveTable : ScriptableObject
@@ -13,6 +14,11 @@ public class BossMoveTable : ScriptableObject
     public float air5HeavyInterruptChance = 0.5f;
 
     public BossMoveEntry[] moves;
+
+    // 运行时调试白名单（不序列化进资产）：非空时抽招只允许名单内的招式 id。
+    // BTBrain.MeleeOnly 用它把 Boss 限制成"只近战普通攻击 + 格挡"，屏蔽弓/后跳/特殊招。
+    [System.NonSerialized]
+    public HashSet<string> moveWhitelist;
 
     public BossMoveEntry FindById(string id)
     {

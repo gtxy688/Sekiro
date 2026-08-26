@@ -23,12 +23,12 @@ public class BT_HealPunish : Node, ISelectorLock
     public override NodeState Evaluate()
     {
         if (executor.IsBusy) return executor.Evaluate();
-        if (body.IsAttacking || body.IsParried) return NodeState.Failure;
+        if (body.IsParried || body.IsPostureBroken || body.IsFinisherLocked) return NodeState.Failure;
         if (player == null || !player.IsHealing) return NodeState.Failure;
+        if (table == null) return NodeState.Failure;
         BossMoveEntry heavy = table.FindById("Bow_Heavy");
         if (heavy == null) return NodeState.Failure;
-        if (blackboard != null && blackboard.IsOnCooldown(heavy.id, heavy.cooldown))
-            return NodeState.Failure;
-        return executor.Begin(heavy);
+        // 喝药惩罚不走招式冷却：玩家一举葫芦就必须放箭。
+        return executor.Begin(heavy, interruptCurrent: true);
     }
 }

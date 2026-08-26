@@ -24,6 +24,13 @@ public class BT_PickActive : Node, ISelectorLock
 
     public override NodeState Evaluate()
     {
+        // 玩家喝药时让出树，给 BT_HealPunish 打断当前近战。
+        if (IsTargetHealing(target))
+        {
+            executor.ResetMove();
+            return NodeState.Failure;
+        }
+
         if (executor.IsBusy) return executor.Evaluate();
         if (body.IsPostureBroken || body.IsParried) return NodeState.Failure;
         float dist = Vector3.Distance(body.transform.position, target.position);
@@ -33,5 +40,13 @@ public class BT_PickActive : Node, ISelectorLock
             table, BossMoveLayer.Active, body, body.Animator, blackboard, dist);
         if (move == null) return NodeState.Failure;
         return executor.Begin(move);
+    }
+
+    private static bool IsTargetHealing(Transform target)
+    {
+        if (target == null) return false;
+        CharacterBody player = target.GetComponent<CharacterBody>();
+        if (player == null) player = target.GetComponentInParent<CharacterBody>();
+        return player != null && player.IsHealing;
     }
 }

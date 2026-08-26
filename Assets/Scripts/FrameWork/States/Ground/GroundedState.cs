@@ -1,3 +1,5 @@
+using UnityEngine;
+
 public class GroundedState : HierarchicalState
 {
     // 强制切入时指定的初始子状态（被弹反硬直/崩解倒地/喝药等物理覆写场景）
@@ -17,8 +19,8 @@ public class GroundedState : HierarchicalState
     // 负责处理父层级的状态切换,内部层级切换交由子状态去处理
     public override void OnUpdate()
     {
-        // 踩空掉落（这属于物理环境变化,不需要去判断能否执行,不属于Command，所以保留在Update里）
-        if (!body.IsGrounded && !body.IsPostureBroken)
+        // 踩空掉落。Boss 不进空中状态（Config.UseAirState = false）。
+        if (!body.IsGrounded && !body.IsPostureBroken && !body.IsFinisherLocked && body.UsesAirState)
         {
             body.MainStateMachine.ChangeState(new AirState(body));
             return;
@@ -30,6 +32,12 @@ public class GroundedState : HierarchicalState
     //所有的地面状态，都共用这个跳跃逻辑！
     protected override bool OnParentHandleCommand(ICommand cmd)
     {
+        // 忍杀演出：父层也吞掉跳跃/喝药，不能把 FinisherState 切走。
+        if (body.IsFinisherLocked)
+        {
+            return true;
+        }
+
         // 崩解倒地由 StaggerBrokenState 吞命令。父层若先切跳跃/喝药，
         // RecoverFromBreak 永远不会跑，架势条会卡满且无法忍杀。
         if (body.IsPostureBroken)
@@ -54,10 +62,15 @@ public class GroundedState : HierarchicalState
         // 拦截跳跃指令
         if (cmd is JumpCommand)
         {
-            // 无论子状态是 Idle 还是 Move，父类直接掐断，强切大状态！
-            // 跳跃位移由 Jump 动画 Root 曲线驱动（全权根运动）
+            if (!body.UsesAirState)
+            {
+                return true;
+            }
+
+            // 无论子状态是 Idle 还是 Move，父类直接掐断，强切大状态。
+            body.QueueJump();
             body.MainStateMachine.ChangeState(new AirState(body));
-            return true; // 报告大脑：跳跃指令已执行！
+            return true;
         }
 
         // M16：拦截葫芦指令 → 切喝药状态（播动画 + 可被打断硬直）
@@ -67,13 +80,12 @@ public class GroundedState : HierarchicalState
             return true;
         }
 
-        // M10：只有玩家的攻击指令才查处决。Boss 的 AttackCommand 下钻到子状态。
-        // 正在出招时不抢：崩解那一刀不能直接变成处决，必须是新一次攻击。
+        // M10：玩家攻击指令优先查处决。Boss 崩解窗口内，连招后摇里再按攻击也走忍杀，
+        // 不进 NextCombo。崩解那一刀本身不会再发 AttackCommand，所以不会被这刀直接处决。
         if (cmd is AttackCommand &&
-            !body.IsAttacking &&
             CombatManager.Instance != null &&
             body == CombatManager.Instance.PlayerRef &&
-            CombatManager.Instance.TryExecuteFinisher(body, FinisherKind.Ground))
+            CombatManager.Instance.TryExecuteAvailableFinisher(body))
         {
             return true;
         }

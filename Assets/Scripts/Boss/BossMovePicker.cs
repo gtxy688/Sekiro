@@ -24,7 +24,11 @@ public static class BossMovePicker
             float roll = pass == 1 ? Random.Range(0f, total) : 0f;
             for (int i = 0; i < table.moves.Length; i++)
             {
-                float w = Weight(table.moves[i], layer, self, animator, blackboard, distance, postureLow);
+                BossMoveEntry e = table.moves[i];
+                // 运行时白名单（MeleeOnly 调试）：非空时只放行名单内招式
+                if (table.moveWhitelist != null && table.moveWhitelist.Count > 0
+                    && !table.moveWhitelist.Contains(e.id)) continue;
+                float w = Weight(e, layer, self, animator, blackboard, distance, postureLow);
                 if (w <= 0f) continue;
                 if (pass == 0)
                 {

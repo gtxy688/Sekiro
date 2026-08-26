@@ -11,12 +11,13 @@ public class BGMManager : MonoBehaviour
     public AudioClip victoryBgm;     // 胜利 BGM（可选，为空则淡出停止）
 
     [Header("播放参数")]
-    [Range(0f, 1f)] public float volume = 0.8f;
+    [Range(0f, 1f)] public float volume = 0.8f; // 运行时忽略，音量走 AudioVolumeSettings
     public float fadeDuration = 1f;  // 切换时的淡入淡出时长
 
     private AudioSource source;
     private AudioClip currentClip;
     private Tween fadeTween;
+    private float fadeWeight;
 
     private void Awake()
     {
@@ -27,6 +28,7 @@ public class BGMManager : MonoBehaviour
         }
         source.playOnAwake = false;
         source.loop = true;
+        AudioVolumeSettings.Load();
     }
 
     private void Start()
@@ -36,12 +38,14 @@ public class BGMManager : MonoBehaviour
 
     private void OnEnable()
     {
+        AudioVolumeSettings.OnChanged += ApplyOutputVolume;
         CombatEventBus.OnLifeCleared += HandleLifeCleared;
         CombatEventBus.OnVictory += HandleVictory;
     }
 
     private void OnDisable()
     {
+        AudioVolumeSettings.OnChanged -= ApplyOutputVolume;
         CombatEventBus.OnLifeCleared -= HandleLifeCleared;
         CombatEventBus.OnVictory -= HandleVictory;
     }
@@ -83,20 +87,21 @@ public class BGMManager : MonoBehaviour
         {
             source.clip = clip;
             currentClip = clip;
-            source.volume = 0f;
+            fadeWeight = 0f;
+            ApplyOutputVolume();
             source.Play();
-            fadeTween = FadeVolume(volume, fadeDuration);
+            fadeTween = FadeWeight(1f, fadeDuration);
             return;
         }
 
         // 换曲：淡出到 0 → 换 clip → 淡入
-        fadeTween = FadeVolume(0f, fadeDuration * 0.5f)
+        fadeTween = FadeWeight(0f, fadeDuration * 0.5f)
             .OnComplete(() =>
             {
                 source.clip = clip;
                 currentClip = clip;
                 source.Play();
-                fadeTween = FadeVolume(volume, fadeDuration * 0.5f);
+                fadeTween = FadeWeight(1f, fadeDuration * 0.5f);
             });
     }
 
@@ -104,7 +109,7 @@ public class BGMManager : MonoBehaviour
     public void StopBGM()
     {
         fadeTween?.Kill();
-        fadeTween = FadeVolume(0f, fadeDuration)
+        fadeTween = FadeWeight(0f, fadeDuration)
             .OnComplete(() =>
             {
                 source.Stop();
@@ -112,10 +117,19 @@ public class BGMManager : MonoBehaviour
             });
     }
 
-    // 音量淡入淡出：用 DOTween 核心（DOTween.To）实现，不依赖 Audio 扩展模块（避免没启用 DOTweenModuleAudio 时报 DOFade 缺失）
-    private Tween FadeVolume(float target, float duration)
+    // 只 tween 淡入淡出权重，用户音量随时可改、不和淡入抢绝对值
+    private Tween FadeWeight(float target, float duration)
     {
-        return DOTween.To(() => source.volume, v => source.volume = v, target, duration)
-            .SetEase(Ease.Linear);
+        return DOTween.To(() => fadeWeight, w =>
+        {
+            fadeWeight = w;
+            ApplyOutputVolume();
+        }, target, duration).SetEase(Ease.Linear);
+    }
+
+    private void ApplyOutputVolume()
+    {
+        if (source == null) return;
+        source.volume = AudioVolumeSettings.Bgm * fadeWeight;
     }
 }

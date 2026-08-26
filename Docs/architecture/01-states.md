@@ -104,7 +104,9 @@ public void ReceiveHit(CharacterBody attacker, int healthDmg, float postureDmg, 
 ### DeflectState（防御/盾反）
 
 - 弹反窗口内：按 `knockback` 选择 `Deflect_Slash` / `Deflect_HeavySlash`，增加攻击者架势；防守者自己不涨架势。
-- 攻击者未崩解时进入 `ParriedState`，播 `Deflected`。
+- 攻击者未崩解时进入 `ParriedState`，播 `Deflected`。`ParriedState` 硬直 = **max(被弹动画, `Config.ParriedDuration` 下限)**——配置是下限不是兜底，保证被弹方稳定被压出一段反击窗口（回合制）。
+- 完美弹反成功后弹反方 `KengekiArmed = true`：Boss 弹反玩家 → BT_Kengeki 层（树序优先、短前摇）抽交锋还击招；命令先存下，反击发起时刻按"目标命中 - 该招 HitStartTime"倒推：`发起 = 弹反开始 + 被弹方硬直 + ParryCounterHitDelay(0~0.15) − HitStartTime`，命中固定落在被弹方硬直结束 + 补偿处——玩家恢复瞬间的刀（前摇 ~0.15s）永远晚于反击命中，贪刀必被罚；弹反动画完整播放作为表现，到点切入反击攻击。
+- 弹反收刀：`Deflect_Slash`/`Deflect_HeavySlash` 播到 0.9（兜底 1.1s）归档；有反击命令时保持姿态等发起时刻。
 - 窗口外仍在防御：按 `knockback` 选择 `Hurt_Guard` / `Hurt_GuardHeavy`，只增加防守者架势；受击动画播完再回举刀循环。
 - 未格挡受击：按 `knockback` 选择 `Hurt_Ground` / `Hurt_Heavy`。
 - 普通格挡不会增加攻击者架势；只有完美弹反会。
@@ -156,10 +158,11 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 - 攻击崩解：Boss 播 `Stagger_Broken`，范围内玩家再按攻击后双方播放 `Finsher_Ground`。未处决则动画播完立刻 `RecoverFromBreak`（清架势条），不再套 `PostureBrokenDuration`。
 - 处决身份：`CombatManager.PlayerRef` 是唯一发起者，受害者固定 `BossRef`。`TryExecuteFinisher` 正向断言 `initiator == PlayerRef && initiator != BossRef && !initiator.IsPostureBroken`。Boss 的 `AttackCommand` 不能把自己当处决发起者。
 - 弹反崩解：Boss 播 `Stagger_Broken_Deflect`，玩家播 `DeflectToFinsher`；窗口内按攻击后双方播放 `Finsher_Deflect`。反向（Boss 弹反打崩玩家）玩家走 `StaggerBrokenState` 击飞倒地（动画播完即恢复，不加额外硬直），Boss 不进确认窗口，继续弹反挥刀。
-- 玩家被攻击打崩：同样播 `Stagger_Broken`，动画结束立刻恢复，不套 `PostureBrokenDuration`。崩解期间父层不响应跳跃/喝药；若仍被带入空中，落地回到倒地直到动画结束。
+- 玩家被攻击打崩：同样播 `Stagger_Broken`，动画结束立刻恢复，不套 `PostureBrokenDuration`。崩解期间父层不响应跳跃/喝药；若仍被带入空中，落地回到倒地直到动画结束。倒地期间再挨刀：扣血、解除崩解，并切 `StunnedState` 播 `Hurt_Ground` / `Hurt_Heavy`（打崩那一刀仍只播倒地）。Boss 崩解窗口保持倒地，不被普通命中抬起。
 - 识破崩解：Boss 立即播放专用 `Stagger_Broken_Miriki`，玩家现有 `Mikiri` 剩余动画作为确认窗口；按攻击后双方播放 `Finsher_Mikiri`。
 - 弹反/识破窗口超时：Boss 架势从 100% 降到 80%，解除崩解并隐藏红点。
-- 忍杀开始时隐藏红点，期间双方锁定命令与受击。不强制瞬移对齐站位。
+- 忍杀开始前双方只转水平朝向彼此，不瞬移对齐站位。开始后隐藏红点；`IsFinisherLocked` 期间双方锁定命令、受击与强切攻击，直到动画播完。
+- Boss 崩解窗口内玩家再按攻击：优先处决（含连招后摇里的 AttackCommand），不进 `NextCombo`。崩解那一刀本身不会再发攻击指令，不会被同一刀直接处决。
 - 玩家忍杀动画播完后由 `FinisherState` 调用 `CombatManager.ExecuteFinisher()` 清命，再 `CompleteFinisherSequence` 解锁双方。不依赖命中帧动画事件。
 
 ## 涉及文件

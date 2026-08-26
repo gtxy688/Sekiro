@@ -35,7 +35,7 @@
 | 11 | Boss HP <75% 时弹刀 | 有机会 `Boat_Full` |
 | 12 | `JumpThrust` / `Kengeki_Thrust` | 危字 + 识破仍崩解 |
 | 13 | `Perilous_Sweep` | 危字 + 跳踩仍成立 |
-| 14 | 玩家喝药 | Boss 出 `Bow_Heavy`（Boss 自己不在近战动画中时） |
+| 14 | 玩家喝药（Boss 正在近战/走位都可以） | Boss **立刻打断**当前招，改出 `Bow_Heavy`；葫芦动画期间箭应能打中 |
 | 15 | 空中五连 | 能完整播完；有时会被重箭打断 |
 | 16 | 玩家锁定 Boss 后重复远近移动 | Boss 仍面向并追踪玩家 |
 | 17 | 走近后挥刀打 Boss（Boss 非攻击中） | 命中瞬间 Boss 强制进入格挡判定：普通格挡（Block/`Hurt_Guard` 姿态 + 火花 + Boss 架势涨），不再裸受击 |
