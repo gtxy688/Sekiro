@@ -46,7 +46,7 @@
 | M12 | 相机：Cinemachine 锁定 + 震屏 | `06-presentation.md` |
 | M13 | UI：MVC 布局 | `06-presentation.md` |
 | M14 | 复活：1 次回生回满血 | `02-combat-data.md` |
-| M15 | 音效：打铁/受击/处决 | `06-presentation.md` |
+| M15 | 音效：格挡/弹反池 + 受击/处决 | `06-presentation.md` |
 | M16 | 葫芦：10 次回血 | `02-combat-data.md` |
 
 ### AI 层（依赖 M5/M3）

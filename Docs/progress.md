@@ -38,7 +38,7 @@
 | 受击接口 | `HurtContext`（Normal/Heavy/Guard/Deflected）+ `CharacterConfig` 受击动画名映射 + `AttackConfig.Knockback` |
 | 输入 | 双 Control Scheme（KeyboardMouse/Gamepad）+ Player Input Auto-Switch + 每帧 ReadValue |
 | M13 UI | `RevivePromptView/GameOverView/VictoryView` 新增；`CombatUIController` 补全事件（清命/复活/锁定/胜利/死亡）；`PlayerStatusView.SetDanger` 架势高亮；事件总线补 `OnLifeCleared/OnRevived/OnLockOnChanged` |
-| M15 音效 | `AudioManager` 补 revive/victory 音效 |
+| M15 音效 | `AudioManager`：格挡/弹反 Resources 池随机；玩家/Boss 受击各一条 Inspector |
 | M12 表现 | `CameraShake`（DoTween 震屏，订阅 OnCameraShake）；弹反/崩解/处决触发 |
 
 ### ✅ M1 HFSM 受击路由（代码完成，待验收）

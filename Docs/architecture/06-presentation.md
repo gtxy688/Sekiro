@@ -32,6 +32,14 @@ OnAttackSfx(AudioClip clip, Vector3 worldPos)  // 出招音效（AttackState 按
 
 > 保留：`OnPerilousAttack`（危字提示，M17 保留）。
 
+### 危字 Billboard（M17 表现）
+
+- 事件：`OnPerilousAttack(PerilousType)`（签名不改）。
+- 位置：世界空间 Billboard，跟随 **Boss** 的 `Head`（没有则 `Spine1` / `Spine`）+ `headOffset`（默认 0.55m）。**不跟玩家、不放屏幕正中。**
+- 绘制：`ARPG/FX/PerilousKanji` 加法 Shader，白字黑底当遮罩；两层 Quad（光晕 0.78m / 字形 0.60m）；`ZTest Always`。笔画粗细调材质 `Stroke Thickness`（越大越粗）；`Dark Crush` 越大笔画越细。
+- 时间：弹出后约 0.8 秒淡出。`LateUpdate` 只做跟随/朝向相机，不轮询战斗数值。
+- 生成：`Tools/战斗/生成危字特效`。贴图放 `Assets/Art/FX`。
+
 > 为什么事件带完整数据：M2（CharacterConfig）还没实现时表现层也能独立编译运行，不依赖读取 CharacterBody 内部字段。
 
 ## 二、相机（M12，Cinemachine 三级相机管理）
@@ -87,3 +95,18 @@ OnAttackSfx(AudioClip clip, Vector3 worldPos)  // 出招音效（AttackState 按
 
 - 订阅 `OnCameraShake` → `CameraShake`（DoTween 偏移，不依赖 Impulse）
 - 触发点：弹反成功、崩解、处决、受击
+
+### 用户音量（暂停菜单）
+
+- `AudioVolumeSettings`：音乐默认 0.8，音效默认 1.0，`PlayerPrefs` 键 `audio.bgm` / `audio.sfx`。
+- 音效：`AudioManager` 的 `AudioSource.volume`。现有 `PlayOneShot` 自动跟着变。
+- 音乐：`BGMManager` 实际音量 = 用户音乐音量 × 淡入淡出 `fadeWeight`。不要用 Mixer。
+
+## 三、音效（M15）
+
+- 订阅 `OnWeaponDeflected`：`DeflectType.Normal` 从 `Resources/Sounds/Block` 随机一条；`Perfect` 从 `Resources/Sounds/Deflect` 随机一条。
+- 订阅 `OnTakeDamage`：玩家走 `playerHitSfx`，Boss 走 `bossHitSfx`（各一条，Inspector 拖，不装池）。
+- `AudioManager.Awake` 用 `Resources.LoadAll<AudioClip>` 各装一次格挡/弹反池；事件里不重载。
+- 同一池连打不连抽同一条（池长 ≥ 2）。第一次全池均匀随机。池空则本发不播并 `LogWarning`。
+- `PlayOneShot(clip)` 不传 volume，音量走 `AudioSource.volume`。
+- 处决 / 出招等其它 clip 仍 Inspector 拖。
