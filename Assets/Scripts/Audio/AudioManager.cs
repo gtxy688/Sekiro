@@ -8,6 +8,11 @@ public class AudioManager : MonoBehaviour
     private const string BlockFolder = "Sounds/Block";
     private const string DeflectFolder = "Sounds/Deflect";
 
+    [Header("播放参数")]
+    [Range(0.01f, 1f)]
+    [Tooltip("暂停菜单音效 100% 时的基础响度。wav 本身很大就调低这里，不要改滑条默认值。")]
+    public float volume = 0.1f;
+
     [Header("音效资源")]
     public AudioClip playerHitSfx;    // 玩家受击
     public AudioClip bossHitSfx;      // Boss 受击
@@ -74,7 +79,7 @@ public class AudioManager : MonoBehaviour
     private void ApplySfxVolume()
     {
         if (audioSource == null) return;
-        audioSource.volume = AudioVolumeSettings.Sfx;
+        audioSource.volume = volume * AudioVolumeSettings.Sfx;
     }
 
     // ===== 资源池 =====

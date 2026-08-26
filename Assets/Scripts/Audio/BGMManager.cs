@@ -12,7 +12,7 @@ public class BGMManager : MonoBehaviour
     [Header("播放参数")]
     [Range(0.01f, 1f)]
     [Tooltip("暂停菜单音乐 100% 时的基础响度。曲子本身很大就调低这里，不要靠滑条贴 1%。")]
-    public float volume = 0.14f;
+    public float volume = 0.1f;
     public float fadeDuration = 1f;  // 切换时的淡入淡出时长
 
     private AudioSource source;
