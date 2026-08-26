@@ -23,9 +23,13 @@ BoxCast 用"上一帧位置 → 当前帧位置"扫一段，防止高速挥砍�
 | 对象 | 要求 |
 |------|------|
 | 玩家 `Hitbox` | 挂在**武器中央**（刃中段的子空物体，随刀动）。挂在根/柄/手骨上，第一刀碰巧扫到、第二刀弧线不同就会漏。 |
+| Boss 刀 `Hitbox` | 挂在刀刃中段（`sword_joint` 子空物体）。拖到 `CharacterBody.weaponHitbox`，或留空由 Awake 自动找刀。 |
+| Boss 肘/拳 `Hitbox` | `Elbow` 段是**拳头**攻击。挂在拳/指关节子空物体（随手骨动），**不要挂肘关节**。拖到 `CharacterBody.elbowHitbox`。`castRadius` 0.15～0.25。 |
 | Boss `Hurtbox` 碰撞体 | **包住身体**（胶囊/盒与体型相当）。过小则只有部分挥砍能扫到，连招第二刀尤其明显。 |
 | `Hitbox.targetLayers` | 含对方 Hurtbox 所在层 |
-| 刀网格 | **不要**另挂会挡扫描的 Collider；Hitbox 只是扫描点 |
+| 刀/肢体网格 | **不要**另挂会挡扫描的 Collider；Hitbox 只是扫描点 |
+
+**多 Hitbox：** 招式数据写 `AttackHitboxSlot`（`AttackConfig.HitboxSlot` / `BossMoveWindow.hitboxSlot`）。`EnableWeaponHit` 按槽打开对应引用，**同时只亮一把**；缺肘引用则回退刀并 Warning。`Weapon` 永远是刀身份，不改成肘。`Slash_SpinElbow` 的 `Slash_Spin` 用刀，`Elbow` 段用肘（危字 Grab 不变）。
 
 代码侧：到 `HitStartTime` 才开判定，到 `RecoveryWindowStart` 关判定（时钟是本招动画时间 `t`，可取消 = 判定段结束；退出再兜底关）。开判定时已重叠的目标先不算，等刀离开再扫进（连招防秒中）；每帧 SphereCast + OverlapSphere。
 
@@ -105,11 +109,18 @@ public class CombatManager : MonoBehaviour
 
 ## 四、M17 危字攻击
 
-- `AttackConfig.Perilous`（PerilousType：None/Thrust/Sweep/Grab）：招式带危字标记
+- `AttackConfig.Perilous`（PerilousType：None/Thrust/Sweep/Grab/JumpThrust）：招式带危字标记
 - Boss AI 选到危字招式 → 发事件 `CombatEventBus.TriggerPerilousAttack(type)` → UI 弹"危" + 警示音
 - 危字标记随 `HitData.isPerilous/perilousType` 传递（CombatManager 从 AttackConfig 读出传入 ReceiveHit）
-- 防御（DeflectState）对危字无效
-- **识破（Mikiri）**：突刺（Thrust）+ 玩家垫步 → `DodgeState.OnHitReceived` 拦截 → 切 `MikiriCounterState`
+- **段级危字**：`BossMoveWindow.perilous` 优先于招式的 `entry.perilous`，支持一招多段中仅某段危字
+  （如 `Slash_SpinElbow` 的 `Elbow` 段 = Grab；烘焙时 `BossAttackBaker` 按 段级→招式级 回退）
+- **危字应对配对（按类型，勿让 杠 z字类型串线）**：
+  - `Thrust` 突刺 → 识破（Mikiri）或 弹反（弹反窗口内弹开 / 窗口外格挡，防御系有效）
+  - `Sweep` 横扫 → 起跳踩头（空中被 Sweep 命中自动反制）或 垫步无敌帧躲避；**不可防御、不可识破**
+  - `Grab` 抓取 → 弹反或垫步躲避；不可识破
+  - `JumpThrust` 跳跃突刺 → 弹反或垫步躲避；**不可识破**（与地面突刺区分，独立枚举值）
+  - `DeflectState` 仅对 Sweep 失效，Thrust/JumpThrust/Grab 正常走弹反/格挡
+- **识破（Mikiri）**：仅 `Thrust` + 玩家垫步 → `DodgeState.OnHitReceived` 拦截 → 切 `MikiriCounterState`
   （播踩刀动画、涨攻击者架势 `Config.MikiriPostureGain`、Perfect 打铁事件）→ 回 Idle
 
 ## 涉及文件
@@ -118,6 +129,8 @@ public class CombatManager : MonoBehaviour
 - 新建：`Assets/Scripts/Combat/Hurtbox.cs`
 - 新建：`Assets/Scripts/Combat/CombatManager.cs`
 - 新建：`Assets/Scripts/FrameWork/States/Ground/MikiriCounterState.cs`
-- 修改：`Assets/Scripts/SO/AttackConfig.cs`（Perilous）
+- 修改：`Assets/Scripts/SO/AttackConfig.cs`（Perilous、HitboxSlot）
+- 修改：`Assets/Scripts/FrameWork/Body/CharacterBody.cs`（多 Hitbox 槽位）
+- 修改：`Assets/Scripts/Boss/BossMoveWindow.cs`（段级危字、hitboxSlot）
 - 修改：`Assets/Scripts/FrameWork/States/Command.cs`（HitData 危字字段）
 - 修改：`Assets/Scripts/FrameWork/States/Ground/DodgeState.cs`（识破触发）

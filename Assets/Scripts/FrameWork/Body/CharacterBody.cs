@@ -12,6 +12,15 @@ public class CharacterBody : MonoBehaviour
 
     // 武器的碰撞盒（M3：BoxCast 版 Hitbox，不再用 OnTrigger）
     public Hitbox Weapon { get; private set; }
+    public Hitbox ActiveHitbox { get; private set; }
+
+    [Header("Hitbox 槽位")]
+    [Tooltip("刀。空则 Awake 自动找（会跳过肘/脚引用）")]
+    public Hitbox weaponHitbox;
+    [Tooltip("Elbow 段用：挂在拳头/指关节，不要挂肘关节。玩家不拖")]
+    public Hitbox elbowHitbox;
+    [Tooltip("预留踢击。本需求不拖")]
+    public Hitbox kickHitbox;
 
     // 3. 移动意图：无论是手柄摇杆推的，还是 Boss AI 寻路计算的，都写到这里
     public Vector3 MoveDirection { get; set; }
@@ -24,8 +33,11 @@ public class CharacterBody : MonoBehaviour
     public bool IsGrounded { get; private set; }
 
     // 全权根运动：位移由动画 Root 曲线驱动（Animator.applyRootMotion = true）
-    // 代码不再直接设置水平速度，只负责朝向与状态切换
+    // 空中只吃 Root 的 XZ（贴图/骨骼跟动画），Y 留给跳跃初速度和重力
     public bool UseRootMotion = true;
+
+    // AirState 期间为 true。OnAnimatorMove 用它决定要不要丢掉 Root 的 Y
+    public bool IsAirborne { get; set; }
 
     // ===== 战斗属性（M2）=====
 
@@ -57,6 +69,24 @@ public class CharacterBody : MonoBehaviour
     public bool IsAttacking { get; set; }
     public bool IsAttackRecoveryOpen { get; set; }
     public bool IsHealing { get; set; }
+
+    // 忍杀演出中：双方锁命令/受击/强切，直到动画播完
+    public bool IsFinisherLocked
+    {
+        get => isFinisherLocked;
+        set
+        {
+            isFinisherLocked = value;
+            if (value)
+            {
+                hasPendingJump = false;
+                MoveDirection = Vector3.zero;
+            }
+        }
+    }
+    private bool isFinisherLocked;
+    private int facingHoldStateHash;
+    private Vector3 facingHoldDir;
 
     // 被完美弹刀硬直中（避免查 ParriedState 类型）
     public bool IsParried { get; set; }
@@ -90,6 +120,11 @@ public class CharacterBody : MonoBehaviour
     [Tooltip("接地判定迟滞帧数：连续 N 帧结果一致才翻转，防物理抖动（默认 2）")]
     public int groundHysteresisFrames = 2;
 
+    // 跳跃冲量要等到 FixedUpdate 再写速度：
+    // Animator 是 Animate Physics，根运动在物理帧里会把 velocity.y 盖掉。
+    private float pendingJumpSpeed;
+    private bool hasPendingJump;
+
     // 玩家 Controller 用 MoveZ，Boss 用 MoveY。缓存起来避免每帧 SetFloat 打到不存在的参数。
     private int moveXHash;
     private int moveForwardHash;
@@ -113,12 +148,7 @@ public class CharacterBody : MonoBehaviour
         // 实例化纯 C# 的状态机引擎
         MainStateMachine = new StateMachine();
 
-        // 查找武器 Hitbox（挂在手部骨骼上，所以用 GetComponentInChildren）
-        Weapon = GetComponentInChildren<Hitbox>();
-        if (Weapon != null)
-        {
-            Weapon.Initialize(this);
-        }
+        InitHitboxes();
 
         // 从 Config 初始化战斗属性（M2）
         InitCombat();
@@ -153,6 +183,33 @@ public class CharacterBody : MonoBehaviour
         ResolveOpponentOverlap();
     }
 
+    private void FixedUpdate()
+    {
+        if (!hasPendingJump || Rb == null) return;
+        ApplyJumpVelocity(pendingJumpSpeed);
+        hasPendingJump = false;
+    }
+
+    // 起跳：只打垂直初速度。根运动保持开着，由 OnAnimatorMove 丢掉 Y、保留 XZ。
+    public void QueueJump()
+    {
+        if (IsFinisherLocked) return;
+
+        float speed = Config != null ? Config.JumpSpeed : 6f;
+        if (speed <= 0.01f) speed = 6f;
+
+        pendingJumpSpeed = speed;
+        hasPendingJump = true;
+        ApplyJumpVelocity(speed);
+    }
+
+    private void ApplyJumpVelocity(float speed)
+    {
+        if (Rb == null) return;
+        Vector3 v = Rb.velocity;
+        Rb.velocity = new Vector3(v.x, speed, v.z);
+    }
+
     // 改脚本后仍停在 Play 时，纯 C# 状态机会丢。下一帧补一套，避免 Update NRE。
     private void EnsureRuntimeReady()
     {
@@ -184,9 +241,11 @@ public class CharacterBody : MonoBehaviour
     {
         if (CombatManager.Instance == null) return;
         if (this != CombatManager.Instance.PlayerRef) return;
+        // 忍杀成对 Root 会短暂重叠，挤开会对不齐。
+        if (IsFinisherLocked) return;
 
         CharacterBody other = CombatManager.Instance.BossRef;
-        if (other == null) return;
+        if (other == null || other.IsFinisherLocked) return;
 
         Collider otherCol = other.bodyCollider != null
             ? other.bodyCollider
@@ -216,18 +275,74 @@ public class CharacterBody : MonoBehaviour
         }
     }
 
-    // 根运动交回 Animator：不要写 OnAnimatorMove，否则 Unity 不再自动应用 Root。
+    public bool UsesAirState => Config != null && Config.UseAirState;
+
+    // 01-states：根运动走 OnAnimatorMove。写了这个回调，Unity 不再自动套 Root，必须自己加。
+    // 空中丢掉 Root.y，否则跳跃高度被动画钉住；XZ 必须吃，否则中心不动、贴图自己滑，切 Idle 会瞬移回去。
+    private void OnAnimatorMove()
+    {
+        if (Animator == null || Rb == null || !UseRootMotion) return;
+
+        Vector3 delta = Animator.deltaPosition;
+        if (IsAirborne)
+        {
+            delta.y = 0f;
+        }
+
+        transform.position += delta;
+        transform.rotation *= Animator.deltaRotation;
+        Rb.position = transform.position;
+        Rb.rotation = transform.rotation;
+
+        // Play 切忍杀前，上一招的 Root 旋转可能把刚 Snap 的朝向拧歪。
+        // 忍杀状态真正开始后再把持有权交给 Clip。
+        if (facingHoldStateHash != 0)
+        {
+            AnimatorStateInfo info = Animator.GetCurrentAnimatorStateInfo(0);
+            if (info.shortNameHash == facingHoldStateHash)
+            {
+                facingHoldStateHash = 0;
+            }
+            else
+            {
+                ApplyYaw(facingHoldDir);
+            }
+        }
+    }
 
     // 接收大脑 (Brain) 传来的指令
     public bool TryExecuteCommand(ICommand cmd)
     {
         EnsureRuntimeReady();
         if (MainStateMachine == null) return false;
+        if (IsFinisherLocked) return true;
 
         // 将大脑的指令直接喂给主状态机。
         // 返回 true  表示：指令被某个状态 (父状态或子状态) 成功消耗；
         // 返回 false 表示：当前层级下的所有状态都拒收这个指令。
         return MainStateMachine.HandleCommand(cmd);
+    }
+
+    // 喝药重箭等打断：命中段会拒收 AttackCommand，防御态会吞掉命令却不出招，必须强切。
+    public bool StartAttack(AttackConfig config, bool interruptCurrent = false)
+    {
+        EnsureRuntimeReady();
+        if (config == null) return false;
+        if (IsParried || IsPostureBroken || IsFinisherLocked) return false;
+
+        ActiveAttack = config;
+        if (!interruptCurrent)
+        {
+            return TryExecuteCommand(new AttackCommand());
+        }
+
+        if (MainStateMachine.CurrentState is GroundedState ground)
+        {
+            ground.SubStateMachine.ChangeState(new AttackState(this, ground, config));
+            return true;
+        }
+
+        return TryExecuteCommand(new AttackCommand());
     }
 
     // --- 物理环境检测 ---
@@ -275,6 +390,34 @@ public class CharacterBody : MonoBehaviour
         if (worldDir.sqrMagnitude < 0.01f) return;
         Quaternion target = Quaternion.LookRotation(worldDir.normalized, Vector3.up);
         transform.rotation = Quaternion.RotateTowards(transform.rotation, target, degreesPerSecond * Time.deltaTime);
+    }
+
+    // 立即水平朝向（忍杀开演前对齐，不用每帧转）。
+    // holdUntilState：Animator 还没切到该状态前，每帧 OnAnimatorMove 后再 Snap 一次。
+    public void SnapYaw(Vector3 worldDir, string holdUntilState = null)
+    {
+        worldDir.y = 0f;
+        if (worldDir.sqrMagnitude < 0.0001f) return;
+        Vector3 dir = worldDir.normalized;
+        ApplyYaw(dir);
+        if (!string.IsNullOrEmpty(holdUntilState))
+        {
+            facingHoldDir = dir;
+            facingHoldStateHash = UnityEngine.Animator.StringToHash(holdUntilState);
+        }
+        else
+        {
+            facingHoldStateHash = 0;
+        }
+    }
+
+    private void ApplyYaw(Vector3 worldDir)
+    {
+        transform.rotation = Quaternion.LookRotation(worldDir, Vector3.up);
+        if (Rb != null)
+        {
+            Rb.rotation = transform.rotation;
+        }
     }
 
     // 摇杆输入 → 世界移动方向（相机相对，原神式）：
@@ -498,16 +641,75 @@ public class CharacterBody : MonoBehaviour
     // 开启武器判定（M3/M8）：攻击状态/动画事件调用。绑定本招式的伤害配置
     public void EnableWeaponHit(AttackConfig config)
     {
-        if (Weapon == null || config == null) return;
-        Weapon.SetConfig(config);
-        Weapon.Enable();
+        if (config == null) return;
+        Hitbox target = ResolveHitbox(config.HitboxSlot);
+        if (target == null) return;
+
+        if (ActiveHitbox != null && ActiveHitbox != target)
+            ActiveHitbox.Disable();
+
+        target.SetConfig(config);
+        target.Enable();
+        ActiveHitbox = target;
+        CombatEventBus.TriggerAttackSwingStart(this);
     }
 
     // 关闭武器判定（M3/M8）
     public void DisableWeaponHit()
     {
-        if (Weapon == null) return;
-        Weapon.Disable();
+        Hitbox target = ActiveHitbox != null ? ActiveHitbox : Weapon;
+        if (target == null) return;
+        target.Disable();
+        ActiveHitbox = null;
+        CombatEventBus.TriggerAttackSwingEnd(this);
+    }
+
+    void InitHitboxes()
+    {
+        Weapon = weaponHitbox != null ? weaponHitbox : FindDefaultWeaponHitbox();
+        InitHitbox(Weapon);
+        InitHitbox(elbowHitbox);
+        InitHitbox(kickHitbox);
+    }
+
+    void InitHitbox(Hitbox hitbox)
+    {
+        if (hitbox != null)
+            hitbox.Initialize(this);
+    }
+
+    Hitbox FindDefaultWeaponHitbox()
+    {
+        Hitbox[] all = GetComponentsInChildren<Hitbox>(true);
+        for (int i = 0; i < all.Length; i++)
+        {
+            Hitbox h = all[i];
+            if (h == null || h == elbowHitbox || h == kickHitbox)
+                continue;
+            return h;
+        }
+        return null;
+    }
+
+    Hitbox ResolveHitbox(AttackHitboxSlot slot)
+    {
+        if (slot == AttackHitboxSlot.Elbow)
+        {
+            if (elbowHitbox != null)
+                return elbowHitbox;
+            Debug.LogWarning($"{name} 未指定 Elbow Hitbox，回退到刀");
+            return Weapon;
+        }
+
+        if (slot == AttackHitboxSlot.Kick)
+        {
+            if (kickHitbox != null)
+                return kickHitbox;
+            Debug.LogWarning($"{name} 未指定 Kick Hitbox，回退到刀");
+            return Weapon;
+        }
+
+        return Weapon;
     }
 
     // 受击结算：扣血 + 涨架势。由 ReceiveHit（物理）或外部调用。
@@ -653,8 +855,8 @@ public class CharacterBody : MonoBehaviour
         CombatEventBus.TriggerHPChanged(this, CurrentHP, Config != null ? Config.MaxHP : 0);
     }
 
-    // 崩解超时恢复（M9）：架势清空 + 崩解解除，不扣命（与处决清命区分）
-    public void RecoverFromBreak(float remainingRatio = 0f)
+    // 崩解标志/架势条清掉，不切状态。倒地中再挨刀时先清再进受击，避免闪 Idle。
+    public void ClearPostureBreak(float remainingRatio = 0f)
     {
         EnsureRuntimeReady();
         IsPostureBroken = false;
@@ -662,6 +864,12 @@ public class CharacterBody : MonoBehaviour
         CurrentPosture = Mathf.Clamp01(remainingRatio) * maxPosture;
         CombatEventBus.TriggerPostureChanged(this, CurrentPosture, maxPosture);
         CombatEventBus.TriggerFinisherOpportunityChanged(this, false);
+    }
+
+    // 崩解超时恢复（M9）：架势清空 + 崩解解除，不扣命（与处决清命区分）
+    public void RecoverFromBreak(float remainingRatio = 0f)
+    {
+        ClearPostureBreak(remainingRatio);
         MainStateMachine.ChangeState(new GroundedState(this));
     }
 
@@ -677,6 +885,8 @@ public class CharacterBody : MonoBehaviour
                            float knockback = 0f)
     {
         EnsureRuntimeReady();
+        if (IsFinisherLocked) return;
+
         // 打包成值类型，供状态机做层级查询（M1）
         HitData hit = new HitData
         {
@@ -688,6 +898,8 @@ public class CharacterBody : MonoBehaviour
             perilousType = perilousType,
             knockback = knockback              // 受击表现接口：击退强度
         };
+
+        bool alreadyBroken = IsPostureBroken;
 
         // 0. M7 Boss 被动防御（只狼攻防转换）：可防御时命中强制转格挡判定。
         //    先于状态拦截，保证玩家连打压制时 Boss 始终先进入防御反应，而不是裸受击。
@@ -705,14 +917,26 @@ public class CharacterBody : MonoBehaviour
         // 2. 没拦住 → 伤害/架势结算（M2）：扣血 + 涨架势 + 死亡判定
         TakeDamage(healthDmg, postureDmg);
 
-        // 死亡（DeadState）或架势崩解（StaggerBrokenState）已由 TakeDamage 内部流程接管，
-        // 这两种情况不能再覆盖为普通受击硬直
-        if (CurrentHP <= 0 || IsPostureBroken) return;
+        if (CurrentHP <= 0) return;
+
+        HurtContext ctx = knockback > 0f ? HurtContext.Heavy : HurtContext.Normal;
+
+        // 玩家已经倒地后再挨刀：解除崩解，直接切受击动画（Hurt_Ground / Hurt_Heavy）。
+        // Boss 崩解是处决窗口，保持倒地，不能被普通命中抬起来。
+        if (alreadyBroken)
+        {
+            if (CombatManager.Instance != null && this == CombatManager.Instance.PlayerRef)
+            {
+                ClearPostureBreak();
+                MainStateMachine.ChangeState(new StunnedState(this, ctx));
+            }
+            return;
+        }
+
+        // 本次命中才刚打崩：TakeDamage 已切 StaggerBroken，不要覆盖成普通受击
+        if (IsPostureBroken) return;
 
         // 3. 强制打断当前行为，切入受击父状态
-        //    这属于环境/物理强制覆写，不走 Command，直接强切顶层状态机。
-        //    受击动画选择：knockback > 0 → Heavy（击飞/击退），否则 Normal（接口预留）
-        HurtContext ctx = knockback > 0f ? HurtContext.Heavy : HurtContext.Normal;
         MainStateMachine.ChangeState(new StunnedState(this, ctx));
     }
 }

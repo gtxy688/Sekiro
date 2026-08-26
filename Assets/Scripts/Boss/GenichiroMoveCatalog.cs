@@ -3,7 +3,9 @@ using UnityEngine;
 // 弦一郎默认招式表。由 Editor 按钮写入 BossMoveTable，不要运行时调用。
 public static class GenichiroMoveCatalog
 {
-    static BossMoveWindow Hit(float duration, float hitAt = 0.2f, float recoverAt = -1f)
+    static BossMoveWindow Hit(float duration, float hitAt = 0.2f, float recoverAt = -1f,
+        PerilousType perilous = PerilousType.None,
+        AttackHitboxSlot slot = AttackHitboxSlot.Weapon)
     {
         float rec = recoverAt > 0f ? recoverAt : duration * 0.55f;
         return new BossMoveWindow
@@ -13,7 +15,9 @@ public static class GenichiroMoveCatalog
             comboWindowEnd = Mathf.Min(duration, rec + 0.15f),
             stateDuration = duration,
             rotateEnd = Mathf.Min(0.35f, duration),
-            transitionDuration = 0.1f
+            transitionDuration = 0.1f,
+            perilous = perilous,
+            hitboxSlot = slot
         };
     }
 
@@ -123,14 +127,15 @@ public static class GenichiroMoveCatalog
             Move("Slash_Heavy", BossMoveLayer.Active, 3f, 5f, 30f, 5f,
                 new[] { Seq("Slash_Heavy") }, new[] { Hit(2.0f) }),
             Move("Slash_SpinElbow", BossMoveLayer.Active, 0f, 5f, 15f, 6f,
-                new[] { Seq("Slash_Spin", "Elbow") }, new[] { Hit(1.6f), Hit(1.4f) }),
+                new[] { Seq("Slash_Spin", "Elbow") },
+                new[] { Hit(1.6f), Hit(1.4f, perilous: PerilousType.Grab, slot: AttackHitboxSlot.Elbow) }),
             Move("Slash_StepTurn", BossMoveLayer.Active, 0f, 3f, 15f, 4f,
                 new[] { Seq("Slash_StepTurn") }, new[] { Hit(1.8f) }),
             Move("Kick", BossMoveLayer.Active, 0f, 3f, 30f, 5f,
                 new[] { Seq("Attack_Slash", "Kick") }, new[] { Hit(1.2f), Hit(1.4f) }),
             Move("JumpThrust", BossMoveLayer.Active, 0f, 5f, 20f, 8f,
                 new[] { Seq("JumpThrust") }, new[] { Hit(2.2f, 0.35f, 1.4f) },
-                PerilousType.Thrust),
+                PerilousType.JumpThrust),
             Move("Perilous_Sweep", BossMoveLayer.Active, 0f, 5f, 10f, 8f,
                 new[] { Seq("Sweep") }, new[] { Hit(2.4f, 0.4f, 1.6f) },
                 PerilousType.Sweep),

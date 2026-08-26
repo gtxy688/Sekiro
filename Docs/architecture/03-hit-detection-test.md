@@ -9,17 +9,19 @@
 | 角色 | 身体（被打） | 武器（打人） |
 |------|------------|------------|
 | 玩家 | Capsule Collider（自带）+ `Hurtbox` 组件 | 刀身 + `Hitbox` 组件 |
-| Boss | Capsule Collider + `Hurtbox` 组件 | `sword_joint` 骨骼（或子空节点）+ `Hitbox` 组件 |
+| Boss | Capsule Collider + `Hurtbox` 组件 | 刀：`sword_joint` 子节点 + `Hitbox`，拖到 `weaponHitbox`；Elbow 段：拳/指关节子节点 + `Hitbox`，拖到 `elbowHitbox` |
 
 > - **Hurtbox** = "我是目标"的标记，挂身体（跟 Capsule Collider 同一物体即可）。**碰撞体必须包住身体**，过小会导致部分刀（尤其 Attack2）扫空。
-> - **Hitbox** = 代码扫描器（不是碰撞体！），挂**武器中央**（刃中段）；刀**不需要** Collider。挂偏（柄/手骨/根）时第一刀可能碰巧中、后面刀漏。
+> - **Hitbox** = 代码扫描器（不是碰撞体！），挂**武器中央**（刃中段）或肢体中段；刀/胳膊**不需要** Collider。挂偏（柄/手骨/根）时第一刀可能碰巧中、后面刀漏。
 > - **判定点**：必须是骨骼/刀网格的**子级**，否则挥剑时判定点不跟刀动。
+> - **多槽**：`AttackConfig.HitboxSlot` / 招式表 `hitboxSlot` 选本段用哪把。同时只亮一把；肘未拖则回退刀。
 
 ### 2. Hitbox 参数
 
 | 参数 | 建议值 | 说明 |
 |------|--------|------|
-| `castRadius` | 0.1 ~ 0.2 | 扫描球半径 ≈ 刀身粗细；挂骨骼上时建议 0.2 |
+| 刀 `castRadius` | 0.1 ~ 0.2 | 扫描球半径 ≈ 刀身粗细；挂骨骼上时建议 0.2 |
+| 拳 `castRadius` | 0.15 ~ 0.25 | 拳头大小；父物体用**手骨**，不要用肘骨（否则胶囊会扫整条小臂） |
 | `targetLayers` | 对方角色所在层 | 玩家/Boss 放同一"战斗层"互相能扫到 |
 
 ### 3. 场景
@@ -53,6 +55,19 @@
 | 8 | Boss 放突刺（PerilousType.Thrust），玩家举盾防御 | 防御无效，玩家受伤（危字不可防） |
 | 9 | Boss 放突刺，玩家按垫步 | 触发 MikiriCounterState，播踩刀动画，敌人架势大幅上涨 |
 | 10 | 普通攻击时玩家垫步 | 无敌帧判定（M4 细化） |
+
+## 肘击 Hitbox 槽（Slash_SpinElbow）
+
+前置：Boss `elbowHitbox` 已拖**拳头**采样点；刀仍在 `weaponHitbox`（或自动找到刀且不是拳）。
+
+| # | 操作 | 预期 |
+|---|------|------|
+| 11 | 普通挥砍（玩家或 Boss 刀） | 仍用刀 Hitbox，手感与现在一致 |
+| 12 | `Slash_SpinElbow` 第一段 `Slash_Spin` | 刀扫到才结算；肘采样点不开 |
+| 13 | 第二段 `Elbow`，贴身让**拳**撞到玩家 | 结算一次；危字 Grab；可弹反/格挡；垫步可躲；识破不触发 |
+| 14 | `Elbow` 段刀从身侧刮过、拳没碰到 | 不结算（证明切到了拳槽，不是刀） |
+| 15 | Boss 未拖 `elbowHitbox` 仍放肘击 | 回退刀 + Console Warning，不报错 |
+| 16 | 退出攻击 / 被弹开 | 肘 Hitbox 关闭，不会残留扫描 |
 
 ## 常见问题
 

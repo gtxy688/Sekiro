@@ -34,6 +34,10 @@ public class AttackConfig : ScriptableObject
     // 危字攻击不可被普通防御/弹反抵挡，玩家必须用对应方式应对
     public PerilousType Perilous = PerilousType.None;
 
+    [Header("判定 Hitbox")]
+    [Tooltip("本招用哪把采样点。玩家保持 Weapon。Boss 的 Elbow 段（拳头）选 Elbow。")]
+    public AttackHitboxSlot HitboxSlot = AttackHitboxSlot.Weapon;
+
     [Header("取消窗口")]
     [Tooltip("进招后多少秒内可用格挡/垫步取消。武器判定也从这一刻开启。0 = 进招即开判定且不可取消")]
     public float HitStartTime = 0.2f;

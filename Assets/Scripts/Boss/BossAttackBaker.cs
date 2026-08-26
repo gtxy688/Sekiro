@@ -7,13 +7,17 @@ public static class BossAttackBaker
     {
         AttackConfig cfg = ScriptableObject.CreateInstance<AttackConfig>();
         cfg.hideFlags = HideFlags.HideAndDontSave;
+        cfg.name = string.IsNullOrEmpty(animName) ? entry.id : entry.id + "_" + animName;
         cfg.AnimName = animName;
         cfg.TransitionDuration = w.transitionDuration;
         cfg.BaseDamage = entry.baseDamage;
         cfg.PostureDamage = entry.postureDamage;
         cfg.Knockback = entry.knockback;
         bool canHit = w.hitStartTime < w.stateDuration;
-        cfg.Perilous = canHit ? entry.perilous : PerilousType.None;
+        // 危字：段级优先（一招多段中仅某段危字），未标则回退招式级；都未标 = 非危字
+        PerilousType perilous = w.perilous != PerilousType.None ? w.perilous : entry.perilous;
+        cfg.Perilous = canHit ? perilous : PerilousType.None;
+        cfg.HitboxSlot = w.hitboxSlot;
         cfg.HitStartTime = w.hitStartTime;
         cfg.RecoveryWindowStart = w.recoverStart;
         cfg.ComboWindowEnd = w.comboWindowEnd;

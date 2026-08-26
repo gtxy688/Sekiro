@@ -187,6 +187,20 @@ public class AttackTimelineWindow : EditorWindow
                 segmentIndex = EditorGUILayout.Popup("第几段动画", segmentIndex, segs);
             }
 
+            BossMoveWindow window = CurrentWindow();
+            if (window != null)
+            {
+                EditorGUI.BeginChangeCheck();
+                AttackHitboxSlot slot = (AttackHitboxSlot)EditorGUILayout.EnumPopup(
+                    "判定 Hitbox", window.hitboxSlot);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(bossTable, "Attack Timeline Hitbox");
+                    window.hitboxSlot = slot;
+                    EditorUtility.SetDirty(bossTable);
+                }
+            }
+
             if (entry != null && entry.sequences != null && entry.sequences.Length > 1)
                 EditorGUILayout.LabelField(
                     "另有 " + (entry.sequences.Length - 1) + " 套动画分支，预览第一套；时间窗各套共用。",
