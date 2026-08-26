@@ -1,27 +1,33 @@
 using DG.Tweening;
 using UnityEngine;
 
-// 游戏结束提示（M14 UI）：真死时弹出——大字"死" + 重开按键提示
-// 由 CombatUIController 订阅 OnDeath 驱动。轻量提示，非结算画面（策划案范围外不做结算）
+// 真死提示：回生超时或没有复活次数。和回生/胜利同一套暗金面板。
 public class GameOverView : UIView
 {
-    [SerializeField] private TMPro.TextMeshProUGUI deathText; // 巨大"死"字
-    [SerializeField] private TMPro.TextMeshProUGUI hintText;  // "按攻击键重新开始"
+    [SerializeField] private TMPro.TextMeshProUGUI deathText;
+    [SerializeField] private TMPro.TextMeshProUGUI hintText;
     [SerializeField] private CanvasGroup canvasGroup;
+
+    public override void OnViewInit()
+    {
+        CombatPromptStyle.EnsureChrome(transform, deathText, hintText, new Vector2(500f, 280f));
+    }
 
     public void ShowGameOver()
     {
         Show();
+        OnViewInit();
 
         canvasGroup.DOKill();
-        deathText.transform.DOKill();
+        if (deathText != null) deathText.transform.DOKill();
 
         canvasGroup.alpha = 0f;
-        canvasGroup.DOFade(1f, 0.6f);
-
-        // "死"字压出：大 → 正常，带红晕
-        deathText.transform.localScale = Vector3.one * 1.8f;
-        deathText.transform.DOScale(Vector3.one, 0.4f).SetEase(Ease.OutCubic);
-        deathText.DOColor(new Color(0.8f, 0.05f, 0.05f, 1f), 0.5f);
+        canvasGroup.DOFade(1f, 0.4f).SetUpdate(true);
+        if (deathText != null)
+        {
+            deathText.color = CombatPromptStyle.Accent;
+            deathText.transform.localScale = Vector3.one * 0.92f;
+            deathText.transform.DOScale(Vector3.one, 0.3f).SetEase(Ease.OutCubic).SetUpdate(true);
+        }
     }
 }

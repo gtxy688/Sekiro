@@ -1,42 +1,37 @@
 using UnityEngine;
 
 // 识破（踩刀）状态（M17）：突刺危字攻击 + 玩家垫步 → 触发识破
-// 播踩刀动画 → 大幅涨攻击者架势 → 回待机
+// 播踩刀动画 → 大幅涨攻击者架势 → 崩解时踩刀剩余动画就是忍杀确认窗口
 // 叶子状态，位于 GroundedState.SubStateMachine
 public class MikiriCounterState : BaseState
 {
+    private const string MikiriAnim = "Mikiri";
+    private const float FallbackDuration = 2.5f;
+
     private HierarchicalState parent;
-    private CharacterBody attacker;  // 突刺的攻击者（识破反噬对象）
+    private CharacterBody attacker;
     private float timer;
-    private float duration;
     private float postureGain;
     private bool finisherWindow;
+    private bool hasSeenMikiri;
 
     public MikiriCounterState(CharacterBody body, HierarchicalState parent, HitData hit) : base(body)
     {
         this.parent = parent;
         this.attacker = hit.attacker;
-        // 时长/架势收益从 Config 读（SO 数值，禁止硬编码）
-        if (body.Config != null)
-        {
-            duration = body.Config.MikiriDuration;
-            postureGain = body.Config.MikiriPostureGain;
-        }
-        else
-        {
-            duration = 0.8f;
-            postureGain = 30f;
-        }
+        postureGain = body.Config != null ? body.Config.MikiriPostureGain : 30f;
     }
 
     public override void OnEnter()
     {
         timer = 0f;
+        hasSeenMikiri = false;
 
-        // 播踩刀动画（占位名，M8 接动画前）
-        body.Animator.CrossFade("Mikiri", 0.05f);
+        if (!AnimUtil.TryPlay(body.Animator, MikiriAnim))
+        {
+            Debug.LogError($"{body.name} 的 Animator 缺少识破状态：{MikiriAnim}");
+        }
 
-        // 识破成功：大幅涨攻击者架势（只狼核心：踩刀反制）
         finisherWindow = false;
         if (attacker != null)
         {
@@ -44,9 +39,13 @@ public class MikiriCounterState : BaseState
                 postureGain,
                 allowBreak: true,
                 source: PostureBreakSource.Mikiri);
+            // 没打崩也要打断挥刀，播被识破硬直（只狼：踩刀把这一招废掉）。
+            if (!finisherWindow)
+            {
+                attacker.ForceMikiriStun();
+            }
         }
 
-        // 表现：打铁音效/火花（Perfect 级别）
         CombatEventBus.TriggerWeaponDeflected(
             CombatFxPoint.BetweenWeapons(attacker, body, body.transform.position + Vector3.up * 1.2f),
             DeflectType.Perfect);
@@ -56,17 +55,30 @@ public class MikiriCounterState : BaseState
     {
         timer += Time.deltaTime;
 
-        if (timer >= duration)
+        AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
+        if (AnimUtil.IsPlaying(info, MikiriAnim))
         {
-            if (finisherWindow && attacker != null && attacker.IsPostureBroken)
+            hasSeenMikiri = true;
+            if (info.normalizedTime >= 0.95f)
             {
-                attacker.RecoverFromBreak(0.8f);
+                ExpireWindow();
             }
-            parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+            return;
+        }
+
+        if (hasSeenMikiri && !body.Animator.IsInTransition(0))
+        {
+            ExpireWindow();
+            return;
+        }
+
+        // 没切到 Clip 时才用兜底，不能用 0.8s 配置把确认窗口提前掐掉。
+        if (!hasSeenMikiri && timer >= FallbackDuration)
+        {
+            ExpireWindow();
         }
     }
 
-    // 识破期间吞掉所有命令（不可打断）
     public override bool HandleCommand(ICommand cmd)
     {
         if (finisherWindow && cmd is AttackCommand)
@@ -74,5 +86,14 @@ public class MikiriCounterState : BaseState
             CombatManager.Instance?.TryExecuteFinisher(body, FinisherKind.Mikiri);
         }
         return true;
+    }
+
+    private void ExpireWindow()
+    {
+        if (finisherWindow && attacker != null && attacker.IsPostureBroken)
+        {
+            attacker.RecoverFromBreak(0.8f);
+        }
+        parent.SubStateMachine.ChangeState(new IdleState(body, parent));
     }
 }

@@ -27,6 +27,7 @@ MainStateMachine（顶层，只装 HierarchicalState）
 > **移动方式：全权根运动**。位移完全由动画 Root 曲线驱动（Animator.applyRootMotion = true），
 > `CharacterBody.OnAnimatorMove` 把动画位移转成 Rigidbody 水平速度（Y 保留重力），
 > 代码只负责朝向（RotateTowards）与状态切换，不再直接设置速度。
+> 切动画一律走 `AnimUtil.TryPlay` / `TryCrossFade`：用短名哈希在整层查找（状态名不重复），不要拼 `_Hurt.xxx`。两参数 `CrossFade` 会把 layer 当成 -1，必须走带 layer 的哈希重载。
 > **已移除的状态**（无对应动画资源）：AirAttackState、AirDeflectState、AirStunnedState、JumpState、FallState（跳跃/下落共用 AirIdleState）。
 
 **红线**：顶层只装 HierarchicalState。叶子状态永远在父状态 SubStateMachine 内。
@@ -159,7 +160,8 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 - 处决身份：`CombatManager.PlayerRef` 是唯一发起者，受害者固定 `BossRef`。`TryExecuteFinisher` 正向断言 `initiator == PlayerRef && initiator != BossRef && !initiator.IsPostureBroken`。Boss 的 `AttackCommand` 不能把自己当处决发起者。
 - 弹反崩解：Boss 播 `Stagger_Broken_Deflect`，玩家播 `DeflectToFinsher`；窗口内按攻击后双方播放 `Finsher_Deflect`。反向（Boss 弹反打崩玩家）玩家走 `StaggerBrokenState` 击飞倒地（动画播完即恢复，不加额外硬直），Boss 不进确认窗口，继续弹反挥刀。
 - 玩家被攻击打崩：同样播 `Stagger_Broken`，动画结束立刻恢复，不套 `PostureBrokenDuration`。崩解期间父层不响应跳跃/喝药；若仍被带入空中，落地回到倒地直到动画结束。倒地期间再挨刀：扣血、解除崩解，并切 `StunnedState` 播 `Hurt_Ground` / `Hurt_Heavy`（打崩那一刀仍只播倒地）。Boss 崩解窗口保持倒地，不被普通命中抬起。
-- 识破崩解：Boss 立即播放专用 `Stagger_Broken_Miriki`，玩家现有 `Mikiri` 剩余动画作为确认窗口；按攻击后双方播放 `Finsher_Mikiri`。
+- 识破未崩解：Boss 立刻停招，播 `Mikiri_Deflect`（Animator 里若仍叫 `Miriki_Deflect` 也能解析），硬直结束回待机。不抢交锋反击（`KengekiArmed` 不置位）。
+- 识破崩解：Boss 立即播放专用 `Stagger_Broken_Mikiri`（现资源名 `Stagger_Broken_Miriki` 仍兼容）。玩家现有 `Mikiri` 剩余动画作为确认窗口（跟 Clip 走）。窗口内按攻击后双方播放成对忍杀：`Finsher_Mikiri`（Boss 侧现资源名 `Finsher_Miriki` 仍兼容）。弹反/识破确认窗口不走 Ground 处决距离门。
 - 弹反/识破窗口超时：Boss 架势从 100% 降到 80%，解除崩解并隐藏红点。
 - 忍杀开始前双方只转水平朝向彼此，不瞬移对齐站位。开始后隐藏红点；`IsFinisherLocked` 期间双方锁定命令、受击与强切攻击，直到动画播完。
 - Boss 崩解窗口内玩家再按攻击：优先处决（含连招后摇里的 AttackCommand），不进 `NextCombo`。崩解那一刀本身不会再发攻击指令，不会被同一刀直接处决。

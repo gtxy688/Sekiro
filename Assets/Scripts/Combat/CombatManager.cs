@@ -147,20 +147,24 @@ public class CombatManager : MonoBehaviour
         if (!BossRef.IsPostureBroken) return false;
         if (!MatchesBreakSource(kind, BossRef.CurrentPostureBreakSource)) return false;
 
-        float dist = Vector3.Distance(
-            initiator.transform.position, BossRef.transform.position);
-        if (dist > finisherRange) return false;
-
-        string animName = ResolveFinisherAnim(kind);
-        if (!AnimUtil.HasState(initiator.Animator, animName) ||
-            !AnimUtil.HasState(BossRef.Animator, animName))
+        string playerAnim = ResolveFinisherAnim(kind, initiator.Animator);
+        string bossAnim = ResolveFinisherAnim(kind, BossRef.Animator);
+        if (string.IsNullOrEmpty(playerAnim) || string.IsNullOrEmpty(bossAnim))
         {
             Debug.LogError(
-                $"成对忍杀状态缺失：{animName}。请同时检查 {initiator.name} 与 {BossRef.name} 的 Animator。");
+                $"成对忍杀状态缺失：{kind}。请同时检查 {initiator.name} 与 {BossRef.name} 的 Animator（Mikiri/Miriki 拼写都算）。");
             return false;
         }
 
-        AlignFinisherFacing(initiator, BossRef, animName);
+        // 弹反/识破确认窗口里双方已经贴身演完反制，不再用 Ground 处决的距离门卡住。
+        if (kind == FinisherKind.Ground)
+        {
+            float dist = Vector3.Distance(
+                initiator.transform.position, BossRef.transform.position);
+            if (dist > finisherRange) return false;
+        }
+
+        AlignFinisherFacing(initiator, BossRef, playerAnim, bossAnim);
 
         activeFinisherPlayer = initiator;
         activeFinisherVictim = BossRef;
@@ -178,9 +182,9 @@ public class CombatManager : MonoBehaviour
         CombatEventBus.TriggerFinisherOpportunityChanged(BossRef, false);
 
         BossRef.MainStateMachine.ChangeState(
-            new GroundedState(BossRef, new FinisherVictimState(BossRef, animName)));
+            new GroundedState(BossRef, new FinisherVictimState(BossRef, bossAnim)));
         initiator.MainStateMachine.ChangeState(
-            new GroundedState(initiator, new FinisherState(initiator, BossRef, animName)));
+            new GroundedState(initiator, new FinisherState(initiator, BossRef, playerAnim)));
 
         CombatEventBus.TriggerFinisherStarted(
             BossRef.transform.position, initiator, BossRef, kind);
@@ -210,11 +214,12 @@ public class CombatManager : MonoBehaviour
         return TryExecuteFinisher(initiator, kind);
     }
 
-    // 只转朝向、不瞬移。成对 Root 才能对上。
+    // 只转朝向、不瞬移。成对 Root 才能对上。双方 Clip 短名可以不同（Mikiri/Miriki）。
     private static void AlignFinisherFacing(
         CharacterBody player,
         CharacterBody boss,
-        string animName)
+        string playerAnim,
+        string bossAnim)
     {
         if (player == null || boss == null) return;
 
@@ -222,8 +227,8 @@ public class CombatManager : MonoBehaviour
         toBoss.y = 0f;
         if (toBoss.sqrMagnitude < 0.0001f) return;
 
-        player.SnapYaw(toBoss, animName);
-        boss.SnapYaw(-toBoss, animName);
+        player.SnapYaw(toBoss, playerAnim);
+        boss.SnapYaw(-toBoss, bossAnim);
     }
 
     // 动画结束由 FinisherState 调用；若 Clip 仍残留事件也不会重复清命。
@@ -279,16 +284,16 @@ public class CombatManager : MonoBehaviour
         }
     }
 
-    private static string ResolveFinisherAnim(FinisherKind kind)
+    private static string ResolveFinisherAnim(FinisherKind kind, Animator animator)
     {
         switch (kind)
         {
             case FinisherKind.Deflect:
-                return "Finsher_Deflect";
+                return AnimUtil.ResolveState(animator, "Finsher_Deflect");
             case FinisherKind.Mikiri:
-                return "Finsher_Mikiri";
+                return AnimUtil.ResolveState(animator, "Finsher_Mikiri", "Finsher_Miriki");
             default:
-                return "Finsher_Ground";
+                return AnimUtil.ResolveState(animator, "Finsher_Ground");
         }
     }
 }

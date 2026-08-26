@@ -30,7 +30,7 @@ public class FinisherReadyState : BaseState
             return;
         }
 
-        body.Animator.CrossFade(ReadyAnim, 0.05f);
+        AnimUtil.TryCrossFade(body.Animator, ReadyAnim, 0.05f);
     }
 
     public override void OnUpdate()

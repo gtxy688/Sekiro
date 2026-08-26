@@ -75,9 +75,9 @@ public class StaggerBrokenState : BaseState
         }
         else if (!triedNestedPath && timer > 0.05f)
         {
-            // 等 Animator 吃到 OnEnter 的 Play；仍对不上再走 _Hurt 子状态机路径
+            // 等 Animator 吃到 OnEnter 的 Play；仍对不上再解析一次子状态机路径
             triedNestedPath = true;
-            body.Animator.Play("_Hurt." + animName, 0, 0f);
+            AnimUtil.TryPlay(body.Animator, animName);
         }
 
         // 短名对不上或 clipInfo 为空时，仍按兜底时长结束，避免满条卡死。

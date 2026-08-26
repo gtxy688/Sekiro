@@ -23,7 +23,10 @@ public class BT_BowShot : Node
             if (bowConfig == null) return NodeState.Failure;
 
             // 拉弓动画（占位名，M8 接动画前）
-            body.Animator.CrossFade("Bow_Draw", 0.1f);
+            if (!AnimUtil.TryCrossFade(body.Animator, "Bow_Draw", 0.1f))
+            {
+                AnimUtil.TryCrossFade(body.Animator, "Bow_Shot", 0.1f);
+            }
             bowStartTime = Time.time;
             active = true;
             return NodeState.Running;

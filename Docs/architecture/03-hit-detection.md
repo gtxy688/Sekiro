@@ -35,6 +35,8 @@ BoxCast 用"上一帧位置 → 当前帧位置"扫一段，防止高速挥砍�
 
 Boss **一条 Clip 多段出伤**：`hitPulses` 非空时，`AttackState` 按每段 `[start,end)` 脉冲开关刀。每次 `Enable` 清空 `hitTargets`，所以每段对同一目标只结算一次。空数组仍走上面的一对开关。玩家通常长度为 1（一刀）；用 `ARPG/攻击时间轴` 对着动画拖。
 
+**无近战判定（弓段 / 垫步）：** 写成 `hitStartTime == recoverStart == comboWindowEnd == stateDuration`，`hitPulses` 空。`AttackState` / `EnableWeaponHit` 全程不开刀。**不要把红条缩成 0～0.01s**：进招第 0 帧 `animTime=0`，`0 >= 0 && 0 < 0.01` 仍会亮刀一帧。时间轴点「关闭近战判定」再保存。弓 Clip 上不要加 `EnableWeaponHit` 动画事件；箭走投射物。
+
 ## 二、组件拆分
 
 ### Hitbox（挂在武器中央）
@@ -130,6 +132,7 @@ public class CombatManager : MonoBehaviour
 - 新建：`Assets/Scripts/Combat/CombatManager.cs`
 - 新建：`Assets/Scripts/FrameWork/States/Ground/MikiriCounterState.cs`
 - 修改：`Assets/Scripts/SO/AttackConfig.cs`（Perilous、HitboxSlot）
+- 修改：`Assets/Scripts/SO/AttackWindowSync.cs`（NoHit / 假红条下限）
 - 修改：`Assets/Scripts/FrameWork/Body/CharacterBody.cs`（多 Hitbox 槽位）
 - 修改：`Assets/Scripts/Boss/BossMoveWindow.cs`（段级危字、hitboxSlot）
 - 修改：`Assets/Scripts/FrameWork/States/Command.cs`（HitData 危字字段）

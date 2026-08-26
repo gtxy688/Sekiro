@@ -108,7 +108,7 @@ public class DeflectState : BaseState
         {
             inBegin = true;
             raiseAnim = "Deflect_Repeat";
-            body.Animator.CrossFadeInFixedTime("Deflect_Repeat", 0.05f);
+            AnimUtil.TryCrossFadeInFixedTime(body.Animator, "Deflect_Repeat", 0.05f);
         }
         else if (IsPlayingLocomotion())
         {
@@ -122,7 +122,7 @@ public class DeflectState : BaseState
         {
             inBegin = true;
             raiseAnim = "Deflect_Begin";
-            body.Animator.CrossFadeInFixedTime("Deflect_Begin", 0.12f);
+            AnimUtil.TryCrossFadeInFixedTime(body.Animator, "Deflect_Begin", 0.12f);
         }
     }
 
@@ -366,7 +366,7 @@ public class DeflectState : BaseState
         }
         else
         {
-            body.Animator.CrossFade(deflectAnim, 0.05f);
+            AnimUtil.TryCrossFade(body.Animator, deflectAnim, 0.05f);
         }
         guardFlinchTimer = 0.25f;
         return true;
@@ -389,7 +389,7 @@ public class DeflectState : BaseState
         waitingGuardHurt = true;
         hasSeenGuardHurt = false;
         guardFlinchTimer = 0f;
-        body.Animator.CrossFade(guardHurtAnim, 0.03f);
+        AnimUtil.TryCrossFade(body.Animator, guardHurtAnim, 0.03f);
 
         CombatEventBus.TriggerWeaponDeflected(
             CombatFxPoint.BetweenWeapons(hit.attacker, body, hit.hitPoint), DeflectType.Normal);
@@ -404,7 +404,7 @@ public class DeflectState : BaseState
         inBegin = false;
         cancelTimer = 0f;
         currentLoopAnim = null;
-        body.Animator.CrossFade("Deflect_Cancel", 0.05f);
+        AnimUtil.TryCrossFade(body.Animator, "Deflect_Cancel", 0.05f);
     }
 
     private void PlayGuardLoop(bool force, bool matchCycle = false, float blendSeconds = 0.08f)
@@ -423,7 +423,7 @@ public class DeflectState : BaseState
         }
 
         currentLoopAnim = want;
-        body.Animator.CrossFadeInFixedTime(want, blendSeconds, 0, startAt);
+        AnimUtil.TryCrossFadeInFixedTime(body.Animator, want, blendSeconds, 0, startAt);
     }
 
     private void RotateIfMoving()

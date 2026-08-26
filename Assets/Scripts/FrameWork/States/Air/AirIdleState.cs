@@ -177,7 +177,6 @@ public class AirIdleState : BaseState
 
     private void Play(string stateName, float blend)
     {
-        if (!AnimUtil.HasState(body.Animator, stateName)) return;
-        body.Animator.CrossFade(stateName, blend, 0);
+        AnimUtil.TryCrossFade(body.Animator, stateName, blend);
     }
 }

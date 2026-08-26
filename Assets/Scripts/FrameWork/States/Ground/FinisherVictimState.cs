@@ -5,6 +5,8 @@ using UnityEngine;
 public class FinisherVictimState : BaseState
 {
     private readonly string animName;
+    private bool triedNestedPath;
+    private float timer;
 
     public FinisherVictimState(CharacterBody body, string animName) : base(body)
     {
@@ -13,6 +15,8 @@ public class FinisherVictimState : BaseState
 
     public override void OnEnter()
     {
+        triedNestedPath = false;
+        timer = 0f;
         body.IsFinisherLocked = true;
         body.IsAttacking = false;
         body.MoveDirection = Vector3.zero;
@@ -39,6 +43,25 @@ public class FinisherVictimState : BaseState
     public override void OnExit()
     {
         body.IsFinisherLocked = false;
+    }
+
+    public override void OnUpdate()
+    {
+        body.MoveDirection = Vector3.zero;
+        if (triedNestedPath || body.Animator == null) return;
+
+        timer += Time.deltaTime;
+        AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
+        if (AnimUtil.IsPlaying(info, animName))
+        {
+            triedNestedPath = true;
+            return;
+        }
+
+        if (timer <= 0.05f) return;
+
+        triedNestedPath = true;
+        AnimUtil.TryPlay(body.Animator, animName);
     }
 
     public override bool HandleCommand(ICommand cmd)

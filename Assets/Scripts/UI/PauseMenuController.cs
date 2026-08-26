@@ -66,7 +66,7 @@ public class PauseMenuController : MonoBehaviour
     private const string KitDividerPath =
         "Assets/Space_Exploration_GUI_Kit/Settings_&_Menu_Components/Large/settings-divider-large.png";
     private const string KitClosePath =
-        "Assets/Space_Exploration_GUI_Kit/Picto_Icons/White/cross-64.png";
+        "Assets/Space_Exploration_GUI_Kit/Picto_Icons/White/cross-128.png";
 
     private static readonly Color PanelColor = new Color(0.07f, 0.07f, 0.07f, 0.96f);
     private static readonly Color ButtonColor = new Color(0.18f, 0.18f, 0.18f, 1f);
@@ -568,18 +568,18 @@ public class PauseMenuController : MonoBehaviour
         tick.enabled = false;
 
         TextMeshProUGUI titleLabel = CreateLabel(row.transform, title, 24f, TextAlignmentOptions.Left,
-            new Vector2(-168f, 0f), new Vector2(140f, 36f));
+            new Vector2(-175f, 0f), new Vector2(130f, 36f));
         titleLabel.color = SliderLabelIdle;
 
         TextMeshProUGUI valueLabel = CreateLabel(row.transform, "80%", 24f, TextAlignmentOptions.Right,
-            new Vector2(-48f, 0f), new Vector2(68f, 36f));
+            new Vector2(-78f, 0f), new Vector2(60f, 36f));
         valueLabel.color = SliderLabelIdle;
 
         Image hit = CreateImage(row.transform, "Slider", new Color(1f, 1f, 1f, 0f));
         RectTransform hitRect = hit.rectTransform;
         hitRect.anchorMin = hitRect.anchorMax = hitRect.pivot = new Vector2(0.5f, 0.5f);
-        hitRect.sizeDelta = new Vector2(248f, 40f);
-        hitRect.anchoredPosition = new Vector2(126f, 0f);
+        hitRect.sizeDelta = new Vector2(236f, 40f);
+        hitRect.anchoredPosition = new Vector2(138f, 0f);
 
         Image track = CreateImage(hit.transform, "Track", TrackTint);
         track.sprite = volumeTrackSprite;
@@ -793,8 +793,8 @@ public class PauseMenuController : MonoBehaviour
         RectTransform rect = hit.rectTransform;
         rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
         rect.pivot = new Vector2(1f, 1f);
-        rect.sizeDelta = new Vector2(44f, 44f);
-        rect.anchoredPosition = new Vector2(-10f, -10f);
+        rect.sizeDelta = new Vector2(48f, 48f);
+        rect.anchoredPosition = new Vector2(-8f, -8f);
 
         Image icon = CreateImage(hit.transform, "Icon", TextColor);
         icon.sprite = closeIconSprite;
@@ -802,7 +802,7 @@ public class PauseMenuController : MonoBehaviour
         icon.raycastTarget = false;
         RectTransform iconRect = icon.rectTransform;
         iconRect.anchorMin = iconRect.anchorMax = iconRect.pivot = new Vector2(0.5f, 0.5f);
-        iconRect.sizeDelta = new Vector2(22f, 22f);
+        iconRect.sizeDelta = new Vector2(28f, 28f);
         iconRect.anchoredPosition = Vector2.zero;
 
         Button button = hit.gameObject.AddComponent<Button>();

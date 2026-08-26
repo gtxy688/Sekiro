@@ -49,7 +49,7 @@ public class HealState : BaseState
         body.IsHealing = true;
         body.Animator.SetLayerWeight(upperLayerIndex, 1f);
         // 默认态可能已经停在喝药末帧，CrossFade 同状态不会重播。
-        body.Animator.Play(DrinkState, upperLayerIndex, 0f);
+        AnimUtil.TryPlay(body.Animator, DrinkState, upperLayerIndex);
         UpdateStrafeParams(instant: true);
         PlayBaseLocomotion(force: true);
     }
@@ -93,7 +93,7 @@ public class HealState : BaseState
         {
             if (AnimUtil.HasState(body.Animator, EmptyState, upperLayerIndex))
             {
-                body.Animator.Play(EmptyState, upperLayerIndex, 0f);
+                AnimUtil.TryPlay(body.Animator, EmptyState, upperLayerIndex);
             }
             body.Animator.SetLayerWeight(upperLayerIndex, 0f);
         }
@@ -126,7 +126,7 @@ public class HealState : BaseState
         }
 
         currentBaseState = wanted;
-        body.Animator.CrossFadeInFixedTime(wanted, 0.08f, 0);
+        AnimUtil.TryCrossFadeInFixedTime(body.Animator, wanted, 0.08f);
     }
 
     private void UpdateFacingAndMovement()

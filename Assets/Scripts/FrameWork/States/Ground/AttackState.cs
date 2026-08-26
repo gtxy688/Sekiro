@@ -40,15 +40,10 @@ public class AttackState : BaseState
             return;
         }
 
-        if (!AnimUtil.HasState(body.Animator, config.AnimName))
+        // 招式在 _Attack/_Bow/_Clash/_Danger 子状态机里，必须走 Parent.State。
+        if (!AnimUtil.TryCrossFade(body.Animator, config.AnimName, config.TransitionDuration))
         {
             Debug.LogError($"{body.name} 的 Animator 缺少攻击状态：{config.AnimName}");
-        }
-        else
-        {
-            // 必须指定 layer 0：两参数 CrossFade 会把 layer 当成 -1，
-            // 嵌套子状态机里的 Attack1 会 GotoState 失败，刀停在待机姿势。
-            body.Animator.CrossFade(config.AnimName, config.TransitionDuration, 0);
         }
 
         // 前摇不开判定：贴身时刀还在蓄力就会扫到。到 HitStartTime / 第一段 pulse 再开。
@@ -239,7 +234,7 @@ public class AttackState : BaseState
         for (int i = 0; i < pulses.Length; i++)
         {
             HitPulse p = pulses[i];
-            if (p == null) continue;
+            if (!AttackWindowSync.PulseIsMelee(p)) continue;
             if (animTime >= p.start && animTime < p.end)
                 return true;
         }
@@ -261,11 +256,16 @@ public class AttackState : BaseState
 
     // 有 hitPulses：按段脉冲开关，每段 Enable 会清 hitTargets，所以每刀只打一次。
     // 无 hitPulses：沿用 HitStartTime → RecoveryWindowStart 一对开关。
+    // NoHit / 0.01s 假红条：CanMeleeHit 为假，全程不开刀。
     private void ApplyHitbox()
     {
-        bool wantOn = HasHitPulses()
-            ? IsInHitPulse()
-            : (animTime >= config.HitStartTime && animTime < config.RecoveryWindowStart);
+        bool wantOn = false;
+        if (AttackWindowSync.CanMeleeHit(config.HitStartTime, config.RecoveryWindowStart, config.hitPulses))
+        {
+            wantOn = HasHitPulses()
+                ? IsInHitPulse()
+                : (animTime >= config.HitStartTime && animTime < config.RecoveryWindowStart);
+        }
 
         if (wantOn && !weaponHitEnabled)
         {

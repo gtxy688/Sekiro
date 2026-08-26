@@ -1,17 +1,20 @@
 using UnityEngine;
 
-// 被完美弹反后的硬直（M4）：攻击者被弹开，播 Deflected，动画结束回待机。
-// 由 CharacterBody.ForceParryStun 强切（顶层走 GroundedState 初始子状态）。
+// 被完美弹反 / 被识破后的硬直：攻击者被打断，播指定 Clip，动画结束回待机。
+// 由 CharacterBody.ForceParryStun / ForceMikiriStun 强切（顶层走 GroundedState 初始子状态）。
 public class ParriedState : BaseState
 {
-    private const string DeflectedAnim = "Deflected";
+    private const string DefaultAnim = "Deflected";
 
+    private readonly string animName;
     private float timer;
     private float duration;
     private bool hasSeenAnim;
+    private bool triedNestedPath;
 
-    public ParriedState(CharacterBody body) : base(body)
+    public ParriedState(CharacterBody body, string animName = null) : base(body)
     {
+        this.animName = string.IsNullOrEmpty(animName) ? DefaultAnim : animName;
         duration = body.Config != null ? body.Config.ParriedDuration : 0.35f;
     }
 
@@ -19,16 +22,14 @@ public class ParriedState : BaseState
     {
         timer = 0f;
         hasSeenAnim = false;
+        triedNestedPath = false;
         body.IsParried = true;
 
-        if (!AnimUtil.HasState(body.Animator, DeflectedAnim))
+        if (!AnimUtil.TryPlay(body.Animator, animName))
         {
-            Debug.LogError($"{body.name} 的 Animator 缺少被弹反状态：{DeflectedAnim}");
-            body.Animator.CrossFade(body.ResolveHurtAnim(HurtContext.Deflected), 0.05f);
-            return;
+            Debug.LogError($"{body.name} 的 Animator 缺少硬直状态：{animName}");
+            AnimUtil.TryCrossFade(body.Animator, body.ResolveHurtAnim(HurtContext.Deflected), 0.05f);
         }
-
-        body.Animator.CrossFade(DeflectedAnim, 0.05f);
     }
 
     public override void OnUpdate()
@@ -36,8 +37,15 @@ public class ParriedState : BaseState
         timer += Time.deltaTime;
 
         AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
+        if (!triedNestedPath && !AnimUtil.IsPlaying(info, animName) && timer > 0.05f)
+        {
+            triedNestedPath = true;
+            AnimUtil.TryPlay(body.Animator, animName);
+            info = body.Animator.GetCurrentAnimatorStateInfo(0);
+        }
+
         bool animDone = false;
-        if (AnimUtil.IsPlaying(info, DeflectedAnim))
+        if (AnimUtil.IsPlaying(info, animName))
         {
             hasSeenAnim = true;
             if (info.normalizedTime >= 0.95f) animDone = true;
@@ -47,23 +55,19 @@ public class ParriedState : BaseState
             animDone = true;
         }
 
-        // 硬直 = max(被弹动画, 配置下限)：ParriedDuration 是"最小硬直"而非"没动画的兜底"。
-        // 只有配置下限到位，弹反方（Boss 弹反玩家时）才能在玩家恢复前完成收刀+反击出手，
-        // 回合制才成立：被弹方稳定被压出一段反击窗口。
+        // 硬直 = max(动画, 配置下限)：ParriedDuration 是最小硬直。
         if (animDone && timer >= duration)
         {
             body.MainStateMachine.ChangeState(new GroundedState(body));
             return;
         }
 
-        // 没接到 Deflected 动画时用配置时长兜底，避免卡死
         if (!hasSeenAnim && timer >= duration)
         {
             body.MainStateMachine.ChangeState(new GroundedState(body));
         }
     }
 
-    // 硬直期间吞掉所有命令
     public override bool HandleCommand(ICommand cmd)
     {
         return true;

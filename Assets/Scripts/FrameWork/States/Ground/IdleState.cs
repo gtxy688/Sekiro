@@ -11,7 +11,7 @@ public class IdleState : BaseState
     public override void OnEnter()
     {
         // 平滑过渡到 Idle 动画，0.1f 的淡入时间避免动画切换生硬
-        body.Animator.CrossFade("Idle", 0.1f); 
+        AnimUtil.TryCrossFade(body.Animator, "Idle", 0.1f); 
 
         // 确保进入 Idle 时，角色的物理速度被完全清空，防止“滑冰”现象
         body.Rb.velocity = new Vector3(0, body.Rb.velocity.y, 0);

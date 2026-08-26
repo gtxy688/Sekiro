@@ -51,8 +51,7 @@ public static class CombatHUDBuilder
         PerilousWarningView perilous = Object.FindObjectOfType<PerilousWarningView>(true);
         if (perilous == null)
             Debug.LogWarning("[CombatHUD] 场景里没有危字 Billboard。先跑 Tools/战斗/生成危字特效。");
-        RevivePromptView revive = BuildPrompt(hud.transform, "RevivePrompt", "回生", "按攻击键复活",
-            new Color(1f, 0.4f, 0.55f));
+        RevivePromptView revive = BuildPrompt(hud.transform, "RevivePrompt", "回生", "按攻击键复活");
         GameOverView gameOver = BuildPromptAsGameOver(hud.transform);
         VictoryView victory = BuildVictory(hud.transform);
 
@@ -206,73 +205,63 @@ public static class CombatHUDBuilder
         return view;
     }
 
-    private static RevivePromptView BuildPrompt(Transform parent, string name, string title, string hint, Color color)
+    private static RevivePromptView BuildPrompt(Transform parent, string name, string title, string hint)
     {
-        GameObject root = CreateUi(name, parent);
-        RectStretch(root.GetComponent<RectTransform>());
-        CanvasGroup group = root.AddComponent<CanvasGroup>();
-        TextMeshProUGUI titleT = CreateText(root.transform, "Title", title, 96, TextAlignmentOptions.Center);
-        Rect(titleT.gameObject, new Vector2(0.5f, 0.55f), new Vector2(0.5f, 0.55f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, new Vector2(600, 140));
-        titleT.color = color;
-        titleT.fontStyle = FontStyles.Bold;
-        TextMeshProUGUI hintT = CreateText(root.transform, "Hint", hint, 32, TextAlignmentOptions.Center);
-        Rect(hintT.gameObject, new Vector2(0.5f, 0.42f), new Vector2(0.5f, 0.42f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, new Vector2(600, 50));
-        hintT.color = Color.white;
+        GameObject root = CreatePromptRoot(parent, name);
+        TextMeshProUGUI titleT = CreateText(root.transform, "Title", title, 42, TextAlignmentOptions.Center);
+        TextMeshProUGUI hintT = CreateText(root.transform, "Hint", hint, 26, TextAlignmentOptions.Center);
+        CombatPromptStyle.EnsureChrome(root.transform, titleT, hintT, new Vector2(500f, 280f));
         root.SetActive(false);
 
         RevivePromptView view = root.AddComponent<RevivePromptView>();
         SerializedObject so = new SerializedObject(view);
         so.FindProperty("reviveText").objectReferenceValue = titleT;
         so.FindProperty("hintText").objectReferenceValue = hintT;
-        so.FindProperty("canvasGroup").objectReferenceValue = group;
+        so.FindProperty("canvasGroup").objectReferenceValue = root.GetComponent<CanvasGroup>();
         so.ApplyModifiedProperties();
         return view;
     }
 
     private static GameOverView BuildPromptAsGameOver(Transform parent)
     {
-        GameObject root = CreateUi("GameOver", parent);
-        RectStretch(root.GetComponent<RectTransform>());
-        CanvasGroup group = root.AddComponent<CanvasGroup>();
-        TextMeshProUGUI death = CreateText(root.transform, "Title", "死", 120, TextAlignmentOptions.Center);
-        Rect(death.gameObject, new Vector2(0.5f, 0.55f), new Vector2(0.5f, 0.55f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, new Vector2(400, 160));
-        death.color = new Color(0.8f, 0.05f, 0.05f);
-        death.fontStyle = FontStyles.Bold;
-        TextMeshProUGUI hint = CreateText(root.transform, "Hint", "按攻击键重新开始", 32, TextAlignmentOptions.Center);
-        Rect(hint.gameObject, new Vector2(0.5f, 0.42f), new Vector2(0.5f, 0.42f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, new Vector2(600, 50));
+        GameObject root = CreatePromptRoot(parent, "GameOver");
+        TextMeshProUGUI death = CreateText(root.transform, "Title", "死", 42, TextAlignmentOptions.Center);
+        TextMeshProUGUI hint = CreateText(root.transform, "Hint", "按攻击键重新开始", 26, TextAlignmentOptions.Center);
+        CombatPromptStyle.EnsureChrome(root.transform, death, hint, new Vector2(500f, 280f));
         root.SetActive(false);
 
         GameOverView view = root.AddComponent<GameOverView>();
         SerializedObject so = new SerializedObject(view);
         so.FindProperty("deathText").objectReferenceValue = death;
         so.FindProperty("hintText").objectReferenceValue = hint;
-        so.FindProperty("canvasGroup").objectReferenceValue = group;
+        so.FindProperty("canvasGroup").objectReferenceValue = root.GetComponent<CanvasGroup>();
         so.ApplyModifiedProperties();
         return view;
     }
 
     private static VictoryView BuildVictory(Transform parent)
     {
-        GameObject root = CreateUi("Victory", parent);
-        RectStretch(root.GetComponent<RectTransform>());
-        CanvasGroup group = root.AddComponent<CanvasGroup>();
-        TextMeshProUGUI text = CreateText(root.transform, "Title", "胜利", 96, TextAlignmentOptions.Center);
-        Rect(text.gameObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, new Vector2(600, 160));
-        text.color = new Color(1f, 0.85f, 0.3f);
-        text.fontStyle = FontStyles.Bold;
+        GameObject root = CreatePromptRoot(parent, "Victory");
+        TextMeshProUGUI text = CreateText(root.transform, "Title", "胜利", 42, TextAlignmentOptions.Center);
+        TextMeshProUGUI hint = CreateText(root.transform, "Hint", "击败 苇名弦一郎", 26, TextAlignmentOptions.Center);
+        CombatPromptStyle.EnsureChrome(root.transform, text, hint, new Vector2(500f, 280f));
         root.SetActive(false);
 
         VictoryView view = root.AddComponent<VictoryView>();
         SerializedObject so = new SerializedObject(view);
         so.FindProperty("victoryText").objectReferenceValue = text;
-        so.FindProperty("canvasGroup").objectReferenceValue = group;
+        so.FindProperty("hintText").objectReferenceValue = hint;
+        so.FindProperty("canvasGroup").objectReferenceValue = root.GetComponent<CanvasGroup>();
         so.ApplyModifiedProperties();
         return view;
+    }
+
+    private static GameObject CreatePromptRoot(Transform parent, string name)
+    {
+        GameObject root = CreateUi(name, parent);
+        RectStretch(root.GetComponent<RectTransform>());
+        root.AddComponent<CanvasGroup>();
+        return root;
     }
 
     private static LockOnIndicatorView BuildLockOn(Transform canvas, Transform boss, Sprite knob)

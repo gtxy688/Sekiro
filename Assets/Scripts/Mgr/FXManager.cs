@@ -5,20 +5,20 @@ public class FXManager : MonoBehaviour
     [Header("特效预制体")]
     public GameObject normalBlockSparks;
     public GameObject perfectParrySparks;
-    [Tooltip("旧新月贴图，宽刀光带不再使用")]
+    [Tooltip("旧字段，细线刀光不再使用")]
     public GameObject playerSlashFx;
     public Material playerSwingTrailMat;
 
     [Header("玩家刀光颜色")]
-    [Tooltip("旧字段，宽刀光带不再使用")]
+    [Tooltip("旧字段，细线刀光不再使用")]
     [ColorUsage(true, true)]
     public Color playerSlashColor = new Color(0.85f, 0.95f, 1f, 1f);
-    [Tooltip("刀光带靠近刀刃（挥砍前缘）")]
+    [Tooltip("刀光线靠近刀尖")]
     [ColorUsage(true, true)]
     public Color playerTrailStart = Color.white;
-    [Tooltip("刀光带远离刀刃的弧尾")]
+    [Tooltip("刀光线尾端")]
     [ColorUsage(true, true)]
-    public Color playerTrailEnd = new Color(0.92f, 0.95f, 1f, 0.85f);
+    public Color playerTrailEnd = new Color(0.75f, 0.88f, 1f, 1f);
 
     [Header("位置微调")]
     [Tooltip("加在命中点上。Y 往上抬可离开脚底/刀尖。")]

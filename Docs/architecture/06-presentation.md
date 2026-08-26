@@ -99,8 +99,14 @@ OnAttackSfx(AudioClip clip, Vector3 worldPos)  // 出招音效（AttackState 按
 ### 用户音量（暂停菜单）
 
 - `AudioVolumeSettings`：音乐默认 0.8，音效默认 1.0，`PlayerPrefs` 键 `audio.bgm` / `audio.sfx`。
-- 音效：`AudioManager` 的 `AudioSource.volume`。现有 `PlayOneShot` 自动跟着变。
-- 音乐：`BGMManager` 实际音量 = 用户音乐音量 × 淡入淡出 `fadeWeight`。不要用 Mixer。
+- 音效：实际音量 = 检视器基础 `volume` × 用户音效滑条。`PlayOneShot` 自动跟着变。wav 很大时调 `AudioManager.volume`（默认 0.35），不要改滑条默认 1。
+- 音乐：`BGMManager` 实际音量 = 检视器基础 `volume` × 用户音乐音量 × 淡入淡出 `fadeWeight`。不要用 Mixer。曲子本身很大时调检视器 `volume`（当前场景约 0.14），不要靠暂停滑条贴 1%。
+
+### 回生 / 胜利 / 真死提示
+
+- 挂在 `CombatCanvas` 的 View 上，事件驱动，不每帧轮询。
+- 外观跟暂停设置页同一套：全屏压暗 + 居中暗金面板 + 金字标题 + 浅字提示 + 细金线。不要粉红大字、不要太空紫。
+- `CombatPromptStyle` 在 `OnViewInit` 补齐压暗和面板，旧 HUD 预制体不用手改。
 
 ## 三、音效（M15）
 
@@ -108,5 +114,5 @@ OnAttackSfx(AudioClip clip, Vector3 worldPos)  // 出招音效（AttackState 按
 - 订阅 `OnTakeDamage`：玩家走 `playerHitSfx`，Boss 走 `bossHitSfx`（各一条，Inspector 拖，不装池）。
 - `AudioManager.Awake` 用 `Resources.LoadAll<AudioClip>` 各装一次格挡/弹反池；事件里不重载。
 - 同一池连打不连抽同一条（池长 ≥ 2）。第一次全池均匀随机。池空则本发不播并 `LogWarning`。
-- `PlayOneShot(clip)` 不传 volume，音量走 `AudioSource.volume`。
+- `PlayOneShot(clip)` 不传第二参数。响度 = 检视器 `volume` × 音效滑条。
 - 处决 / 出招等其它 clip 仍 Inspector 拖。

@@ -187,9 +187,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   playerInput: {fileID: 0}
-  volumeTrackSprite: {fileID: 8248238095373446792, guid: feecce39094088d498e466c6708a04ad, type: 3}
-  settingsDividerSprite: {fileID: -6646391269016094681, guid: b1746dd70b56d274f906d3375710d717, type: 3}
-  closeIconSprite: {fileID: 21300000, guid: e18e5eb6c5c77db47b8a031541fe8969, type: 3}
+  volumeTrackSprite: {fileID: 8248238095373446792, guid: feecce39094088d498e466c6708a04ad,
+    type: 3}
+  settingsDividerSprite: {fileID: -6646391269016094681, guid: b1746dd70b56d274f906d3375710d717,
+    type: 3}
+  closeIconSprite: {fileID: 21300000, guid: 1682fb2ae82f4df449ef4804f187cb05, type: 3}
 --- !u!114 &66526829
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -202,12 +204,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 280502f491262d741847fad9c537b383, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  normalBlockSparks: {fileID: 3115150462268716353, guid: 1be4da20baf70bc45b5a0046115df833,
+  normalBlockSparks: {fileID: 2984477706162978091, guid: 1be4da20baf70bc45b5a0046115df833,
     type: 3}
-  perfectParrySparks: {fileID: 6254141752155445406, guid: 476c4fda0620e6c4f94c0a9209bc0ee5,
+  perfectParrySparks: {fileID: 100463523610347869, guid: 476c4fda0620e6c4f94c0a9209bc0ee5,
     type: 3}
-  playerSlashFx: {fileID: 8284631027614815870, guid: b4390c12d060a8046a1ba1668830f771,
-    type: 3}
+  playerSlashFx: {fileID: 0}
   playerSwingTrailMat: {fileID: 2100000, guid: 81844decb5ea6af4e83dce1f7bacaf85, type: 2}
   playerSlashColor: {r: 1, g: 0.89550054, b: 0, a: 1}
   playerTrailStart: {r: 1, g: 1, b: 1, a: 1}
@@ -751,7 +752,7 @@ MonoBehaviour:
   m_LookAt: {fileID: 0}
   m_Follow: {fileID: 0}
   m_Lens:
-    FieldOfView: 46
+    FieldOfView: 47
     OrthographicSize: 10
     NearClipPlane: 0.1
     FarClipPlane: 5000
@@ -783,55 +784,6 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 942507212}
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &490116469
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 490116471}
-  - component: {fileID: 490116470}
-  m_Layer: 0
-  m_Name: BGM
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &490116470
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 490116469}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3015333eb36b26d4cb1231a764a7db88, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  bgm: {fileID: 0}
-  phase2Bgm: {fileID: 0}
-  victoryBgm: {fileID: 0}
-  volume: 0.8
-  fadeDuration: 1
---- !u!4 &490116471
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 490116469}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 4.9655256, y: 2.4369946, z: 1.3339436}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &510384331
@@ -1328,7 +1280,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f4044717213e31446939f7bd49c896ea, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_TrackedObjectOffset: {x: 0, y: 1.15, z: 0}
+  m_TrackedObjectOffset: {x: 0, y: 1.05, z: 0}
   m_LookaheadTime: 0
   m_LookaheadSmoothing: 0
   m_LookaheadIgnoreY: 0
@@ -1356,7 +1308,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_BindingMode: 1
-  m_FollowOffset: {x: -0.48, y: -0.05, z: -2.65}
+  m_FollowOffset: {x: -0.42, y: -0.15, z: -2.32}
   m_XDamping: 0
   m_YDamping: 0
   m_ZDamping: 0
@@ -1790,6 +1742,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1692551105}
   - component: {fileID: 1692551104}
+  - component: {fileID: 1692551106}
   m_Layer: 0
   m_Name: AudioManager
   m_TagString: Untagged
@@ -1809,7 +1762,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2482def66ed531648aeea9af379137bd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  hitSfx: {fileID: 0}
+  volume: 1
+  playerHitSfx: {fileID: 0}
+  bossHitSfx: {fileID: 0}
   perilousSfx: {fileID: 0}
   finisherSfx: {fileID: 0}
   deathSfx: {fileID: 0}
@@ -1831,6 +1786,22 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1692551106
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1692551103}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3015333eb36b26d4cb1231a764a7db88, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  bgm: {fileID: 8300000, guid: 079ef507615dcf249965ecb5d78b33e4, type: 3}
+  phase2Bgm: {fileID: 0}
+  volume: 0.1
+  fadeDuration: 1
 --- !u!1 &1782808223
 GameObject:
   m_ObjectHideFlags: 3
@@ -1991,15 +1962,20 @@ PrefabInstance:
       propertyPath: m_Name
       value: PerilousWarning
       objectReference: {fileID: 0}
+    - target: {fileID: 492883299472072297, guid: e80d9c4361f6f984e9313d1be465af71,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 1023679677188733007, guid: e80d9c4361f6f984e9313d1be465af71,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0
+      value: -0.38
       objectReference: {fileID: 0}
     - target: {fileID: 1023679677188733007, guid: e80d9c4361f6f984e9313d1be465af71,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0
+      value: 1.37
       objectReference: {fileID: 0}
     - target: {fileID: 1023679677188733007, guid: e80d9c4361f6f984e9313d1be465af71,
         type: 3}
@@ -2427,7 +2403,6 @@ SceneRoots:
   - {fileID: 1548854981}
   - {fileID: 910010002}
   - {fileID: 1692551105}
-  - {fileID: 490116471}
   - {fileID: 8195122840420970603}
   - {fileID: 191671260}
   - {fileID: 444743043}

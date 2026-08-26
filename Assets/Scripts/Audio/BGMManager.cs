@@ -41,14 +41,12 @@ public class BGMManager : MonoBehaviour
     {
         AudioVolumeSettings.OnChanged += ApplyOutputVolume;
         CombatEventBus.OnLifeCleared += HandleLifeCleared;
-        CombatEventBus.OnVictory += HandleVictory;
     }
 
     private void OnDisable()
     {
         AudioVolumeSettings.OnChanged -= ApplyOutputVolume;
         CombatEventBus.OnLifeCleared -= HandleLifeCleared;
-        CombatEventBus.OnVictory -= HandleVictory;
     }
 
     // ===== 事件处理 =====
@@ -59,18 +57,6 @@ public class BGMManager : MonoBehaviour
         if (remainingLives == 1 && phase2Bgm != null)
         {
             PlayBGM(phase2Bgm);
-        }
-    }
-
-    private void HandleVictory(CharacterBody c)
-    {
-        if (victoryBgm != null)
-        {
-            PlayBGM(victoryBgm);
-        }
-        else
-        {
-            StopBGM();
         }
     }
 

@@ -69,6 +69,18 @@
 | 15 | Boss 未拖 `elbowHitbox` 仍放肘击 | 回退刀 + Console Warning，不报错 |
 | 16 | 退出攻击 / 被弹开 | 肘 Hitbox 关闭，不会残留扫描 |
 
+## 弓段关闭近战 Hitbox
+
+贴身让刀碰到玩家，下列招的**弓段**不应掉血（刀段仍应打中）。不要依赖把红条缩到 0.01s。
+
+| # | 操作 | 预期 |
+|---|------|------|
+| 17 | `Bow_Shot`、`Bow_Heavy`、`Bow_Air5`、`Bow_AirHeavy` 全程贴身 | 刀/拳 Hitbox 不亮，无近战伤害 |
+| 18 | `Bow_ThenSlash` / `Kengeki_Bow2Slash` 第一段贴身，第二段（3015）挥到 | 弓段不伤；刀段落一次 |
+| 19 | `Slash_RushThenBow` 第一段横砍、第二段 3011 贴身 | 砍中；射箭段不伤 |
+| 20 | `Kengeki_Bow`、`Kengeki_JumpBow` 前段贴身 | 弓段不伤；若有 3015 刀段仍打中 |
+| 21 | 时间轴打开弓段 | 无 0.01s 假红条；「关闭近战判定」后 HitStart=Recover=时长 |
+
 ## 常见问题
 
 - **扫不到敌人**：`castRadius` 是否太小、`targetLayers` 是否含对方层、**Hitbox 是否在武器中央**（挂错层级会原地不动或只扫空处）、**对方 Hurtbox 碰撞体是否包住身体**

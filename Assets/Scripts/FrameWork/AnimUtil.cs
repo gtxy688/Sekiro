@@ -1,14 +1,13 @@
 using UnityEngine;
 
-// Animator 短名匹配：子状态机里 IsName("Walk") 会对不上全路径，shortNameHash 只认状态短名
+// 状态名全局唯一：用短名哈希在整层查找，不必拼 _Hurt.Hurt_Ground。
 public static class AnimUtil
 {
     public static bool IsPlaying(AnimatorStateInfo info, string shortName)
     {
-        return info.shortNameHash == Animator.StringToHash(shortName);
+        return info.shortNameHash == Hash(shortName);
     }
 
-    // CrossFade 短名：没建状态会静默失败。Boss 没有 IdleToWalk 时用来跳过起步。
     public static bool HasState(Animator animator, string shortName)
     {
         return HasState(animator, shortName, 0);
@@ -23,18 +22,59 @@ public static class AnimUtil
         {
             return false;
         }
-        return animator.HasState(layerIndex, Animator.StringToHash(shortName));
+        return animator.HasState(layerIndex, Hash(shortName));
+    }
+
+    // 资源侧拼写不统一（Mikiri / Miriki），按 Animator 里实际存在的短名选用。
+    public static string ResolveState(Animator animator, params string[] aliases)
+    {
+        if (animator == null || aliases == null) return null;
+        for (int i = 0; i < aliases.Length; i++)
+        {
+            if (HasState(animator, aliases[i])) return aliases[i];
+        }
+        return null;
     }
 
     // 不在这里 Animator.Update：崩解常从命中动画事件切入，Update 会重入。
     public static bool TryPlay(Animator animator, string shortName, int layerIndex = 0)
     {
-        if (!HasState(animator, shortName, layerIndex))
-        {
-            return false;
-        }
-
-        animator.Play(shortName, layerIndex, 0f);
+        if (!HasState(animator, shortName, layerIndex)) return false;
+        animator.Play(Hash(shortName), layerIndex, 0f);
         return true;
+    }
+
+    public static bool TryCrossFade(
+        Animator animator,
+        string shortName,
+        float duration,
+        int layerIndex = 0)
+    {
+        if (!HasState(animator, shortName, layerIndex)) return false;
+        animator.CrossFade(Hash(shortName), duration, layerIndex);
+        return true;
+    }
+
+    public static bool TryCrossFadeInFixedTime(
+        Animator animator,
+        string shortName,
+        float duration,
+        int layerIndex = 0,
+        float fixedTimeOffset = 0f)
+    {
+        if (!HasState(animator, shortName, layerIndex)) return false;
+        animator.CrossFadeInFixedTime(Hash(shortName), duration, layerIndex, fixedTimeOffset);
+        return true;
+    }
+
+    // 传入 Parent.State 时只取最后一段，与 Animator 短名哈希一致。
+    private static int Hash(string name)
+    {
+        int dot = name.LastIndexOf('.');
+        if (dot >= 0 && dot < name.Length - 1)
+        {
+            name = name.Substring(dot + 1);
+        }
+        return Animator.StringToHash(name);
     }
 }

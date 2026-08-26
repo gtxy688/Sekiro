@@ -26,7 +26,7 @@ public class RevivePendingState : BaseState
         reviveTimer = 0f;
         lying = false;
         reviving = false;
-        body.Animator.CrossFade("Dead", 0.1f);
+        AnimUtil.TryCrossFade(body.Animator, "Dead", 0.1f);
     }
 
     public override void OnUpdate()
@@ -49,7 +49,7 @@ public class RevivePendingState : BaseState
             if (IsFallFinished())
             {
                 lying = true;
-                body.Animator.CrossFade("Deading", 0.05f);
+                AnimUtil.TryCrossFade(body.Animator, "Deading", 0.05f);
             }
         }
 
@@ -69,7 +69,7 @@ public class RevivePendingState : BaseState
             body.Revive();
             reviving = true;
             reviveTimer = 0f;
-            body.Animator.CrossFade("Revive", 0.1f);
+            AnimUtil.TryCrossFade(body.Animator, "Revive", 0.1f);
             return true;
         }
         return true;

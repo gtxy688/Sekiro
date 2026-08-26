@@ -25,6 +25,8 @@ public class AttackTimelineWindow : EditorWindow
     bool pendingAddPulse;
     bool pendingAddSfx;
     bool pendingShrinkPulse;
+    bool pendingClearMelee;
+    bool forceNoHit;
     float previewHeight = 220f;
     int previewControlId;
     int resizeControlId;
@@ -279,6 +281,7 @@ public class AttackTimelineWindow : EditorWindow
         loadedSeg = segmentIndex;
         workingPulses = ClonePulses(CurrentStoredPulses(), CurrentHitStart(), CurrentRecover());
         workingSfx = CloneSfx(CurrentStoredSfx());
+        forceNoHit = false;
     }
 
     void DrawHitTimeSliders(float clipLength)
@@ -289,9 +292,15 @@ public class AttackTimelineWindow : EditorWindow
         EditorGUILayout.BeginHorizontal();
         if (GUILayout.Button("加段", GUILayout.Width(60)))
             pendingAddPulse = true;
-        if (workingPulses.Length > 1 && GUILayout.Button("删末段", GUILayout.Width(70)))
+        if (workingPulses.Length > 0 && GUILayout.Button("删末段", GUILayout.Width(70)))
             pendingShrinkPulse = true;
+        if (GUILayout.Button("关闭近战判定", GUILayout.Width(110)))
+            pendingClearMelee = true;
         EditorGUILayout.EndHorizontal();
+        if (workingPulses.Length == 0)
+            EditorGUILayout.HelpBox(
+                "本段无近战红条。弓/垫步点「关闭近战判定」再保存：HitStart=Recover=时长，全程不开刀。不要把红条缩成 0.01s。",
+                MessageType.Info);
 
         for (int i = 0; i < workingPulses.Length; i++)
         {
@@ -318,7 +327,7 @@ public class AttackTimelineWindow : EditorWindow
                 p.start = scrub;
             if (GUILayout.Button("结束=当前进度", GUILayout.Width(110)))
                 p.end = scrub;
-            if (workingPulses.Length > 1 && GUILayout.Button("删这段", GUILayout.Width(60)))
+            if (GUILayout.Button("删这段", GUILayout.Width(60)))
                 pendingRemovePulse = i;
             EditorGUILayout.EndHorizontal();
         }
@@ -513,9 +522,10 @@ public class AttackTimelineWindow : EditorWindow
         if (playerConfig != null)
         {
             Undo.RecordObject(playerConfig, "Attack Timeline");
-            AttackWindowSync.ApplyPulses(playerConfig, clamped);
+            SaveMeleeWindow(playerConfig, clamped, forceNoHit);
             playerConfig.sfxCues = CloneSfx(workingSfx);
             EditorUtility.SetDirty(playerConfig);
+            forceNoHit = false;
             workingPulses = ClonePulses(playerConfig.hitPulses, playerConfig.HitStartTime, playerConfig.RecoveryWindowStart);
             return;
         }
@@ -523,10 +533,27 @@ public class AttackTimelineWindow : EditorWindow
         BossMoveWindow w = CurrentWindow();
         if (bossTable == null || w == null) return;
         Undo.RecordObject(bossTable, "Attack Timeline");
-        AttackWindowSync.ApplyPulses(w, clamped);
+        SaveMeleeWindow(w, clamped, forceNoHit);
         w.sfxCues = CloneSfx(workingSfx);
         EditorUtility.SetDirty(bossTable);
+        forceNoHit = false;
         workingPulses = ClonePulses(w.hitPulses, w.hitStartTime, w.recoverStart);
+    }
+
+    static void SaveMeleeWindow(AttackConfig cfg, HitPulse[] clamped, bool noHit)
+    {
+        if (noHit || !AttackWindowSync.CanMeleeHit(cfg.HitStartTime, cfg.RecoveryWindowStart, clamped))
+            AttackWindowSync.ApplyNoHit(cfg);
+        else
+            AttackWindowSync.ApplyPulses(cfg, clamped);
+    }
+
+    static void SaveMeleeWindow(BossMoveWindow w, HitPulse[] clamped, bool noHit)
+    {
+        if (noHit || !AttackWindowSync.CanMeleeHit(w.hitStartTime, w.recoverStart, clamped))
+            AttackWindowSync.ApplyNoHit(w);
+        else
+            AttackWindowSync.ApplyPulses(w, clamped);
     }
 
     void ApplyClipLength(float clipLength)
@@ -642,10 +669,11 @@ public class AttackTimelineWindow : EditorWindow
 
     static HitPulse[] DisplayPulses(HitPulse[] stored, float hitStart, float recover)
     {
+        if (!AttackWindowSync.CanMeleeHit(hitStart, recover, stored))
+            return new HitPulse[0];
         if (stored != null && stored.Length > 0)
             return stored;
-        float end = Mathf.Max(hitStart + 0.01f, recover);
-        return new[] { new HitPulse { start = hitStart, end = end } };
+        return new[] { new HitPulse { start = hitStart, end = recover } };
     }
 
     static HitPulse[] ClonePulses(HitPulse[] stored, float hitStart, float recover)
@@ -656,7 +684,7 @@ public class AttackTimelineWindow : EditorWindow
         {
             HitPulse p = src[i];
             copy[i] = p == null
-                ? new HitPulse { start = 0f, end = 0.01f }
+                ? new HitPulse { start = 0f, end = 0f }
                 : new HitPulse { start = p.start, end = p.end };
         }
         return copy;
@@ -681,8 +709,14 @@ public class AttackTimelineWindow : EditorWindow
     {
         if (pendingAddPulse)
         {
+            forceNoHit = false;
             float t = scrub;
             AppendPulse(new HitPulse { start = t, end = Mathf.Min(clipLength, t + 0.12f) });
+        }
+        if (pendingClearMelee)
+        {
+            workingPulses = new HitPulse[0];
+            forceNoHit = true;
         }
         if (pendingShrinkPulse)
             ShrinkPulses();
@@ -695,6 +729,7 @@ public class AttackTimelineWindow : EditorWindow
 
         pendingAddPulse = false;
         pendingShrinkPulse = false;
+        pendingClearMelee = false;
         pendingRemovePulse = -1;
         pendingAddSfx = false;
         pendingRemoveSfx = -1;
@@ -703,7 +738,11 @@ public class AttackTimelineWindow : EditorWindow
     void RemovePulse(int index)
     {
         if (workingPulses == null || index < 0 || index >= workingPulses.Length) return;
-        if (workingPulses.Length <= 1) return;
+        if (workingPulses.Length == 1)
+        {
+            workingPulses = new HitPulse[0];
+            return;
+        }
         HitPulse[] next = new HitPulse[workingPulses.Length - 1];
         int w = 0;
         for (int i = 0; i < workingPulses.Length; i++)
@@ -726,7 +765,12 @@ public class AttackTimelineWindow : EditorWindow
 
     void ShrinkPulses()
     {
-        if (workingPulses == null || workingPulses.Length <= 1) return;
+        if (workingPulses == null || workingPulses.Length == 0) return;
+        if (workingPulses.Length == 1)
+        {
+            workingPulses = new HitPulse[0];
+            return;
+        }
         HitPulse[] next = new HitPulse[workingPulses.Length - 1];
         System.Array.Copy(workingPulses, next, next.Length);
         workingPulses = next;

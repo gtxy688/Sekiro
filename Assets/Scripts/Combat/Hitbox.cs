@@ -49,7 +49,10 @@ public class Hitbox : MonoBehaviour
 
     public void Enable()
     {
-        if (owner == null) return;
+        if (owner == null || config == null) return;
+        // 弓段 / 0.01 假窗：Clip 上残留的 Enable 事件也不能扫刀。
+        if (!AttackWindowSync.CanMeleeHit(config.HitStartTime, config.RecoveryWindowStart, config.hitPulses))
+            return;
         isActive = true;
         Physics.SyncTransforms();
         lastCastPos = transform.position;
@@ -61,6 +64,7 @@ public class Hitbox : MonoBehaviour
     public void Disable()
     {
         isActive = false;
+        config = null;
         hitTargets.Clear();
         blockedUntilExit.Clear();
     }
@@ -68,7 +72,7 @@ public class Hitbox : MonoBehaviour
     // 动画在 Update 写骨头，受击胶囊在物理步进才同步。LateUpdate 里先 Sync 再扫。
     private void LateUpdate()
     {
-        if (!isActive || owner == null) return;
+        if (!isActive || owner == null || config == null) return;
 
         Physics.SyncTransforms();
 

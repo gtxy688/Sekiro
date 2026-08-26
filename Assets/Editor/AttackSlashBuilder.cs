@@ -2,7 +2,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-// 生成宽刀光带材质（柄到尖扫过的绸带），挂到 FXManager。
+// 生成刀尖细线拖尾材质，挂到 FXManager。
 // 用法：Tools/战斗/生成挥刀刀光
 public static class AttackSlashBuilder
 {
@@ -14,23 +14,21 @@ public static class AttackSlashBuilder
     [MenuItem("Tools/战斗/生成挥刀刀光")]
     public static void Build()
     {
-        Texture2D streak = LoadFx("s02001");
-        if (streak == null) streak = LoadFx("s01010");
-        if (streak == null) streak = LoadFx("s01000");
-        if (streak == null)
-        {
-            EditorUtility.DisplayDialog("生成挥刀刀光", "Assets/Sekrio/FX 里找不到刀光贴图。", "确定");
-            return;
-        }
+        Texture2D streak = LoadFx("s01000");
+        if (streak == null) streak = LoadFx("s01005");
+        if (streak == null) streak = LoadFx("s02001");
+        if (streak != null)
+            PrepareTexture(streak);
 
-        PrepareTexture(streak);
         EnsureFolder("Assets/Prefabs", "FX");
         EnsureFolder("Assets/Prefabs/FX", "Slash");
 
-        Shader shader = Shader.Find("ARPG/FX/SwordRibbon");
+        Shader shader = Shader.Find("ARPG/FX/AdditiveSpark");
+        if (shader == null)
+            shader = Shader.Find("Sprites/Default");
         if (shader == null)
         {
-            EditorUtility.DisplayDialog("生成挥刀刀光", "找不到 ARPG/FX/SwordRibbon shader。", "确定");
+            EditorUtility.DisplayDialog("生成挥刀刀光", "找不到 AdditiveSpark / Sprites/Default。", "确定");
             return;
         }
 
@@ -45,10 +43,10 @@ public static class AttackSlashBuilder
             mat.shader = shader;
         }
 
-        mat.SetTexture("_MainTex", streak);
+        mat.SetTexture("_MainTex", streak != null ? streak : Texture2D.whiteTexture);
         mat.SetColor("_Color", Color.white);
-        mat.SetFloat("_SoftEdge", 0.14f);
-        mat.SetFloat("_Streak", 0.5f);
+        if (mat.HasProperty("_Cutoff"))
+            mat.SetFloat("_Cutoff", 0.08f);
         mat.renderQueue = (int)RenderQueue.Transparent;
         EditorUtility.SetDirty(mat);
 
@@ -60,7 +58,7 @@ public static class AttackSlashBuilder
             fx = go.AddComponent<FXManager>();
         }
 
-        Undo.RecordObject(fx, "Assign sword ribbon");
+        Undo.RecordObject(fx, "Assign swing trail");
         fx.playerSwingTrailMat = mat;
         fx.playerSlashFx = null;
         EditorUtility.SetDirty(fx);
@@ -69,7 +67,7 @@ public static class AttackSlashBuilder
 
         EditorUtility.DisplayDialog(
             "生成挥刀刀光",
-            "已改成宽刀光带（沿刀刃扫过的半透明绸带）。\nPlay 后玩家出刀即可，不再闪新月贴图。",
+            "已改成刀尖细线拖尾，不再铺半圆扇面。\nPlay 后玩家出刀即可。",
             "确定");
     }
 
@@ -110,9 +108,9 @@ public static class AttackSlashBuilder
         TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
         if (importer == null) return;
         bool dirty = false;
-        if (importer.wrapMode != TextureWrapMode.Repeat)
+        if (importer.wrapMode != TextureWrapMode.Clamp)
         {
-            importer.wrapMode = TextureWrapMode.Repeat;
+            importer.wrapMode = TextureWrapMode.Clamp;
             dirty = true;
         }
         if (!importer.alphaIsTransparency)

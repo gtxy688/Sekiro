@@ -23,12 +23,12 @@ public class GameOverState : BaseState
         if (alreadyDowned)
         {
             lying = true;
-            body.Animator.CrossFade("Deading", 0.05f);
+            AnimUtil.TryCrossFade(body.Animator, "Deading", 0.05f);
         }
         else
         {
             lying = false;
-            body.Animator.CrossFade("Dead", 0.1f);
+            AnimUtil.TryCrossFade(body.Animator, "Dead", 0.1f);
         }
     }
 
@@ -41,7 +41,7 @@ public class GameOverState : BaseState
         if ((AnimUtil.IsPlaying(info, "Dead") && info.normalizedTime >= 0.95f) || fallTimer >= fallDuration)
         {
             lying = true;
-            body.Animator.CrossFade("Deading", 0.05f);
+            AnimUtil.TryCrossFade(body.Animator, "Deading", 0.05f);
         }
     }
 

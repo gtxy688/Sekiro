@@ -30,7 +30,7 @@ public class MoveState : BaseState
         inEnterTransition = AnimUtil.HasState(body.Animator, enterAnim);
         wasLocked = IsLockedOnTarget();
         UpdateStrafeParams(instant: true);
-        body.Animator.CrossFade(inEnterTransition ? enterAnim : LoopAnim, 0.1f);
+        AnimUtil.TryCrossFade(body.Animator, inEnterTransition ? enterAnim : LoopAnim, 0.1f);
     }
 
     public override void OnUpdate()
@@ -42,7 +42,7 @@ public class MoveState : BaseState
         {
             wasLocked = locked;
             inEnterTransition = false;
-            body.Animator.CrossFade(LoopAnim, 0.1f);
+            AnimUtil.TryCrossFade(body.Animator, LoopAnim, 0.1f);
         }
 
         if (inEnterTransition)
@@ -52,7 +52,7 @@ public class MoveState : BaseState
             if ((AnimUtil.IsPlaying(info, enterAnim) && info.normalizedTime >= 0.95f) || enterTimer >= enterDuration)
             {
                 inEnterTransition = false;
-                body.Animator.CrossFade(LoopAnim, 0.08f);
+                AnimUtil.TryCrossFade(body.Animator, LoopAnim, 0.08f);
             }
         }
 

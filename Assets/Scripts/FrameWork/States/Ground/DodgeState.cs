@@ -29,11 +29,11 @@ public class DodgeState : BaseState
         if (lockedDodge)
         {
             FaceTargetInstant();
-            body.Animator.CrossFade(ResolveLockedDodgeAnim(), 0.05f);
+            AnimUtil.TryCrossFade(body.Animator, ResolveLockedDodgeAnim(), 0.05f);
         }
         else
         {
-            body.Animator.CrossFade("Dodge", 0.05f);
+            AnimUtil.TryCrossFade(body.Animator, "Dodge", 0.05f);
         }
     }
 

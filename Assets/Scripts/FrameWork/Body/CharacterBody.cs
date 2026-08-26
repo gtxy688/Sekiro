@@ -564,6 +564,22 @@ public class CharacterBody : MonoBehaviour
         MainStateMachine.ChangeState(new GroundedState(this, new ParriedState(this)));
     }
 
+    // 被识破但未崩解：停挥刀，播 Mikiri_Deflect（资源侧曾写成 Miriki_Deflect）。
+    public void ForceMikiriStun()
+    {
+        EnsureRuntimeReady();
+        IsAttacking = false;
+        DisableWeaponHit();
+        string anim = AnimUtil.ResolveState(Animator, "Mikiri_Deflect", "Miriki_Deflect");
+        if (string.IsNullOrEmpty(anim))
+        {
+            ForceParryStun();
+            return;
+        }
+
+        MainStateMachine.ChangeState(new GroundedState(this, new ParriedState(this, anim)));
+    }
+
     // ===== M7 Boss 被动防御（只狼攻防转换）=====
     // 只狼模式：Boss 非攻击/非硬直时被玩家命中 → 强制格挡判定；连续格挡达阈值后
     // 升级为完美弹反（弹开玩家、抢回主动权）。由 BTBrain 启动时对 Boss 开启。
@@ -615,15 +631,22 @@ public class CharacterBody : MonoBehaviour
         switch (source)
         {
             case PostureBreakSource.Deflect:
-                brokenState = CanEnterFinisherVictim("Stagger_Broken_Deflect")
-                    ? new FinisherVictimState(this, "Stagger_Broken_Deflect")
+            {
+                string deflectAnim = AnimUtil.ResolveState(Animator, "Stagger_Broken_Deflect");
+                brokenState = deflectAnim != null
+                    ? new FinisherVictimState(this, deflectAnim)
                     : new StaggerBrokenState(this);
                 break;
+            }
             case PostureBreakSource.Mikiri:
-                brokenState = CanEnterFinisherVictim("Stagger_Broken_Miriki")
-                    ? new FinisherVictimState(this, "Stagger_Broken_Miriki")
+            {
+                string mikiriAnim = AnimUtil.ResolveState(
+                    Animator, "Stagger_Broken_Mikiri", "Stagger_Broken_Miriki");
+                brokenState = mikiriAnim != null
+                    ? new FinisherVictimState(this, mikiriAnim)
                     : new StaggerBrokenState(this);
                 break;
+            }
             default:
                 brokenState = new StaggerBrokenState(this);
                 break;
@@ -632,16 +655,13 @@ public class CharacterBody : MonoBehaviour
         MainStateMachine.ChangeState(new GroundedState(this, brokenState));
     }
 
-    // 只有 Animator 里真有受害姿态才进处决等待；玩家不需要这些状态。
-    private bool CanEnterFinisherVictim(string animName)
-    {
-        return AnimUtil.HasState(Animator, animName);
-    }
-
     // 开启武器判定（M3/M8）：攻击状态/动画事件调用。绑定本招式的伤害配置
     public void EnableWeaponHit(AttackConfig config)
     {
         if (config == null) return;
+        // 弓段 / 假红条：即使动画事件误调也不开刀。
+        if (!AttackWindowSync.CanMeleeHit(config.HitStartTime, config.RecoveryWindowStart, config.hitPulses))
+            return;
         Hitbox target = ResolveHitbox(config.HitboxSlot);
         if (target == null) return;
 

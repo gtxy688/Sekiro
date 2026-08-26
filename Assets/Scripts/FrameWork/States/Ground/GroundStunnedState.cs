@@ -17,7 +17,7 @@ public class GroundStunnedState : BaseState
         stunTimer = 0f;
 
         // 受击动画：按语境解析（Normal/Heavy 击飞/Guard 格挡/Deflected 被弹反）
-        body.Animator.CrossFade(body.ResolveHurtAnim(context), 0.05f);
+        AnimUtil.TryCrossFade(body.Animator, body.ResolveHurtAnim(context), 0.05f);
     }
 
     public override void OnUpdate()
