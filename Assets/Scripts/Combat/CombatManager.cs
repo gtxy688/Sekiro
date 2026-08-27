@@ -97,6 +97,23 @@ public class CombatManager : MonoBehaviour
         HitStop();
     }
 
+    // 箭扫到 Hurtbox。伤害由调用方从招式表解析，不读 Hitbox.Config。
+    public void ReportProjectileHit(
+        CharacterBody attacker,
+        Hurtbox hurtbox,
+        Vector3 hitPoint,
+        int healthDmg,
+        float postureDmg,
+        float knockback)
+    {
+        CharacterBody target = hurtbox != null ? hurtbox.Owner : null;
+        if (attacker == null || target == null || attacker == target) return;
+
+        target.ReceiveHit(attacker, healthDmg, postureDmg, hitPoint,
+            false, PerilousType.None, knockback);
+        HitStop();
+    }
+
     // 双方 Hitbox 相交 → 拼刀：只狼里拼刀双方都涨架势，不打伤害
     public void ReportClash(Hitbox a, Hitbox b, Vector3 point)
     {

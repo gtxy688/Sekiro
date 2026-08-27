@@ -26,6 +26,8 @@
 | 8 | 玩家轻击保存后 | `hitPulses.Length == 1`，开/关字段已回填 |
 | 9 | Boss 飞舟 Boat1 加多段红 | 同一段动画能多段出伤 |
 | 10 | 未改过的旧 AttackConfig（空 hitPulses） | 进 Play 仍有判定 |
+| 11 | 时间轴打开 `Bow_Shot` 弓段，进度拖到撒手，点「加出箭」保存；Clip 无 `SpawnArrow`/`EnableWeaponHit`；进 Play 远距离 | 该时刻出箭 |
+| 12 | 时间轴 `Bow_Air5` 插 5 个出箭点并保存 | 同一动画出 5 支箭 |
 
 ## 常见问题
 

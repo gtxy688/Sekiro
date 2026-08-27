@@ -35,9 +35,15 @@ BoxCast 用"上一帧位置 → 当前帧位置"扫一段，防止高速挥砍�
 
 Boss **一条 Clip 多段出伤**：`hitPulses` 非空时，`AttackState` 按每段 `[start,end)` 脉冲开关刀。每次 `Enable` 清空 `hitTargets`，所以每段对同一目标只结算一次。空数组仍走上面的一对开关。玩家通常长度为 1（一刀）；用 `ARPG/攻击时间轴` 对着动画拖。
 
-**段/刀伤害：** 默认用招式行 `baseDamage` / `postureDamage` / `knockback`。`BossMoveWindow.overrideCombat` 覆盖整段；`HitPulse.overrideCombat` 覆盖这一刀（优先于段）。解析顺序：刀 → 段 → 招。编辑器用 `ARPG/招式伤害`。烘焙时把段覆盖写进临时 `AttackConfig`；开某一刀时再套该脉冲覆盖。相邻两刀无空隙时 `pulseIndex` 变化会重开判定并换伤害。
+**段/刀伤害：** 默认用招式行 `baseDamage` / `postureDamage` / `knockback`。`BossMoveWindow.overrideCombat` 覆盖整段；`HitPulse.overrideCombat` 覆盖这一刀（优先于段）。解析顺序：刀 → 段 → 招。弓段无近战红条，但仍走段覆盖（编辑器标「·箭」），烘焙进该段临时 `AttackConfig`。垫步/短位移段不配伤害。编辑器 `ARPG/招式伤害` 用「重击」勾选写入 `knockback`（>0 走 Heavy / GuardHeavy 受击）。开某一刀时再套该脉冲覆盖。相邻两刀无空隙时 `pulseIndex` 变化会重开判定并换伤害。
 
 **无近战判定（弓段 / 垫步）：** 写成 `hitStartTime == recoverStart == comboWindowEnd == stateDuration`，`hitPulses` 空。`AttackState` / `EnableWeaponHit` 全程不开刀。**不要把红条缩成 0～0.01s**：进招第 0 帧 `animTime=0`，`0 >= 0 && 0 < 0.01` 仍会亮刀一帧。时间轴点「关闭近战判定」再保存。弓 Clip 上不要加 `EnableWeaponHit` 动画事件；箭走投射物。
+
+### 射箭（投射物）
+
+箭 Prefab 挂 `ArrowProjectile`（匀速直线 + 上一帧→当前帧 SphereCast）。**不要** `Hitbox`、**不要** Collider。出箭走招式表 `arrowCues`（相对本段动画 0 点），`BossAttackBaker` 烤进临时 `AttackConfig`，`AttackState` 读动画时间 `t` 到点调一次 `CharacterBody.SpawnArrow`。和 ♪ 音效同一套时间轴，**不要**在 Clip 上加 `SpawnArrow` 动画事件。方向锁开火瞬间指向玩家 `projectileAimPoint`（空则 Hurtbox 中心），不追踪。伤害用招式表：`AttackCombatResolve.Resolve(entry, window)`（招默认，段 `overrideCombat` 可盖），**不**用弓段烘焙的 NoHit `AttackConfig`。命中 `CombatManager.ReportProjectileHit` → `ReceiveHit`（可弹反/格挡，垫步可躲，非危字）。
+
+Boss 拖：`arrowSpawn`、`arrowPrefab`、`arrowSpeed`（约 32）、`arrowCastRadius`（约 0.08）、`arrowLifetime`（约 2）、`arrowTargetLayers`（与刀相同）。时间轴对弓段点「加出箭」；`Bow_Air5` 插 5 个点。「关闭近战判定」不会清出箭点。
 
 ## 二、组件拆分
 
@@ -134,11 +140,15 @@ public class CombatManager : MonoBehaviour
 - 新建：`Assets/Scripts/Combat/Hurtbox.cs`
 - 新建：`Assets/Scripts/Combat/CombatManager.cs`
 - 新建：`Assets/Scripts/FrameWork/States/Ground/MikiriCounterState.cs`
-- 修改：`Assets/Scripts/SO/AttackConfig.cs`（Perilous、HitboxSlot、HitPulse 刀伤害覆盖）
-- 修改：`Assets/Scripts/SO/AttackWindowSync.cs`（NoHit / 假红条下限）
+- 修改：`Assets/Scripts/SO/AttackConfig.cs`（Perilous、HitboxSlot、HitPulse 刀伤害覆盖、arrowCues）
+- 修改：`Assets/Scripts/SO/AttackWindowSync.cs`（NoHit / 假红条下限；不清 arrowCues）
 - 新建：`Assets/Scripts/SO/AttackCombatResolve.cs`（刀 → 段 → 招）
-- 修改：`Assets/Scripts/FrameWork/Body/CharacterBody.cs`（多 Hitbox 槽位）
-- 修改：`Assets/Scripts/Boss/BossMoveWindow.cs`（段级危字、hitboxSlot、段伤害覆盖）
+- 修改：`Assets/Scripts/FrameWork/Body/CharacterBody.cs`（多 Hitbox 槽位、SpawnArrow）
+- 修改：`Assets/Scripts/FrameWork/States/Ground/AttackState.cs`（arrowCues 到点出箭）
+- 新建：`Assets/Scripts/Combat/ArrowProjectile.cs`
+- 修改：`Assets/Scripts/Boss/BossMoveWindow.cs`（段级危字、hitboxSlot、段伤害覆盖、arrowCues）
+- 修改：`Assets/Scripts/Boss/BossAttackBaker.cs`（拷 arrowCues，与 canHit 无关）
+- 修改：`Assets/Editor/AttackTimelineWindow.cs`（出箭轨道）
 - 修改：`Assets/Editor/BossMoveDamageWindow.cs`（招式伤害表）
 - 修改：`Assets/Scripts/FrameWork/States/Command.cs`（HitData 危字字段）
 - 修改：`Assets/Scripts/FrameWork/States/Ground/DodgeState.cs`（识破触发）

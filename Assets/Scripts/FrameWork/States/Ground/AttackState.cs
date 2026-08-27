@@ -11,6 +11,7 @@ public class AttackState : BaseState
     private float fallbackPosture;
     private float fallbackKnockback;
     private bool[] sfxFired;
+    private bool[] arrowFired;
 
     // 构造函数只接收一个光盘（配置）
     public AttackState(CharacterBody body, HierarchicalState parent, AttackConfig config) : base(body)
@@ -30,6 +31,7 @@ public class AttackState : BaseState
 
         animTime = 0f;
         sfxFired = null;
+        arrowFired = null;
         body.IsAttackRecoveryOpen = false;
         fallbackDamage = config.BaseDamage;
         fallbackPosture = config.PostureDamage;
@@ -87,6 +89,7 @@ public class AttackState : BaseState
 
         ApplyHitbox();
         ApplySfx();
+        ApplyArrows();
 
         if (config.AllowRotation)
         {
@@ -337,6 +340,24 @@ public class AttackState : BaseState
             if (animTime < cue.time) continue;
             sfxFired[i] = true;
             CombatEventBus.TriggerAttackSfx(cue.clip, body.transform.position);
+        }
+    }
+
+    private void ApplyArrows()
+    {
+        ArrowSpawnCue[] cues = config.arrowCues;
+        if (cues == null || cues.Length == 0) return;
+        if (arrowFired == null || arrowFired.Length != cues.Length)
+            arrowFired = new bool[cues.Length];
+
+        for (int i = 0; i < cues.Length; i++)
+        {
+            if (arrowFired[i]) continue;
+            ArrowSpawnCue cue = cues[i];
+            if (cue == null) continue;
+            if (animTime < cue.time) continue;
+            arrowFired[i] = true;
+            body.SpawnArrow();
         }
     }
 

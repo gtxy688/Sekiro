@@ -36,6 +36,12 @@ public class AttackSfxCue
     public AudioClip clip;
 }
 
+[Serializable]
+public class ArrowSpawnCue
+{
+    public float time;
+}
+
 // 这个标签让你可以在 Unity 项目的右键菜单里直接创建这个配置文件
 [CreateAssetMenu(fileName = "NewAttackConfig", menuName = "Combat/Attack Configuration")]
 public class AttackConfig : ScriptableObject
@@ -84,4 +90,8 @@ public class AttackConfig : ScriptableObject
     [Header("出招音效（可选）")]
     [Tooltip("相对本招动画 0 点的秒。与判定窗独立。clip 为空则跳过")]
     public AttackSfxCue[] sfxCues;
+
+    [Header("出箭（可选）")]
+    [Tooltip("相对本招动画 0 点的秒。到点调 SpawnArrow。空 = 不出箭")]
+    public ArrowSpawnCue[] arrowCues;
 }

@@ -53,6 +53,16 @@ public static class BossAttackBaker
                 cfg.sfxCues[i] = new AttackSfxCue { time = src.time, clip = src.clip };
             }
         }
+        if (w.arrowCues != null && w.arrowCues.Length > 0)
+        {
+            cfg.arrowCues = new ArrowSpawnCue[w.arrowCues.Length];
+            for (int i = 0; i < w.arrowCues.Length; i++)
+            {
+                ArrowSpawnCue src = w.arrowCues[i];
+                if (src == null) continue;
+                cfg.arrowCues[i] = new ArrowSpawnCue { time = src.time };
+            }
+        }
         return cfg;
     }
 }

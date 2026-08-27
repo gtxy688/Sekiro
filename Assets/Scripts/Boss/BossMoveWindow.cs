@@ -25,6 +25,9 @@ public class BossMoveWindow
     [Tooltip("相对本段动画 0 点。clip 为空则跳过")]
     public AttackSfxCue[] sfxCues;
 
+    [Tooltip("相对本段动画 0 点出箭。空 = 本段不出箭。五连射插 5 条")]
+    public ArrowSpawnCue[] arrowCues;
+
     [Tooltip("勾选后本段用下面三个数；不勾则用招默认值。段内某刀还可再覆盖")]
     public bool overrideCombat;
     public int baseDamage;

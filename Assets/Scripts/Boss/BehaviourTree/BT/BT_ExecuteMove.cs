@@ -23,6 +23,11 @@ public class BT_ExecuteMove : Node, ISelectorLock
 
     public void ResetMove()
     {
+        if (started && body != null)
+        {
+            body.CurrentMoveEntry = null;
+            body.CurrentMoveWindow = null;
+        }
         started = false;
         waitingAttack = false;
         allowInterrupt = false;
@@ -94,6 +99,8 @@ public class BT_ExecuteMove : Node, ISelectorLock
     {
         string anim = sequence.states[segment];
         BossMoveWindow w = BossMovePicker.WindowFor(entry, segment);
+        body.CurrentMoveEntry = entry;
+        body.CurrentMoveWindow = w;
         AttackConfig baked = BossAttackBaker.Bake(entry, anim, w);
         body.ActiveAttack = baked;
         if (!body.StartAttack(baked, allowInterrupt))

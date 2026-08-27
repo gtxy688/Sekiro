@@ -7,6 +7,8 @@ public class BossMoveDamageWindow : EditorWindow
 {
     const string DefaultTablePath = "Assets/SO/Boss/GenichiroMoveTable.asset";
     const float NumWidth = 64f;
+    const float HeavyWidth = 36f;
+    const float HeavyKnockback = 1f;
 
     BossMoveTable table;
     Vector2 scroll;
@@ -44,7 +46,7 @@ public class BossMoveDamageWindow : EditorWindow
         }
 
         EditorGUILayout.HelpBox(
-            "招那一行是默认伤害。勾选段/刀的「覆盖」后才能改那一行；不勾则跟招走。无近战判定的段不出现刀。时间轴只管出伤帧。",
+            "招那一行是默认伤害。勾选段/刀/箭的「覆盖」后才能改那一行；不勾则跟招走。弓段不开刀，但可以单独改箭伤。垫步仍无伤害。勾「重击」后挨打走重受击（击退>0）。时间轴只管出伤帧。",
             MessageType.None);
 
         EditorGUILayout.BeginHorizontal();
@@ -79,7 +81,7 @@ public class BossMoveDamageWindow : EditorWindow
         GUILayout.Label("覆盖", EditorStyles.miniBoldLabel, GUILayout.Width(36));
         GUILayout.Label("血量", EditorStyles.miniBoldLabel, GUILayout.Width(NumWidth));
         GUILayout.Label("架势", EditorStyles.miniBoldLabel, GUILayout.Width(NumWidth));
-        GUILayout.Label("击退", EditorStyles.miniBoldLabel, GUILayout.Width(NumWidth));
+        GUILayout.Label("重击", EditorStyles.miniBoldLabel, GUILayout.Width(HeavyWidth));
         EditorGUILayout.EndHorizontal();
     }
 
@@ -107,13 +109,13 @@ public class BossMoveDamageWindow : EditorWindow
         EditorGUI.BeginChangeCheck();
         int dmg = EditorGUILayout.IntField(entry.baseDamage, GUILayout.Width(NumWidth));
         float pos = EditorGUILayout.FloatField(entry.postureDamage, GUILayout.Width(NumWidth));
-        float kb = EditorGUILayout.FloatField(entry.knockback, GUILayout.Width(NumWidth));
+        bool heavy = EditorGUILayout.Toggle(entry.knockback > 0f, GUILayout.Width(HeavyWidth));
         if (EditorGUI.EndChangeCheck())
         {
             Undo.RecordObject(table, "招默认伤害");
             entry.baseDamage = dmg;
             entry.postureDamage = pos;
-            entry.knockback = kb;
+            entry.knockback = heavy ? Mathf.Max(entry.knockback, HeavyKnockback) : 0f;
             EditorUtility.SetDirty(table);
         }
     }
@@ -128,17 +130,20 @@ public class BossMoveDamageWindow : EditorWindow
             if (w == null) continue;
 
             bool melee = AttackWindowSync.CanMeleeHit(w.hitStartTime, w.recoverStart, w.hitPulses);
+            bool ranged = !melee && !IsLocomotionAnim(anim);
             EditorGUILayout.BeginHorizontal();
             GUILayout.Space(16);
-            GUILayout.Label("段  " + anim, GUILayout.ExpandWidth(true));
+            GUILayout.Label(
+                ranged ? "段  " + anim + "  ·箭" : "段  " + anim,
+                GUILayout.ExpandWidth(true));
             GUILayout.Label("", GUILayout.Width(48));
-            if (!melee)
+            if (!melee && !ranged)
             {
                 GUILayout.Label("无近战", GUILayout.Width(36));
                 GUI.enabled = false;
                 EditorGUILayout.IntField(0, GUILayout.Width(NumWidth));
                 EditorGUILayout.FloatField(0f, GUILayout.Width(NumWidth));
-                EditorGUILayout.FloatField(0f, GUILayout.Width(NumWidth));
+                EditorGUILayout.Toggle(false, GUILayout.Width(HeavyWidth));
                 GUI.enabled = true;
                 EditorGUILayout.EndHorizontal();
                 continue;
@@ -153,6 +158,9 @@ public class BossMoveDamageWindow : EditorWindow
                 entry.postureDamage,
                 entry.knockback);
             EditorGUILayout.EndHorizontal();
+
+            if (ranged)
+                continue;
 
             int inheritDmg = w.overrideCombat ? w.baseDamage : entry.baseDamage;
             float inheritPos = w.overrideCombat ? w.postureDamage : entry.postureDamage;
@@ -193,7 +201,7 @@ public class BossMoveDamageWindow : EditorWindow
                 GUI.enabled = false;
                 EditorGUILayout.IntField(inheritDmg, GUILayout.Width(NumWidth));
                 EditorGUILayout.FloatField(inheritPos, GUILayout.Width(NumWidth));
-                EditorGUILayout.FloatField(inheritKb, GUILayout.Width(NumWidth));
+                EditorGUILayout.Toggle(inheritKb > 0f, GUILayout.Width(HeavyWidth));
                 GUI.enabled = true;
                 EditorGUILayout.EndHorizontal();
             }
@@ -230,15 +238,28 @@ public class BossMoveDamageWindow : EditorWindow
         EditorGUI.BeginChangeCheck();
         int nd = EditorGUILayout.IntField(showDmg, GUILayout.Width(NumWidth));
         float np = EditorGUILayout.FloatField(showPos, GUILayout.Width(NumWidth));
-        float nk = EditorGUILayout.FloatField(showKb, GUILayout.Width(NumWidth));
-        bool changed = EditorGUI.EndChangeCheck();
+        bool numbersChanged = EditorGUI.EndChangeCheck();
         GUI.enabled = true;
-        if (ov && changed)
+        if (ov && numbersChanged)
         {
             Undo.RecordObject(table, "招式伤害");
             dmg = nd;
             pos = np;
-            kb = nk;
+            EditorUtility.SetDirty(table);
+        }
+
+        bool shownHeavy = showKb > 0f;
+        bool nextHeavy = EditorGUILayout.Toggle(shownHeavy, GUILayout.Width(HeavyWidth));
+        if (nextHeavy != shownHeavy)
+        {
+            Undo.RecordObject(table, "重击");
+            if (!ov)
+            {
+                ov = true;
+                dmg = inheritDmg;
+                pos = inheritPos;
+            }
+            kb = nextHeavy ? Mathf.Max(showKb, HeavyKnockback) : 0f;
             EditorUtility.SetDirty(table);
         }
     }
@@ -247,6 +268,13 @@ public class BossMoveDamageWindow : EditorWindow
     {
         bool open;
         return fold.TryGetValue(key, out open) && open;
+    }
+
+    static bool IsLocomotionAnim(string anim)
+    {
+        if (string.IsNullOrEmpty(anim)) return false;
+        return anim.StartsWith("Dodge", System.StringComparison.OrdinalIgnoreCase)
+            || anim.StartsWith("Step_", System.StringComparison.OrdinalIgnoreCase);
     }
 
     static string LayerLabel(BossMoveLayer layer)

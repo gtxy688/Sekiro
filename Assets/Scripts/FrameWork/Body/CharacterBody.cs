@@ -22,6 +22,18 @@ public class CharacterBody : MonoBehaviour
     [Tooltip("预留踢击。本需求不拖")]
     public Hitbox kickHitbox;
 
+    [Header("射箭")]
+    [Tooltip("弓弦出箭点，随弓骨。玩家不拖")]
+    public Transform arrowSpawn;
+    [Tooltip("箭 Prefab：模型 + ArrowProjectile。不要 Hitbox、不要 Collider")]
+    public ArrowProjectile arrowPrefab;
+    public float arrowSpeed = 32f;
+    public float arrowCastRadius = 0.08f;
+    public float arrowLifetime = 2f;
+    public LayerMask arrowTargetLayers;
+    [Tooltip("被瞄准的胸口。空则用 Hurtbox 中心。玩家拖，Boss 不拖")]
+    public Transform projectileAimPoint;
+
     // 3. 移动意图：无论是手柄摇杆推的，还是 Boss AI 寻路计算的，都写到这里
     public Vector3 MoveDirection { get; set; }
     // Boss AI 给的是世界 XZ；玩家输入是相机相对。MoveState 据此选转向
@@ -102,6 +114,10 @@ public class CharacterBody : MonoBehaviour
 
     // 下一次出手覆盖：Boss 表行烘焙、玩家突刺会先写这里。null 则玩家回退 LightAttack。
     public AttackConfig ActiveAttack { get; set; }
+
+    // 当前招式表行/段。出箭读伤害；AttackState 不清，BT_ExecuteMove.ResetMove 清。
+    public BossMoveEntry CurrentMoveEntry { get; set; }
+    public BossMoveWindow CurrentMoveWindow { get; set; }
 
     // 硬直时长：从 Config 读，容错给默认值（旧场景没拖 Config 也能跑）
     public float StunDuration => Config != null ? Config.StunDuration : 0.5f;
@@ -789,6 +805,66 @@ public class CharacterBody : MonoBehaviour
         target.Disable();
         ActiveHitbox = null;
         CombatEventBus.TriggerAttackSwingEnd(this);
+    }
+
+    // 时间轴 arrowCues 到点由 AttackState 调用。伤害读招式表，不读烘焙 AttackConfig。
+    public void SpawnArrow()
+    {
+        if (arrowPrefab == null || arrowSpawn == null)
+        {
+            Debug.LogWarning($"{name} 缺少 arrowPrefab 或 arrowSpawn，不出箭。");
+            return;
+        }
+
+        if (CurrentMoveEntry == null)
+        {
+            Debug.LogWarning($"{name} SpawnArrow 时没有当前招式表行。");
+            return;
+        }
+
+        AttackCombatResolve.Resolve(
+            CurrentMoveEntry, CurrentMoveWindow,
+            out int damage, out float posture, out float knockback);
+
+        Vector3 origin = arrowSpawn.position;
+        Vector3 aim = ResolveProjectileAimPoint();
+        Vector3 dir = aim - origin;
+        if (dir.sqrMagnitude < 0.0001f)
+            dir = transform.forward;
+
+        LayerMask layers = arrowTargetLayers;
+        if (layers == 0 && Weapon != null)
+            layers = Weapon.targetLayers;
+        if (layers == 0)
+            Debug.LogWarning($"{name} arrowTargetLayers 未设，箭扫不到人。");
+
+        ArrowProjectile arrow = Instantiate(arrowPrefab, origin, Quaternion.LookRotation(dir, Vector3.up));
+        arrow.Fire(this, dir, arrowSpeed, arrowCastRadius, layers, arrowLifetime,
+            damage, posture, knockback);
+    }
+
+    public Vector3 GetProjectileAimPoint()
+    {
+        if (projectileAimPoint != null)
+            return projectileAimPoint.position;
+        Hurtbox hurtbox = GetComponentInChildren<Hurtbox>();
+        if (hurtbox != null)
+            return hurtbox.transform.position;
+        return transform.position + Vector3.up * 1.2f;
+    }
+
+    Vector3 ResolveProjectileAimPoint()
+    {
+        if (CombatTarget == null)
+            return transform.position + transform.forward * 8f + Vector3.up * 1.2f;
+
+        CharacterBody targetBody = CombatTarget.GetComponent<CharacterBody>();
+        if (targetBody == null)
+            targetBody = CombatTarget.GetComponentInParent<CharacterBody>();
+        if (targetBody != null)
+            return targetBody.GetProjectileAimPoint();
+
+        return CombatTarget.position + Vector3.up * 1.2f;
     }
 
     void InitHitboxes()

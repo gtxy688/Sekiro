@@ -81,6 +81,19 @@ Play `GameScene` 后用玩家普攻（点按）验收，不要再挂临时开闭
 | 20 | `Kengeki_Bow`、`Kengeki_JumpBow` 前段贴身 | 弓段不伤；若有 3015 刀段仍打中 |
 | 21 | 时间轴打开弓段 | 无 0.01s 假红条；「关闭近战判定」后 HitStart=Recover=时长 |
 
+## 射箭投射物
+
+前置：Boss 已拖 `arrowSpawn` / `arrowPrefab` / `arrowTargetLayers`；箭 Prefab 只有模型 + `ArrowProjectile`（无 Hitbox、无 Collider）；时间轴已给弓段插出箭点并保存（`Bow_Air5` 5 点）。Clip 上没有 `SpawnArrow`、没有 `EnableWeaponHit`。玩家可选胸口 `projectileAimPoint`。
+
+| # | 操作 | 预期 |
+|---|------|------|
+| 21b | `Bow_Shot`，站远处被箭打中 | 可见箭飞来；掉招式表伤害（默认 10/15）；刀 Hitbox 不亮 |
+| 21c | `Bow_Heavy` 被箭打中 | 掉 25/30（招上数值），不是 10 |
+| 21d | 箭飞来时弹反窗口内 | 弹反成功，不受伤 |
+| 21e | 箭飞来时垫步无敌 | 不受伤 |
+| 21f | 贴身 `Bow_Shot` | 仍出箭，不靠刀判定 |
+| 21g | `Bow_Air5` 时间轴 5 个出箭点 | 同一动画出 5 支箭 |
+
 ## 段/刀伤害（ARPG/招式伤害）
 
 前置：菜单 `ARPG/招式伤害` 打开 `GenichiroMoveTable`。测完把覆盖勾掉，避免污染默认数值。
@@ -90,8 +103,10 @@ Play `GameScene` 后用玩家普攻（点按）验收，不要再挂临时开闭
 | 22 | 不勾任何覆盖，打 `Slash_Rush2` 两刀 | 两刀都是招上的血量/架势（默认 10/15） |
 | 23 | 展开 `Slash_Rush2`，只给刀 2 勾覆盖，血量改成 20，第一刀仍继承 | 第一刀掉 10；第二刀掉 20 |
 | 24 | 展开 `Slash_SpinElbow`，只给 Elbow 段勾覆盖，血量 25 | 旋斩仍 10；肘击 25 |
-| 25 | `Bow_Shot` 展开 | 显示无近战，没有可改的刀行 |
+| 25 | 展开 `Bow_Shot` / `Bow_Heavy` | 弓段标「·箭」，可勾覆盖改箭伤；`Dodge_Back` 仍显示无近战 |
 | 26 | 改完伤害后打开时间轴保存该段判定 | 伤害覆盖还在，没有被时间轴冲掉 |
+| 27 | 给 `Slash_Heavy` 勾「重击」，裸吃一刀 | 玩家播 Heavy 受击，不是普通受击 |
+| 28 | 只给 `Slash_SpinElbow` 的 Elbow 段勾「重击」 | 旋斩普通受击；肘击 Heavy |
 
 ## 常见问题
 

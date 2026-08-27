@@ -17,6 +17,35 @@ public static class AttackCombatResolve
         cfg.Knockback = entry.knockback;
     }
 
+    // 箭用：直接读招式表，不经过弓段烘焙的 AttackConfig。
+    public static void Resolve(
+        BossMoveEntry entry,
+        BossMoveWindow w,
+        out int damage,
+        out float posture,
+        out float knockback)
+    {
+        if (entry == null)
+        {
+            damage = 0;
+            posture = 0f;
+            knockback = 0f;
+            return;
+        }
+
+        if (w != null && w.overrideCombat)
+        {
+            damage = w.baseDamage;
+            posture = w.postureDamage;
+            knockback = w.knockback;
+            return;
+        }
+
+        damage = entry.baseDamage;
+        posture = entry.postureDamage;
+        knockback = entry.knockback;
+    }
+
     public static void ApplyPulse(
         AttackConfig cfg,
         HitPulse pulse,

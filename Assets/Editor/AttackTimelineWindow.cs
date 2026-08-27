@@ -13,6 +13,7 @@ public class AttackTimelineWindow : EditorWindow
 
     HitPulse[] workingPulses;
     AttackSfxCue[] workingSfx;
+    ArrowSpawnCue[] workingArrows;
     Object loadedSource;
     int loadedMove = -1;
     int loadedSeg = -1;
@@ -20,10 +21,13 @@ public class AttackTimelineWindow : EditorWindow
     int dragPulse = -1;
     int dragEdge;
     int dragSfx = -1;
+    int dragArrow = -1;
     int pendingRemovePulse = -1;
     int pendingRemoveSfx = -1;
+    int pendingRemoveArrow = -1;
     bool pendingAddPulse;
     bool pendingAddSfx;
+    bool pendingAddArrow;
     bool pendingShrinkPulse;
     bool pendingClearMelee;
     bool forceNoHit;
@@ -116,6 +120,11 @@ public class AttackTimelineWindow : EditorWindow
         DrawHitTrack(clipLength);
         EditorGUILayout.Space();
         DrawSfxTrack(clipLength);
+        if (bossTable != null)
+        {
+            EditorGUILayout.Space();
+            DrawArrowTrack(clipLength);
+        }
 
         EditorGUILayout.BeginHorizontal();
         if (GUILayout.Button("用动画长度填写时长"))
@@ -283,6 +292,7 @@ public class AttackTimelineWindow : EditorWindow
         loadedSeg = segmentIndex;
         workingPulses = ClonePulses(CurrentStoredPulses(), CurrentHitStart(), CurrentRecover());
         workingSfx = CloneSfx(CurrentStoredSfx());
+        workingArrows = CloneArrows(CurrentStoredArrows());
         forceNoHit = false;
     }
 
@@ -399,6 +409,54 @@ public class AttackTimelineWindow : EditorWindow
         }
     }
 
+    void DrawArrowTrack(float clipLength)
+    {
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("出箭（↑）", EditorStyles.boldLabel);
+        if (GUILayout.Button("加出箭", GUILayout.Width(70)))
+            pendingAddArrow = true;
+        EditorGUILayout.EndHorizontal();
+        EditorGUILayout.HelpBox(
+            "拖进度到撒手帧再点「加出箭」。与近战红条独立，「关闭近战判定」不会清出箭点。五连射插 5 点。Clip 上不要加 SpawnArrow。",
+            MessageType.None);
+
+        Rect track = GUILayoutUtility.GetRect(16f, 22f, GUILayout.ExpandWidth(true));
+        EditorGUI.DrawRect(track, new Color(0.18f, 0.18f, 0.18f));
+        HandlePlayhead(track, clipLength);
+
+        if (workingArrows != null)
+        {
+            for (int i = 0; i < workingArrows.Length; i++)
+            {
+                ArrowSpawnCue cue = workingArrows[i];
+                if (cue == null) continue;
+                float x = track.x + (clipLength > 0.0001f ? cue.time / clipLength : 0f) * track.width;
+                Rect mark = new Rect(x - 7f, track.y, 14f, track.height);
+                GUI.Label(mark, "↑");
+                HandleArrowDrag(track, clipLength, i, mark);
+            }
+        }
+
+        if (workingArrows == null) return;
+        for (int i = 0; i < workingArrows.Length; i++)
+        {
+            ArrowSpawnCue cue = workingArrows[i] ?? new ArrowSpawnCue();
+            workingArrows[i] = cue;
+            string prefix = workingArrows.Length > 1 ? (i + 1) + " " : "";
+            float newTime = DragNameTime(prefix + "出箭（秒）", cue.time, 0f, clipLength);
+            if (!Mathf.Approximately(newTime, cue.time))
+            {
+                cue.time = newTime;
+                scrub = newTime;
+            }
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("到点生成一支箭", EditorStyles.miniLabel);
+            if (GUILayout.Button("×", GUILayout.Width(22)))
+                pendingRemoveArrow = i;
+            EditorGUILayout.EndHorizontal();
+        }
+    }
+
     float DragNameTime(string label, float value, float min, float max)
     {
         Rect row = EditorGUILayout.GetControlRect();
@@ -444,12 +502,14 @@ public class AttackTimelineWindow : EditorWindow
         EditorGUI.DrawRect(new Rect(x, track.y, 2f, track.height), Color.white);
 
         Event e = Event.current;
-        if (e.type == EventType.MouseDown && track.Contains(e.mousePosition) && dragPulse < 0 && dragSfx < 0)
+        if (e.type == EventType.MouseDown && track.Contains(e.mousePosition)
+            && dragPulse < 0 && dragSfx < 0 && dragArrow < 0)
         {
             scrub = TimeAt(track, e.mousePosition.x, clipLength);
             e.Use();
         }
-        else if (e.type == EventType.MouseDrag && dragPulse < 0 && dragSfx < 0 && track.Contains(e.mousePosition))
+        else if (e.type == EventType.MouseDrag && dragPulse < 0 && dragSfx < 0 && dragArrow < 0
+            && track.Contains(e.mousePosition))
         {
             scrub = TimeAt(track, e.mousePosition.x, clipLength);
             e.Use();
@@ -504,6 +564,25 @@ public class AttackTimelineWindow : EditorWindow
         }
     }
 
+    void HandleArrowDrag(Rect track, float clipLength, int index, Rect mark)
+    {
+        Event e = Event.current;
+        if (e.type == EventType.MouseDown && mark.Contains(e.mousePosition))
+        {
+            dragArrow = index;
+            e.Use();
+        }
+        else if (e.type == EventType.MouseDrag && dragArrow == index)
+        {
+            workingArrows[index].time = TimeAt(track, e.mousePosition.x, clipLength);
+            e.Use();
+        }
+        else if (e.type == EventType.MouseUp)
+        {
+            dragArrow = -1;
+        }
+    }
+
     static float TimeAt(Rect track, float mouseX, float clipLength)
     {
         float u = track.width > 0.0001f ? Mathf.InverseLerp(track.x, track.xMax, mouseX) : 0f;
@@ -526,6 +605,7 @@ public class AttackTimelineWindow : EditorWindow
             Undo.RecordObject(playerConfig, "Attack Timeline");
             SaveMeleeWindow(playerConfig, clamped, forceNoHit);
             playerConfig.sfxCues = CloneSfx(workingSfx);
+            playerConfig.arrowCues = CloneArrows(workingArrows);
             EditorUtility.SetDirty(playerConfig);
             forceNoHit = false;
             workingPulses = ClonePulses(playerConfig.hitPulses, playerConfig.HitStartTime, playerConfig.RecoveryWindowStart);
@@ -537,6 +617,7 @@ public class AttackTimelineWindow : EditorWindow
         Undo.RecordObject(bossTable, "Attack Timeline");
         SaveMeleeWindow(w, clamped, forceNoHit);
         w.sfxCues = CloneSfx(workingSfx);
+        w.arrowCues = CloneArrows(workingArrows);
         EditorUtility.SetDirty(bossTable);
         forceNoHit = false;
         workingPulses = ClonePulses(w.hitPulses, w.hitStartTime, w.recoverStart);
@@ -655,6 +736,13 @@ public class AttackTimelineWindow : EditorWindow
         return w != null ? w.sfxCues : null;
     }
 
+    ArrowSpawnCue[] CurrentStoredArrows()
+    {
+        if (playerConfig != null) return playerConfig.arrowCues;
+        BossMoveWindow w = CurrentWindow();
+        return w != null ? w.arrowCues : null;
+    }
+
     float CurrentHitStart()
     {
         if (playerConfig != null) return playerConfig.HitStartTime;
@@ -705,6 +793,21 @@ public class AttackTimelineWindow : EditorWindow
         return copy;
     }
 
+    static ArrowSpawnCue[] CloneArrows(ArrowSpawnCue[] stored)
+    {
+        if (stored == null || stored.Length == 0)
+            return new ArrowSpawnCue[0];
+        ArrowSpawnCue[] copy = new ArrowSpawnCue[stored.Length];
+        for (int i = 0; i < stored.Length; i++)
+        {
+            ArrowSpawnCue s = stored[i];
+            copy[i] = s == null
+                ? new ArrowSpawnCue()
+                : new ArrowSpawnCue { time = s.time };
+        }
+        return copy;
+    }
+
     void ApplyPendingEdits(float clipLength)
     {
         if (pendingAddPulse)
@@ -726,6 +829,10 @@ public class AttackTimelineWindow : EditorWindow
             AppendSfx(new AttackSfxCue { time = scrub });
         if (pendingRemoveSfx >= 0)
             RemoveSfx(pendingRemoveSfx);
+        if (pendingAddArrow)
+            AppendArrow(new ArrowSpawnCue { time = scrub });
+        if (pendingRemoveArrow >= 0)
+            RemoveArrow(pendingRemoveArrow);
 
         pendingAddPulse = false;
         pendingShrinkPulse = false;
@@ -733,6 +840,8 @@ public class AttackTimelineWindow : EditorWindow
         pendingRemovePulse = -1;
         pendingAddSfx = false;
         pendingRemoveSfx = -1;
+        pendingAddArrow = false;
+        pendingRemoveArrow = -1;
     }
 
     void RemovePulse(int index)
@@ -797,5 +906,28 @@ public class AttackTimelineWindow : EditorWindow
             next[w++] = workingSfx[i];
         }
         workingSfx = next;
+    }
+
+    void AppendArrow(ArrowSpawnCue cue)
+    {
+        int n = workingArrows == null ? 0 : workingArrows.Length;
+        ArrowSpawnCue[] next = new ArrowSpawnCue[n + 1];
+        if (workingArrows != null)
+            System.Array.Copy(workingArrows, next, n);
+        next[n] = cue;
+        workingArrows = next;
+    }
+
+    void RemoveArrow(int index)
+    {
+        if (workingArrows == null || index < 0 || index >= workingArrows.Length) return;
+        ArrowSpawnCue[] next = new ArrowSpawnCue[workingArrows.Length - 1];
+        int w = 0;
+        for (int i = 0; i < workingArrows.Length; i++)
+        {
+            if (i == index) continue;
+            next[w++] = workingArrows[i];
+        }
+        workingArrows = next;
     }
 }
