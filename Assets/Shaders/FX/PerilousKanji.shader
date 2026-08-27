@@ -66,8 +66,8 @@ Shader "ARPG/FX/PerilousKanji"
             float MaskAt(float2 uv)
             {
                 fixed4 tex = tex2D(_MainTex, uv);
-                float lum = max(max(tex.r, tex.g), tex.b);
-                return max(lum, tex.a);
+                // 只用亮度，避免黑底 Alpha=1 时整块 Quad 被点亮
+                return max(max(tex.r, tex.g), tex.b);
             }
 
             // 白字黑底：亮度当遮罩。邻域取 max 把笔画胀开，再按 Cutoff 削黑底。

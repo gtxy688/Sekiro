@@ -88,7 +88,10 @@ public static class AttackWindowSync
             float end = Mathf.Clamp(p.end, 0f, len);
             if (end - start < MinMeleeHitSpan)
                 continue;
-            buf[n++] = new HitPulse { start = start, end = end };
+            HitPulse copy = p.Clone();
+            copy.start = start;
+            copy.end = end;
+            buf[n++] = copy;
         }
 
         HitPulse[] result = new HitPulse[n];

@@ -31,13 +31,12 @@ public class AudioManager : MonoBehaviour
 
     private void Awake()
     {
-        audioSource = GetComponent<AudioSource>();
-        // 若没有 AudioSource，自动补一个（方便场景搭建）
-        if (audioSource == null)
-        {
-            audioSource = gameObject.AddComponent<AudioSource>();
-        }
+        // 自己加一条 Source，不要 GetComponent：和 BGMManager 同物体时会抢到 BGM 那条，
+        // 淡入淡出会把 volume 改成音乐音量，格挡/弹反就不再跟音效滑条走。
+        audioSource = gameObject.AddComponent<AudioSource>();
         audioSource.playOnAwake = false;
+        audioSource.loop = false;
+        audioSource.spatialBlend = 0f;
 
         blockPool = LoadPool(BlockFolder);
         deflectPool = LoadPool(DeflectFolder);

@@ -22,8 +22,12 @@ public class BT_HealPunish : Node, ISelectorLock
 
     public override NodeState Evaluate()
     {
+        if (body.IsParried || body.IsPostureBroken || body.IsFinisherLocked)
+        {
+            executor.ResetMove();
+            return NodeState.Failure;
+        }
         if (executor.IsBusy) return executor.Evaluate();
-        if (body.IsParried || body.IsPostureBroken || body.IsFinisherLocked) return NodeState.Failure;
         if (player == null || !player.IsHealing) return NodeState.Failure;
         if (table == null) return NodeState.Failure;
         BossMoveEntry heavy = table.FindById("Bow_Heavy");

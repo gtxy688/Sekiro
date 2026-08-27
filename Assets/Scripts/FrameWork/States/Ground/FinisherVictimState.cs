@@ -27,11 +27,19 @@ public class FinisherVictimState : BaseState
             body.Rb.velocity = new Vector3(0f, v.y, 0f);
         }
 
-        if (CombatManager.Instance != null && CombatManager.Instance.PlayerRef != null)
+        // 成对忍杀开演才水平对视。确认窗口钉住被打断时的朝向。
+        if (IsPairedFinisherAnim(animName) &&
+            CombatManager.Instance != null &&
+            CombatManager.Instance.PlayerRef != null)
         {
+            body.ClearCombatYawFrozen();
             Vector3 toPlayer =
                 CombatManager.Instance.PlayerRef.transform.position - body.transform.position;
             body.SnapYaw(toPlayer, animName);
+        }
+        else
+        {
+            body.FreezeCombatYaw();
         }
 
         if (!AnimUtil.TryPlay(body.Animator, animName))
@@ -72,5 +80,11 @@ public class FinisherVictimState : BaseState
     public override bool OnHitReceived(HitData hit)
     {
         return true;
+    }
+
+    // 资源名是 Finsher_*（缺字母 i）；Miriki 拼写也走这个前缀。
+    private static bool IsPairedFinisherAnim(string name)
+    {
+        return !string.IsNullOrEmpty(name) && name.StartsWith("Finsher_");
     }
 }

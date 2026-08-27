@@ -22,13 +22,11 @@ public class BGMManager : MonoBehaviour
 
     private void Awake()
     {
-        source = GetComponent<AudioSource>();
-        if (source == null)
-        {
-            source = gameObject.AddComponent<AudioSource>();
-        }
+        // 自己加一条 Source，不要 GetComponent：和 AudioManager 同物体时会抢同一条。
+        source = gameObject.AddComponent<AudioSource>();
         source.playOnAwake = false;
         source.loop = true;
+        source.spatialBlend = 0f;
         AudioVolumeSettings.Load();
     }
 

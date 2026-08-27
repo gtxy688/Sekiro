@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// 识破（踩刀）状态（M17）：突刺危字攻击 + 玩家垫步 → 触发识破
+// 识破（踩刀）状态（M17）：突刺危字 + 无方向垫步 → 触发识破
 // 播踩刀动画 → 大幅涨攻击者架势 → 崩解时踩刀剩余动画就是忍杀确认窗口
 // 叶子状态，位于 GroundedState.SubStateMachine
 public class MikiriCounterState : BaseState

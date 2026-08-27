@@ -207,6 +207,8 @@ public class AttackTimelineWindow : EditorWindow
                 EditorGUILayout.LabelField(
                     "另有 " + (entry.sequences.Length - 1) + " 套动画分支，预览第一套；时间窗各套共用。",
                     EditorStyles.miniLabel);
+            if (GUILayout.Button("打开招式伤害表", GUILayout.Width(130)))
+                BossMoveDamageWindow.Open(bossTable);
         }
     }
 
@@ -683,9 +685,7 @@ public class AttackTimelineWindow : EditorWindow
         for (int i = 0; i < src.Length; i++)
         {
             HitPulse p = src[i];
-            copy[i] = p == null
-                ? new HitPulse { start = 0f, end = 0f }
-                : new HitPulse { start = p.start, end = p.end };
+            copy[i] = p == null ? new HitPulse { start = 0f, end = 0f } : p.Clone();
         }
         return copy;
     }

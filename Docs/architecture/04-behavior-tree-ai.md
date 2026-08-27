@@ -115,7 +115,7 @@ Selector **只**对实现 `ISelectorLock` 的 Running 子节点记住索引。`B
 
 ```
 Selector:
-├─ 崩解中 → Success（不选招）
+├─ 崩解中 / 忍杀锁定 / 弹反或识破硬直 → Success（不选招、不走位）
 ├─ BT_Kengeki（KengekiArmed 且硬直结束、距离≤2.5 → 交锋表）
 ├─ 玩家 IsHealing → Bow_Heavy（打断当前近战/交锋，不走该招冷却）
 ├─ BT_PickActive（距离档加权）

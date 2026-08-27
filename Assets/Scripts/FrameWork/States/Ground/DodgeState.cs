@@ -1,8 +1,8 @@
 using UnityEngine;
 
 // 闪避（垫步）状态：全权根运动，位移由垫步动画 Root 曲线驱动，代码只计时退出
-// 无敌帧（M4）：前 DodgeIFrame 秒内普通攻击打不中（危字突刺除外 → 识破优先）
-// 锁定：按相对 Boss 的输入切四向一次性垫步，不用融合树（斜向混合会搅乱 Root）
+// 无敌帧（M4）：前 DodgeIFrame 秒内普通攻击打不中
+// 识破：仅无方向垫步踩中突刺；锁定四向垫步不用融合树
 public class DodgeState : BaseState
 {
     private HierarchicalState parent;
@@ -11,6 +11,7 @@ public class DodgeState : BaseState
     private float iFrameDuration;
     private float rotationSpeed = 720f;
     private bool lockedDodge;
+    private bool mikiriEligible;
 
     public DodgeState(CharacterBody body, HierarchicalState parent) : base(body)
     {
@@ -25,6 +26,8 @@ public class DodgeState : BaseState
     {
         dodgeTimer = 0f;
         lockedDodge = IsLockedOnTarget();
+        // 进垫步当下有没有方向键：识破只认无方向，不看垫步动画叫前还是后
+        mikiriEligible = body.MoveDirection.sqrMagnitude < 0.01f;
 
         if (lockedDodge)
         {
@@ -72,11 +75,11 @@ public class DodgeState : BaseState
     }
 
     // 受击拦截（M1/M17/M4）：
-    //   突刺危字 + 垫步 → 触发识破（踩刀），拦截伤害（优先于无敌帧）
-    //   普通攻击 + 无敌帧内 → 躲过（拦截伤害）
+    //   突刺危字 + 无方向垫步 → 识破（踩刀）
+    //   带方向垫步（含后垫）只走无敌帧，不识破，避免后垫踩刀把 Boss 拧成反向
     public override bool OnHitReceived(HitData hit)
     {
-        if (hit.isPerilous && hit.perilousType == PerilousType.Thrust)
+        if (mikiriEligible && hit.isPerilous && hit.perilousType == PerilousType.Thrust)
         {
             parent.SubStateMachine.ChangeState(new MikiriCounterState(body, parent, hit));
             return true;
@@ -89,7 +92,7 @@ public class DodgeState : BaseState
         return false;
     }
 
-    // 相对 Boss：+Z 前、−Z 后、−X 左、+X 右。无输入默认后垫。斜向取绝对值更大的轴。
+    // 相对 Boss：+Z 前、−Z 后、−X 左、+X 右。无输入默认前垫（踩刀方向）。斜向取绝对值更大的轴。
     private string ResolveLockedDodgeAnim()
     {
         Vector3 toBoss = LockOnManager.Instance.Target.position - body.transform.position;
@@ -97,7 +100,7 @@ public class DodgeState : BaseState
 
         Vector3 world = body.InputToWorldDir(body.MoveDirection);
         if (toBoss.sqrMagnitude < 0.001f || world.sqrMagnitude < 0.01f)
-            return "Dodge_Back";
+            return "Dodge_Forward";
 
         toBoss.Normalize();
         Vector3 right = Vector3.Cross(Vector3.up, toBoss);
@@ -114,7 +117,7 @@ public class DodgeState : BaseState
         Vector3 toBoss = LockOnManager.Instance.Target.position - body.transform.position;
         toBoss.y = 0f;
         if (toBoss.sqrMagnitude < 0.001f) return;
-        body.transform.rotation = Quaternion.LookRotation(toBoss.normalized, Vector3.up);
+        body.SnapYaw(toBoss);
     }
 
     private void FaceTarget()

@@ -8,6 +8,8 @@ public class BossMoveTableEditor : Editor
     public override void OnInspectorGUI()
     {
         DrawDefaultInspector();
+        if (GUILayout.Button("打开招式伤害表"))
+            BossMoveDamageWindow.Open((BossMoveTable)target);
         if (GUILayout.Button("打开攻击时间轴"))
             AttackTimelineWindow.Open((BossMoveTable)target);
         if (GUILayout.Button("填入弦一郎默认招式表"))

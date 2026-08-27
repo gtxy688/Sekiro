@@ -7,14 +7,16 @@ public class ParriedState : BaseState
     private const string DefaultAnim = "Deflected";
 
     private readonly string animName;
+    private readonly bool freezeYawAfterExit;
     private float timer;
     private float duration;
     private bool hasSeenAnim;
     private bool triedNestedPath;
 
-    public ParriedState(CharacterBody body, string animName = null) : base(body)
+    public ParriedState(CharacterBody body, string animName = null, bool freezeYawAfterExit = false) : base(body)
     {
         this.animName = string.IsNullOrEmpty(animName) ? DefaultAnim : animName;
+        this.freezeYawAfterExit = freezeYawAfterExit;
         duration = body.Config != null ? body.Config.ParriedDuration : 0.35f;
     }
 
@@ -24,6 +26,8 @@ public class ParriedState : BaseState
         hasSeenAnim = false;
         triedNestedPath = false;
         body.IsParried = true;
+        // 钉住打断当下的朝向。识破还会把冻结留到下一招（freezeYawAfterExit）。
+        body.FreezeCombatYaw();
 
         if (!AnimUtil.TryPlay(body.Animator, animName))
         {
@@ -76,5 +80,12 @@ public class ParriedState : BaseState
     public override void OnExit()
     {
         body.IsParried = false;
+        if (freezeYawAfterExit)
+        {
+            return;
+        }
+
+        body.ClearCombatYawFrozen();
+        body.SetSuppressRootYaw(false);
     }
 }

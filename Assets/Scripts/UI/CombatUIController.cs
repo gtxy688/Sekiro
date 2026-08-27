@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 // MVC 之 Controller：订阅 CombatEventBus，把战斗数值转给对应 View
 // 只做"数据 → View"的转发，不持有业务逻辑、不做每帧轮询（表现层红线）
@@ -16,9 +17,17 @@ public class CombatUIController : MonoBehaviour
     [SerializeField] private ItemSlotView itemSlotView;             // 右下：葫芦
     [SerializeField] private LockOnIndicatorView lockOnIndicatorView; // 屏幕锁定点，跟随 Boss Spine1
     [SerializeField] private PerilousWarningView perilousWarningView; // "危"字
+    [SerializeField] private HealKanjiView healKanjiView;           // "治"字
     [SerializeField] private RevivePromptView revivePromptView;     // 回生提示（M14）
     [SerializeField] private GameOverView gameOverView;             // 死亡提示（M14）
     [SerializeField] private VictoryView victoryView;               // 胜利提示（M10）
+
+    private void Awake()
+    {
+        // 旧 HUD 没挂组件也能播台词，不必手改预制体
+        if (GetComponent<BossVoiceDirector>() == null)
+            gameObject.AddComponent<BossVoiceDirector>();
+    }
 
     // ===== 生命周期：订阅 / 取消订阅 =====
     private void OnEnable()
@@ -67,10 +76,16 @@ public class CombatUIController : MonoBehaviour
         itemSlotView?.OnViewInit();
         BindLockOnView();
         BindPerilousView();
+        BindHealKanjiView();
         perilousWarningView?.OnViewInit();
+        healKanjiView?.OnViewInit();
         revivePromptView?.OnViewInit();
         gameOverView?.OnViewInit();
         victoryView?.OnViewInit();
+        TmpChineseFont.ApplyAll(transform);
+
+        BossVoiceDirector voice = GetComponent<BossVoiceDirector>();
+        voice?.Bind(playerBody, bossBody, playerPostureBarView != null ? playerPostureBarView.transform as RectTransform : null);
 
         // 初始状态（Awake 里 InitCombat 不会发事件，这里把当前数值推到条上，否则开局血条/葫芦是空的）
         bossStatusView?.SetName("苇名弦一郎");
@@ -164,10 +179,12 @@ public class CombatUIController : MonoBehaviour
 
     private void HandleGourdUsed(CharacterBody c, int remaining)
     {
-        if (c == playerBody)
-        {
-            itemSlotView?.SetGourdCount(remaining);
-        }
+        if (c != playerBody) return;
+        itemSlotView?.SetGourdCount(remaining);
+        if (healKanjiView == null)
+            BindHealKanjiView();
+        healKanjiView?.BindFollowTarget(playerBody);
+        healKanjiView?.ShowHeal();
     }
 
     private void HandleReviveAvailable(CharacterBody c)
@@ -199,10 +216,31 @@ public class CombatUIController : MonoBehaviour
 
     private void HandleVictory(CharacterBody c)
     {
-        if (c == bossBody)
-        {
-            victoryView?.ShowVictory();
-        }
+        if (c != bossBody) return;
+
+        CombatInputGate.SetBlocked(true);
+        FreezePlayerMotion();
+        ReleasePlayerDevicesForUi();
+        victoryView?.ShowVictory();
+    }
+
+    // 处决结束会回待机，不把摇杆关掉的话还能接着走
+    private void FreezePlayerMotion()
+    {
+        if (playerBody == null) return;
+        playerBody.MoveDirection = Vector3.zero;
+        if (playerBody.Rb == null) return;
+        Vector3 velocity = playerBody.Rb.velocity;
+        playerBody.Rb.velocity = new Vector3(0f, velocity.y, 0f);
+    }
+
+    // 手柄被 PlayerInput 独占时，胜利按钮收不到确认
+    private void ReleasePlayerDevicesForUi()
+    {
+        if (playerBody == null) return;
+        PlayerInput input = playerBody.GetComponent<PlayerInput>();
+        if (input != null)
+            input.DeactivateInput();
     }
 
     private void HandleLifeCleared(CharacterBody c, int remainingLives)
@@ -290,5 +328,33 @@ public class CombatUIController : MonoBehaviour
         perilousWarningView.enabled = true;
         perilousWarningView.BindFollowTarget(bossBody);
         perilousWarningView.OnViewInit();
+    }
+
+    private void BindHealKanjiView()
+    {
+        if (healKanjiView == null)
+        {
+            GameObject named = GameObject.Find("HealKanji");
+            if (named != null)
+                healKanjiView = named.GetComponent<HealKanjiView>();
+        }
+
+        if (healKanjiView == null)
+        {
+            HealKanjiView[] views = FindObjectsOfType<HealKanjiView>(true);
+            for (int i = 0; i < views.Length; i++)
+            {
+                if (views[i] != null && views[i].gameObject.scene.IsValid())
+                {
+                    healKanjiView = views[i];
+                    break;
+                }
+            }
+        }
+
+        if (healKanjiView == null) return;
+        healKanjiView.enabled = true;
+        healKanjiView.BindFollowTarget(playerBody);
+        healKanjiView.OnViewInit();
     }
 }

@@ -40,6 +40,14 @@ OnAttackSfx(AudioClip clip, Vector3 worldPos)  // 出招音效（AttackState 按
 - 时间：弹出后约 0.8 秒淡出。`LateUpdate` 只做跟随/朝向相机，不轮询战斗数值。
 - 生成：`Tools/战斗/生成危字特效`。贴图放 `Assets/Art/FX`。
 
+### 治愈 Billboard（M16 表现）
+
+- 事件：`OnGourdUsed(CharacterBody c, int remaining)`（签名不改）。仅玩家喝药成功时弹出。
+- 位置：世界空间 Billboard，跟随 **玩家** 的 `Head`（没有则 `Spine1` / `Spine`）+ `headOffset`（默认 0.55m）。**不跟 Boss、不放屏幕正中。**
+- 绘制：直接画 `治.png`（白字黑底，亮度当透明）。`ARPG/FX/HealSprite` 单层 Quad（约 0.60m），绿色染色。透明混合，**不**走危字加法 Shader（加法会把整块 Quad 烧成方块）。`ZTest Always`。
+- 时间：弹出后约 0.8 秒淡出。喝药被打断时特效仍播完。`LateUpdate` 只做跟随/朝向相机，不轮询战斗数值。
+- 生成：`Tools/战斗/生成治愈特效`。贴图 `Assets/Sekrio/FX/治.png`。
+
 > 为什么事件带完整数据：M2（CharacterConfig）还没实现时表现层也能独立编译运行，不依赖读取 CharacterBody 内部字段。
 
 ## 二、相机（M12，Cinemachine 三级相机管理）
@@ -99,14 +107,32 @@ OnAttackSfx(AudioClip clip, Vector3 worldPos)  // 出招音效（AttackState 按
 ### 用户音量（暂停菜单）
 
 - `AudioVolumeSettings`：音乐默认 0.8，音效默认 1.0，`PlayerPrefs` 键 `audio.bgm` / `audio.sfx`。
-- 音效：实际音量 = 检视器基础 `volume` × 用户音效滑条。`PlayOneShot` 自动跟着变。wav 很大时调 `AudioManager.volume`（默认 0.35），不要改滑条默认 1。
+- 音效：实际音量 = 检视器基础 `volume` × 用户音效滑条。`PlayOneShot` 自动跟着变。wav 很大时调 `AudioManager.volume`，不要改滑条默认 1。`AudioManager` 与 `BGMManager` 必须各用自己的 `AudioSource`（即使挂在同一物体上也不能 `GetComponent` 共用），否则 BGM 淡入淡出会盖掉音效滑条。
 - 音乐：`BGMManager` 实际音量 = 检视器基础 `volume` × 用户音乐音量 × 淡入淡出 `fadeWeight`。不要用 Mixer。曲子本身很大时调检视器 `volume`（当前场景约 0.14），不要靠暂停滑条贴 1%。
 
 ### 回生 / 胜利 / 真死提示
 
 - 挂在 `CombatCanvas` 的 View 上，事件驱动，不每帧轮询。
 - 外观跟暂停设置页同一套：全屏压暗 + 居中暗金面板 + 金字标题 + 浅字提示 + 细金线。不要粉红大字、不要太空紫。
-- `CombatPromptStyle` 在 `OnViewInit` 补齐压暗和面板，旧 HUD 预制体不用手改。
+- 中文 TMP：`TmpChineseFont` 在进场景前给 SIMYOU / STFANGSO 打开多图集、互为回退，并预热战斗/暂停/台词用字。缺字不要变成空格。旧 HUD 里误用 LiberationSans 的中文也会走回退。
+- 胜利页多一个暗金「再来一局」按钮（鼠标点 / 手柄确认），重载当前场景。不要冻 `timeScale`。
+- 胜利期间 `CombatInputGate` 挡住玩家移动和出招；`PlayerInput.DeactivateInput` 把设备让给 UI，避免手柄点不了按钮。
+
+### 弦一郎台词
+
+- `BossVoiceDirector` 订阅事件，从 `Resources/Voices` 按编号加载 wav，台词钉在底栏正中 `PlayerPosture` 上方（不要贴左下血条）。响度 = 检视器 `volume` × 音效滑条。不要用 Mixer。
+- 旧 HUD 不用手改：`CombatUIController.Awake` 没有组件就补一个，台词条运行时生成。
+- 时机与文本：
+
+| 时机 | 文件 | 台词 |
+|------|------|------|
+| 开局 | 160000 | 我上了 |
+| 玩家倒地（回生提示或真死） | 160400 | 我，一定会守护苇名 |
+| 玩家复活 | 160200 → 160201 | 是龙胤的力量吗。 / 那么,无论多少次杀死你为止。 |
+| Boss 掉一条命（还有命） | 160300 | 还没完,神子的忍者! |
+| Boss 死（胜利） | 160500 | 苇名。。 |
+
+- 复活两句必须等前一句播完再接下句。新台词打断旧台词。真死若倒地已经念过 160400，超时不再念第二遍。Boss 最后一命只播 160500，不叠 160300。
 
 ## 三、音效（M15）
 

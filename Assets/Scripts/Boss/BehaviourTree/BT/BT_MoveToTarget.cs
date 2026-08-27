@@ -29,6 +29,12 @@ public class BT_MoveToTarget : Node
 
     public override NodeState Evaluate()
     {
+        // 硬直/崩解/忍杀/识破后冻结：不发 Move，否则 Idle 会切走位，CombatTarget 一对准就转。
+        if (body.IsParried || body.IsPostureBroken || body.IsFinisherLocked || body.IsCombatYawFrozen)
+        {
+            return NodeState.Running;
+        }
+
         float distance = Vector3.Distance(body.transform.position, target.position);
 
         if (distance <= stopDistance)

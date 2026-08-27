@@ -30,12 +30,17 @@ public class BT_Kengeki : Node, ISelectorLock
             return NodeState.Failure;
         }
 
+        if (body.IsPostureBroken) return NodeState.Failure;
+        // 硬直中先占住 Selector，避免 Busy 的交锋招 Evaluate 失败后落到走位。
+        if (body.IsParried)
+        {
+            executor?.ResetMove();
+            return NodeState.Running;
+        }
         if (executor != null && executor.IsBusy)
             return executor.Evaluate();
 
-        if (body.IsPostureBroken) return NodeState.Failure;
-        if (!body.KengekiArmed && !body.IsParried) return NodeState.Failure;
-        if (body.IsParried) return NodeState.Running;
+        if (!body.KengekiArmed) return NodeState.Failure;
 
         float dist = Vector3.Distance(body.transform.position, target.position);
         if (dist > table.kengekiMaxRange)

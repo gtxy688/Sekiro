@@ -35,6 +35,8 @@ BoxCast 用"上一帧位置 → 当前帧位置"扫一段，防止高速挥砍�
 
 Boss **一条 Clip 多段出伤**：`hitPulses` 非空时，`AttackState` 按每段 `[start,end)` 脉冲开关刀。每次 `Enable` 清空 `hitTargets`，所以每段对同一目标只结算一次。空数组仍走上面的一对开关。玩家通常长度为 1（一刀）；用 `ARPG/攻击时间轴` 对着动画拖。
 
+**段/刀伤害：** 默认用招式行 `baseDamage` / `postureDamage` / `knockback`。`BossMoveWindow.overrideCombat` 覆盖整段；`HitPulse.overrideCombat` 覆盖这一刀（优先于段）。解析顺序：刀 → 段 → 招。编辑器用 `ARPG/招式伤害`。烘焙时把段覆盖写进临时 `AttackConfig`；开某一刀时再套该脉冲覆盖。相邻两刀无空隙时 `pulseIndex` 变化会重开判定并换伤害。
+
 **无近战判定（弓段 / 垫步）：** 写成 `hitStartTime == recoverStart == comboWindowEnd == stateDuration`，`hitPulses` 空。`AttackState` / `EnableWeaponHit` 全程不开刀。**不要把红条缩成 0～0.01s**：进招第 0 帧 `animTime=0`，`0 >= 0 && 0 < 0.01` 仍会亮刀一帧。时间轴点「关闭近战判定」再保存。弓 Clip 上不要加 `EnableWeaponHit` 动画事件；箭走投射物。
 
 ## 二、组件拆分
@@ -122,8 +124,9 @@ public class CombatManager : MonoBehaviour
   - `Grab` 抓取 → 弹反或垫步躲避；不可识破
   - `JumpThrust` 跳跃突刺 → 弹反或垫步躲避；**不可识破**（与地面突刺区分，独立枚举值）
   - `DeflectState` 仅对 Sweep 失效，Thrust/JumpThrust/Grab 正常走弹反/格挡
-- **识破（Mikiri）**：仅 `Thrust` + 玩家垫步 → `DodgeState.OnHitReceived` 拦截 → 切 `MikiriCounterState`
-  （播踩刀动画、涨攻击者架势 `Config.MikiriPostureGain`、Perfect 打铁事件）→ 回 Idle
+- **识破（Mikiri）**：仅 `Thrust` + **无方向键垫步** → `DodgeState.OnHitReceived` 拦截 → 切 `MikiriCounterState`
+  （播踩刀动画、涨攻击者架势 `Config.MikiriPostureGain`、Perfect 打铁事件）→ 回 Idle。
+  带方向垫步（后/左/右/前）即使踩中突刺也只走无敌帧，不识破。
 
 ## 涉及文件
 
@@ -131,9 +134,11 @@ public class CombatManager : MonoBehaviour
 - 新建：`Assets/Scripts/Combat/Hurtbox.cs`
 - 新建：`Assets/Scripts/Combat/CombatManager.cs`
 - 新建：`Assets/Scripts/FrameWork/States/Ground/MikiriCounterState.cs`
-- 修改：`Assets/Scripts/SO/AttackConfig.cs`（Perilous、HitboxSlot）
+- 修改：`Assets/Scripts/SO/AttackConfig.cs`（Perilous、HitboxSlot、HitPulse 刀伤害覆盖）
 - 修改：`Assets/Scripts/SO/AttackWindowSync.cs`（NoHit / 假红条下限）
+- 新建：`Assets/Scripts/SO/AttackCombatResolve.cs`（刀 → 段 → 招）
 - 修改：`Assets/Scripts/FrameWork/Body/CharacterBody.cs`（多 Hitbox 槽位）
-- 修改：`Assets/Scripts/Boss/BossMoveWindow.cs`（段级危字、hitboxSlot）
+- 修改：`Assets/Scripts/Boss/BossMoveWindow.cs`（段级危字、hitboxSlot、段伤害覆盖）
+- 修改：`Assets/Editor/BossMoveDamageWindow.cs`（招式伤害表）
 - 修改：`Assets/Scripts/FrameWork/States/Command.cs`（HitData 危字字段）
 - 修改：`Assets/Scripts/FrameWork/States/Ground/DodgeState.cs`（识破触发）

@@ -105,7 +105,16 @@ public class BTBrain : MonoBehaviour
     private void Update()
     {
         if (PlayerTarget == null || behaviorTreeRoot == null) return;
-        if (body.IsFinisherLocked) return;
+        // 忍杀演出 / 被弹反或识破硬直：树不跑。否则出招节点一失败就会落到
+        // BT_MoveToTarget，近身 Roam 每帧 RotateYaw 对准玩家（识破后猛转）。
+        if (body.IsFinisherLocked || body.IsParried)
+        {
+            // 树不跑时也要把 Busy 执行器清掉，否则硬直结束会接着播被打断招的下一段。
+            activeExecutor?.ResetMove();
+            kengekiExecutor?.ResetMove();
+            interruptExecutor?.ResetMove();
+            return;
+        }
         behaviorTreeRoot.Evaluate();
     }
 
@@ -132,7 +141,8 @@ public class BTBrain : MonoBehaviour
 
         List<Node> children = new List<Node>
         {
-            new ConditionNode(() => body.IsPostureBroken || body.IsFinisherLocked)
+            // 崩解 / 忍杀锁定 / 弹反·识破硬直：Success 吃掉本帧，不落到走位。
+            new ConditionNode(() => body.IsPostureBroken || body.IsFinisherLocked || body.IsParried)
         };
 
         if (!DisableBossAttacks)

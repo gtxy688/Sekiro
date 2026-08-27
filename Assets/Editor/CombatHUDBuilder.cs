@@ -51,6 +51,9 @@ public static class CombatHUDBuilder
         PerilousWarningView perilous = Object.FindObjectOfType<PerilousWarningView>(true);
         if (perilous == null)
             Debug.LogWarning("[CombatHUD] 场景里没有危字 Billboard。先跑 Tools/战斗/生成危字特效。");
+        HealKanjiView healKanji = Object.FindObjectOfType<HealKanjiView>(true);
+        if (healKanji == null)
+            Debug.LogWarning("[CombatHUD] 场景里没有治愈 Billboard。先跑 Tools/战斗/生成治愈特效。");
         RevivePromptView revive = BuildPrompt(hud.transform, "RevivePrompt", "回生", "按攻击键复活");
         GameOverView gameOver = BuildPromptAsGameOver(hud.transform);
         VictoryView victory = BuildVictory(hud.transform);
@@ -59,6 +62,8 @@ public static class CombatHUDBuilder
 
         CombatUIController controller = hud.GetComponent<CombatUIController>();
         if (controller == null) controller = hud.AddComponent<CombatUIController>();
+        if (hud.GetComponent<BossVoiceDirector>() == null)
+            hud.AddComponent<BossVoiceDirector>();
 
         SerializedObject so = new SerializedObject(controller);
         so.FindProperty("playerBody").objectReferenceValue = player;
@@ -69,6 +74,7 @@ public static class CombatHUDBuilder
         so.FindProperty("itemSlotView").objectReferenceValue = items;
         so.FindProperty("lockOnIndicatorView").objectReferenceValue = lockOn;
         so.FindProperty("perilousWarningView").objectReferenceValue = perilous;
+        so.FindProperty("healKanjiView").objectReferenceValue = healKanji;
         so.FindProperty("revivePromptView").objectReferenceValue = revive;
         so.FindProperty("gameOverView").objectReferenceValue = gameOver;
         so.FindProperty("victoryView").objectReferenceValue = victory;
@@ -244,7 +250,8 @@ public static class CombatHUDBuilder
         GameObject root = CreatePromptRoot(parent, "Victory");
         TextMeshProUGUI text = CreateText(root.transform, "Title", "胜利", 42, TextAlignmentOptions.Center);
         TextMeshProUGUI hint = CreateText(root.transform, "Hint", "击败 苇名弦一郎", 26, TextAlignmentOptions.Center);
-        CombatPromptStyle.EnsureChrome(root.transform, text, hint, new Vector2(500f, 280f));
+        CombatPromptStyle.EnsureChrome(root.transform, text, hint, new Vector2(500f, 340f), withActionButton: true);
+        CombatPromptStyle.EnsureActionButton(root.transform, "再来一局");
         root.SetActive(false);
 
         VictoryView view = root.AddComponent<VictoryView>();
@@ -392,6 +399,7 @@ public static class CombatHUDBuilder
     {
         GameObject go = CreateUi(name, parent);
         TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
+        TmpChineseFont.Apply(tmp);
         tmp.text = content;
         tmp.fontSize = size;
         tmp.alignment = align;

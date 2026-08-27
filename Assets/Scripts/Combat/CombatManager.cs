@@ -262,6 +262,12 @@ public class CombatManager : MonoBehaviour
 
         CombatEventBus.TriggerFinisherEnded(player, victim);
 
+        if (victim != null)
+        {
+            victim.ClearCombatYawFrozen();
+            victim.SetSuppressRootYaw(false);
+        }
+
         if (victim != null && victim.LivesRemaining > 0)
         {
             victim.MainStateMachine.ChangeState(new GroundedState(victim));

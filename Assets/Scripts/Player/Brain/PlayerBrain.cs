@@ -111,33 +111,39 @@ public class PlayerBrain : BrainBase
 
     private bool CanAcceptPlayInput()
     {
-        return isActiveAndEnabled && !GamePause.IsPaused;
+        return isActiveAndEnabled && !GamePause.IsPaused && !CombatInputGate.Blocked;
     }
 
     protected override void Update()
     {
         if (GamePause.IsPaused) return;
 
+        // 胜利结算：丢掉预输入，持续发零移动，避免还停在走路动画里
+        if (CombatInputGate.Blocked)
+        {
+            attackPressed = false;
+            holdAttackTriggered = false;
+            holdThresholdChecked = false;
+            currentMoveInput = Vector2.zero;
+            body.TryExecuteCommand(new MoveCommand(Vector2.zero));
+            return;
+        }
+
         ProcessHeldAttack();
+
+        if (moveAction != null)
+        {
+            Vector2 rawInput = moveAction.ReadValue<Vector2>();
+            currentMoveInput = rawInput.sqrMagnitude < 0.01f ? Vector2.zero : rawInput;
+            // 先写入本帧方向。垫步从缓冲落地时 OnEnter 才能判断「有没有按方向键」。
+            body.MoveDirection = currentMoveInput;
+        }
 
         // 1. 调用基类的 Update，让它去处理缓冲池里的 攻击、弹反、跳跃 指令
         base.Update();
 
-        // 2. 独立处理移动指令 (连绵不断的意图)
-        // 直接生成移动指令并尝试执行，不经过缓冲池。
-        // 因为摇杆是连续的，当前是什么方向就发什么方向，不需要“预输入”未来的摇杆方向。
-        //
-        // 【关键修复】不依赖 performed/canceled 事件，每帧 ReadValue 取动作当前值：
-        //   旧写法只在事件里更新值 → 松键瞬间若动作值未回零（漂移/残留），
-        //   canceled 不触发，currentMoveInput 停留在残留值 → 角色松键后一直走。
-        //   每帧 ReadValue 拿到的始终是真实当前值；双方案隔离后键盘/手柄互不叠加，
-        //   摇杆绑定上的 StickDeadzone 把漂移压成 0，松键即回零。
+        // 2. 独立处理移动指令（连绵不断的意图，不走缓冲）
         if (moveAction == null) return;
-
-        Vector2 rawInput = moveAction.ReadValue<Vector2>();
-
-        // 代码层死区兜底（与 MoveState 的 0.01 阈值一致，防御处理器没配的情况）
-        currentMoveInput = rawInput.sqrMagnitude < 0.01f ? Vector2.zero : rawInput;
 
         body.TryExecuteCommand(new MoveCommand(currentMoveInput));
     }

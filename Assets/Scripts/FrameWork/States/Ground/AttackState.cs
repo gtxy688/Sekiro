@@ -6,6 +6,10 @@ public class AttackState : BaseState
 
     private float animTime;
     private bool weaponHitEnabled;
+    private int activePulseIndex = -1;
+    private int fallbackDamage;
+    private float fallbackPosture;
+    private float fallbackKnockback;
     private bool[] sfxFired;
 
     // 构造函数只接收一个光盘（配置）
@@ -27,6 +31,10 @@ public class AttackState : BaseState
         animTime = 0f;
         sfxFired = null;
         body.IsAttackRecoveryOpen = false;
+        fallbackDamage = config.BaseDamage;
+        fallbackPosture = config.PostureDamage;
+        fallbackKnockback = config.Knockback;
+        activePulseIndex = -1;
 
         // ActiveAttack 是 Brain 对“下一次攻击”的一次性选择，状态取得后立即清空。
         if (body.ActiveAttack == config)
@@ -44,6 +52,16 @@ public class AttackState : BaseState
         if (!AnimUtil.TryCrossFade(body.Animator, config.AnimName, config.TransitionDuration))
         {
             Debug.LogError($"{body.name} 的 Animator 缺少攻击状态：{config.AnimName}");
+        }
+
+        // 允许转向的招：起手先对准目标，整招丢掉 Clip 根旋转，否则挥砍 Root yaw 会盖掉代码朝向。
+        // 识破冻结也在这里解开：下一刀才允许再转向玩家。
+        body.ClearCombatYawFrozen();
+        body.SetSuppressRootYaw(config.AllowRotation);
+        if (config.AllowRotation)
+        {
+            SnapTowardCombatTarget();
+            UpdateAttackSteer();
         }
 
         // 前摇不开判定：贴身时刀还在蓄力就会扫到。到 HitStartTime / 第一段 pulse 再开。
@@ -70,9 +88,9 @@ public class AttackState : BaseState
         ApplyHitbox();
         ApplySfx();
 
-        if (config.AllowRotation && animTime <= config.RotationWindowEnd)
+        if (config.AllowRotation)
         {
-            RotateDuringAttack();
+            UpdateAttackSteer();
         }
 
         // 位移不在此处理：突进/前移完全由攻击动画的 Root 曲线驱动（全权根运动），
@@ -121,6 +139,7 @@ public class AttackState : BaseState
         body.DisableWeaponHit();
         body.IsAttacking = false;
         body.IsAttackRecoveryOpen = false;
+        body.SetSuppressRootYaw(false);
     }
 
     public override bool HandleCommand(ICommand cmd)
@@ -228,17 +247,18 @@ public class AttackState : BaseState
         return config.hitPulses != null && config.hitPulses.Length > 0;
     }
 
-    private bool IsInHitPulse()
+    private int CurrentPulseIndex()
     {
         HitPulse[] pulses = config.hitPulses;
+        if (pulses == null) return -1;
         for (int i = 0; i < pulses.Length; i++)
         {
             HitPulse p = pulses[i];
             if (!AttackWindowSync.PulseIsMelee(p)) continue;
             if (animTime >= p.start && animTime < p.end)
-                return true;
+                return i;
         }
-        return false;
+        return -1;
     }
 
     private bool ValidateHitPulses()
@@ -255,28 +275,51 @@ public class AttackState : BaseState
     }
 
     // 有 hitPulses：按段脉冲开关，每段 Enable 会清 hitTargets，所以每刀只打一次。
+    // 相邻两刀无空隙时 pulseIndex 变化也要重开，才能换伤害。
     // 无 hitPulses：沿用 HitStartTime → RecoveryWindowStart 一对开关。
     // NoHit / 0.01s 假红条：CanMeleeHit 为假，全程不开刀。
     private void ApplyHitbox()
     {
+        int pulseIndex = -1;
         bool wantOn = false;
         if (AttackWindowSync.CanMeleeHit(config.HitStartTime, config.RecoveryWindowStart, config.hitPulses))
         {
-            wantOn = HasHitPulses()
-                ? IsInHitPulse()
-                : (animTime >= config.HitStartTime && animTime < config.RecoveryWindowStart);
+            if (HasHitPulses())
+            {
+                pulseIndex = CurrentPulseIndex();
+                wantOn = pulseIndex >= 0;
+            }
+            else
+            {
+                wantOn = animTime >= config.HitStartTime && animTime < config.RecoveryWindowStart;
+            }
         }
 
-        if (wantOn && !weaponHitEnabled)
+        bool pulseChanged = HasHitPulses() && wantOn && pulseIndex != activePulseIndex;
+        if (wantOn && (!weaponHitEnabled || pulseChanged))
         {
+            if (weaponHitEnabled)
+                body.DisableWeaponHit();
+            ApplyPulseCombat(pulseIndex);
             body.EnableWeaponHit(config);
             weaponHitEnabled = true;
+            activePulseIndex = pulseIndex;
         }
         else if (!wantOn && weaponHitEnabled)
         {
             body.DisableWeaponHit();
             weaponHitEnabled = false;
+            activePulseIndex = -1;
         }
+    }
+
+    private void ApplyPulseCombat(int pulseIndex)
+    {
+        HitPulse pulse = null;
+        if (HasHitPulses() && pulseIndex >= 0 && pulseIndex < config.hitPulses.Length)
+            pulse = config.hitPulses[pulseIndex];
+        AttackCombatResolve.ApplyPulse(
+            config, pulse, fallbackDamage, fallbackPosture, fallbackKnockback);
     }
 
     private void ApplySfx()
@@ -297,27 +340,43 @@ public class AttackState : BaseState
         }
     }
 
-    private void RotateDuringAttack()
+    private void UpdateAttackSteer()
     {
-        Vector3 direction;
-        Transform target = ResolveCombatTarget();
+        if (animTime > config.RotationWindowEnd)
+        {
+            body.ClearSteerYaw();
+            return;
+        }
 
+        Vector3 direction = ResolveAttackSteerDir();
+        direction.y = 0f;
+        body.SetSteerYaw(direction, config.RotationSpeed);
+    }
+
+    private void SnapTowardCombatTarget()
+    {
+        Transform target = ResolveCombatTarget();
+        if (target == null) return;
+        Vector3 direction = target.position - body.transform.position;
+        direction.y = 0f;
+        body.SnapYaw(direction);
+    }
+
+    private Vector3 ResolveAttackSteerDir()
+    {
+        Transform target = ResolveCombatTarget();
         if (target != null)
         {
-            direction = target.position - body.transform.position;
-        }
-        else if (body.MoveUsesWorldDir)
-        {
-            Vector2 input = body.MoveDirection;
-            direction = new Vector3(input.x, 0f, input.y);
-        }
-        else
-        {
-            direction = body.InputToWorldDir(body.MoveDirection);
+            return target.position - body.transform.position;
         }
 
-        direction.y = 0f;
-        body.RotateYaw(direction, config.RotationSpeed);
+        if (body.MoveUsesWorldDir)
+        {
+            Vector2 input = body.MoveDirection;
+            return new Vector3(input.x, 0f, input.y);
+        }
+
+        return body.InputToWorldDir(body.MoveDirection);
     }
 
     private bool HasCombatTarget()

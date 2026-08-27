@@ -87,6 +87,13 @@ public class CharacterBody : MonoBehaviour
     private bool isFinisherLocked;
     private int facingHoldStateHash;
     private Vector3 facingHoldDir;
+    // 攻击转向窗：吃 Root 位移，丢掉 Clip yaw，否则挥砍根旋转会把刚对准的朝向拧走
+    private bool suppressRootYaw;
+    private bool steerYawActive;
+    private Vector3 steerYawDir;
+    private float steerYawSpeed;
+    // 识破打断后继续锁水平朝向，直到下一招；硬直一结束走位就会对准玩家猛转。
+    public bool IsCombatYawFrozen { get; private set; }
 
     // 被完美弹刀硬直中（避免查 ParriedState 类型）
     public bool IsParried { get; set; }
@@ -290,12 +297,8 @@ public class CharacterBody : MonoBehaviour
         }
 
         transform.position += delta;
-        transform.rotation *= Animator.deltaRotation;
-        Rb.position = transform.position;
-        Rb.rotation = transform.rotation;
 
-        // Play 切忍杀前，上一招的 Root 旋转可能把刚 Snap 的朝向拧歪。
-        // 忍杀状态真正开始后再把持有权交给 Clip。
+        bool holdFacing = false;
         if (facingHoldStateHash != 0)
         {
             AnimatorStateInfo info = Animator.GetCurrentAnimatorStateInfo(0);
@@ -305,9 +308,30 @@ public class CharacterBody : MonoBehaviour
             }
             else
             {
-                ApplyYaw(facingHoldDir);
+                holdFacing = true;
             }
         }
+
+        if (holdFacing)
+        {
+            ApplyYaw(facingHoldDir);
+        }
+        else if (steerYawActive)
+        {
+            ApplySteerYaw();
+        }
+        else if (suppressRootYaw)
+        {
+            // 转向窗外仍锁水平朝向：挥砍后半段的 Root yaw 不会把起手对准拧偏
+            FlattenYaw();
+        }
+        else
+        {
+            transform.rotation *= Animator.deltaRotation;
+        }
+
+        Rb.position = transform.position;
+        Rb.rotation = transform.rotation;
     }
 
     // 接收大脑 (Brain) 传来的指令
@@ -385,6 +409,8 @@ public class CharacterBody : MonoBehaviour
     // 水平转向（度/秒）。刚体冻结旋转后只改 transform，避免和插值抢 yaw
     public void RotateYaw(Vector3 worldDir, float degreesPerSecond)
     {
+        // 攻击/硬直/识破后冻结：走位节点的 RotateYaw 不走 Command，必须在这里拦住。
+        if (suppressRootYaw || IsParried || IsFinisherLocked || IsCombatYawFrozen) return;
         if (worldDir.sqrMagnitude < 0.01f) return;
         worldDir.y = 0f;
         if (worldDir.sqrMagnitude < 0.01f) return;
@@ -417,6 +443,89 @@ public class CharacterBody : MonoBehaviour
         if (Rb != null)
         {
             Rb.rotation = transform.rotation;
+        }
+    }
+
+    // 攻击转向：在 OnAnimatorMove 里转，才能盖过同一帧的 Clip 根旋转
+    public void SetSteerYaw(Vector3 worldDir, float degreesPerSecond)
+    {
+        worldDir.y = 0f;
+        if (worldDir.sqrMagnitude < 0.01f || degreesPerSecond <= 0f)
+        {
+            ClearSteerYaw();
+            return;
+        }
+
+        steerYawDir = worldDir.normalized;
+        steerYawSpeed = degreesPerSecond;
+        steerYawActive = true;
+    }
+
+    public void ClearSteerYaw()
+    {
+        steerYawActive = false;
+        steerYawDir = Vector3.zero;
+    }
+
+    public void SetSuppressRootYaw(bool suppress)
+    {
+        suppressRootYaw = suppress;
+        if (!suppress)
+        {
+            ClearSteerYaw();
+        }
+    }
+
+    // 钉住当前水平朝向：清掉 Snap 残留 hold，丢掉之后的 Root yaw / 走位转向。
+    public void FreezeCombatYaw()
+    {
+        facingHoldStateHash = 0;
+        facingHoldDir = Vector3.zero;
+        ClearSteerYaw();
+        Vector3 fwd = transform.forward;
+        fwd.y = 0f;
+        if (fwd.sqrMagnitude > 0.0001f)
+        {
+            ApplyYaw(fwd.normalized);
+        }
+        suppressRootYaw = true;
+        IsCombatYawFrozen = true;
+    }
+
+    public void ClearCombatYawFrozen()
+    {
+        IsCombatYawFrozen = false;
+    }
+
+    private void ApplySteerYaw()
+    {
+        float dt = Time.deltaTime;
+        Vector3 currentFwd = transform.forward;
+        currentFwd.y = 0f;
+        if (currentFwd.sqrMagnitude < 0.0001f)
+        {
+            ApplyYaw(steerYawDir);
+            return;
+        }
+
+        Quaternion current = Quaternion.LookRotation(currentFwd.normalized, Vector3.up);
+        Quaternion target = Quaternion.LookRotation(steerYawDir, Vector3.up);
+        Quaternion next = Quaternion.RotateTowards(current, target, steerYawSpeed * dt);
+        Vector3 nextFwd = next * Vector3.forward;
+        nextFwd.y = 0f;
+        if (nextFwd.sqrMagnitude > 0.0001f)
+        {
+            ApplyYaw(nextFwd.normalized);
+        }
+    }
+
+    private void FlattenYaw()
+    {
+        Vector3 fwd = transform.forward;
+        fwd.y = 0f;
+        if (fwd.sqrMagnitude > 0.0001f)
+        {
+            ApplyYaw(fwd.normalized);
         }
     }
 
@@ -577,7 +686,8 @@ public class CharacterBody : MonoBehaviour
             return;
         }
 
-        MainStateMachine.ChangeState(new GroundedState(this, new ParriedState(this, anim)));
+        FreezeCombatYaw();
+        MainStateMachine.ChangeState(new GroundedState(this, new ParriedState(this, anim, freezeYawAfterExit: true)));
     }
 
     // ===== M7 Boss 被动防御（只狼攻防转换）=====
@@ -941,14 +1051,14 @@ public class CharacterBody : MonoBehaviour
 
         HurtContext ctx = knockback > 0f ? HurtContext.Heavy : HurtContext.Normal;
 
-        // 玩家已经倒地后再挨刀：解除崩解，直接切受击动画（Hurt_Ground / Hurt_Heavy）。
+        // 玩家已经倒地后再挨刀：解除崩解，切 Hurt_Heavy 倒地受击。
         // Boss 崩解是处决窗口，保持倒地，不能被普通命中抬起来。
         if (alreadyBroken)
         {
             if (CombatManager.Instance != null && this == CombatManager.Instance.PlayerRef)
             {
                 ClearPostureBreak();
-                MainStateMachine.ChangeState(new StunnedState(this, ctx));
+                MainStateMachine.ChangeState(new StunnedState(this, HurtContext.Heavy));
             }
             return;
         }

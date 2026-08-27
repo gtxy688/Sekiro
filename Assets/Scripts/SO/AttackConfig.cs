@@ -8,6 +8,25 @@ public class HitPulse
 {
     public float start;
     public float end;
+
+    [Tooltip("勾选后本刀用下面三个数；不勾则继承段覆盖或招默认值")]
+    public bool overrideCombat;
+    public int baseDamage;
+    public float postureDamage;
+    public float knockback;
+
+    public HitPulse Clone()
+    {
+        return new HitPulse
+        {
+            start = start,
+            end = end,
+            overrideCombat = overrideCombat,
+            baseDamage = baseDamage,
+            postureDamage = postureDamage,
+            knockback = knockback
+        };
+    }
 }
 
 [Serializable]

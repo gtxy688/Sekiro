@@ -14,7 +14,7 @@ MainStateMachine（顶层，只装 HierarchicalState）
 │     ├─ MoveState
 │     ├─ AttackState
 │     ├─ DeflectState       ← 防御/盾反
-│     ├─ DodgeState         ← 垫步（突刺危字时触发识破）
+│     ├─ DodgeState         ← 垫步（无方向垫步踩中突刺才识破）
 │     └─ MikiriCounterState ← 识破（M17：突刺 + 垫步 → 踩刀）
 ├─ AirState（父状态）
 │  └─ SubStateMachine
@@ -134,7 +134,7 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 - `ComboWindowEnd` 后不再接本段 `NextCombo`，尚未过期的命令由动作结束后的状态处理。
 - `ComboWindowStart` 已更名为 `RecoveryWindowStart`，使用序列化迁移保留旧 SO 数值。
 - `HitStartTime = 0`：进招不可取消（判定仍然一进攻击就开）。
-- 攻击转向由 `AttackConfig` 的 `AllowRotation` / `RotationSpeed` / `RotationWindowEnd` 控制；锁定时追踪 Boss，未锁定时按移动输入转向。
+- 攻击转向由 `AttackConfig` 的 `AllowRotation` / `RotationSpeed` / `RotationWindowEnd` 控制；锁定时追踪 Boss，未锁定时按移动输入转向。允许转向的招在 `OnAnimatorMove` 里丢掉 Clip 根旋转，只吃位移，避免挥砍 Root yaw 把朝向拧走。
 
 ### 格挡取消
 
@@ -144,7 +144,8 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 - 无论短按还是长按，松开格挡键都播放 `Deflect_Cancel`，播放结束后回待机。
 - 连按格挡会走 `RegisterDeflectPress` 抖刀惩罚（0.5s 内 ≥3 次，窗口 ×0.75，下限 0.1s）。
 - 垫步本身仍不可被打断。
-- **锁定垫步**：`DodgeState` 按相对 Boss 的输入取最近四向，播一次性状态 `Dodge_Forward` / `Dodge_Back` / `Dodge_Left` / `Dodge_Right`。无输入默认后垫。斜向取绝对值更大的轴。不要用融合树（一次性 Root 混在一起会斜着滑）。未锁定仍播 `Dodge`。
+- **锁定垫步**：`DodgeState` 按相对 Boss 的输入取最近四向，播一次性状态 `Dodge_Forward` / `Dodge_Back` / `Dodge_Left` / `Dodge_Right`。无输入默认**前垫**（识破踩刀方向）。斜向取绝对值更大的轴。不要用融合树（一次性 Root 混在一起会斜着滑）。未锁定仍播 `Dodge`。
+- **识破**：仅「无方向键垫步」踩中突刺才进 `MikiriCounterState`。带方向的垫步（含后垫）只走无敌帧，不识破。
 - **起步**：`IdleToWalk` / `IdleToStrafe` / `DodgeToWalk` 若 Animator 里没有对应状态，直接播 `Walk` / `Walk_Strafe`（Boss 没有 `IdleToWalk` 即可）。
 - **走着进格挡**：不播原地 `Deflect_Begin`（会掐步伐），约 0.22s 融合到 `Deflect_Walk` / `Deflect_Strafe` 并对齐步伐，抬刀靠这段融合。待机进格挡仍播抬刀，播完再进举刀循环。
 
@@ -159,9 +160,9 @@ protected override bool OnParentHandleHit(HitData hit) { return true; } // 二�
 - 攻击崩解：Boss 播 `Stagger_Broken`，范围内玩家再按攻击后双方播放 `Finsher_Ground`。未处决则动画播完立刻 `RecoverFromBreak`（清架势条），不再套 `PostureBrokenDuration`。
 - 处决身份：`CombatManager.PlayerRef` 是唯一发起者，受害者固定 `BossRef`。`TryExecuteFinisher` 正向断言 `initiator == PlayerRef && initiator != BossRef && !initiator.IsPostureBroken`。Boss 的 `AttackCommand` 不能把自己当处决发起者。
 - 弹反崩解：Boss 播 `Stagger_Broken_Deflect`，玩家播 `DeflectToFinsher`；窗口内按攻击后双方播放 `Finsher_Deflect`。反向（Boss 弹反打崩玩家）玩家走 `StaggerBrokenState` 击飞倒地（动画播完即恢复，不加额外硬直），Boss 不进确认窗口，继续弹反挥刀。
-- 玩家被攻击打崩：同样播 `Stagger_Broken`，动画结束立刻恢复，不套 `PostureBrokenDuration`。崩解期间父层不响应跳跃/喝药；若仍被带入空中，落地回到倒地直到动画结束。倒地期间再挨刀：扣血、解除崩解，并切 `StunnedState` 播 `Hurt_Ground` / `Hurt_Heavy`（打崩那一刀仍只播倒地）。Boss 崩解窗口保持倒地，不被普通命中抬起。
-- 识破未崩解：Boss 立刻停招，播 `Mikiri_Deflect`（Animator 里若仍叫 `Miriki_Deflect` 也能解析），硬直结束回待机。不抢交锋反击（`KengekiArmed` 不置位）。
-- 识破崩解：Boss 立即播放专用 `Stagger_Broken_Mikiri`（现资源名 `Stagger_Broken_Miriki` 仍兼容）。玩家现有 `Mikiri` 剩余动画作为确认窗口（跟 Clip 走）。窗口内按攻击后双方播放成对忍杀：`Finsher_Mikiri`（Boss 侧现资源名 `Finsher_Miriki` 仍兼容）。弹反/识破确认窗口不走 Ground 处决距离门。
+- 玩家被攻击打崩：同样播 `Stagger_Broken`，动画结束立刻恢复，不套 `PostureBrokenDuration`。崩解期间父层不响应跳跃/喝药；若仍被带入空中，落地回到倒地直到动画结束。倒地期间再挨刀：扣血、解除崩解，并切 `StunnedState` 播 `Hurt_Heavy` 倒地（打崩那一刀仍只播倒地）。Boss 崩解窗口保持倒地，不被普通命中抬起。
+- 识破未崩解：Boss 立刻停招，播 `Mikiri_Deflect`（Animator 里若仍叫 `Miriki_Deflect` 也能解析），硬直结束回待机。不抢交锋反击（`KengekiArmed` 不置位）。打断当下钉住水平朝向，**硬直结束后仍保持**，直到下一招 `AttackState` 才允许再转向玩家。
+- 识破崩解：Boss 立即播放专用 `Stagger_Broken_Mikiri`（现资源名 `Stagger_Broken_Miriki` 仍兼容）。玩家现有 `Mikiri` 剩余动画作为确认窗口（跟 Clip 走）。确认窗口不对玩家对齐朝向；窗口内按攻击后双方播放成对忍杀：`Finsher_Mikiri`（Boss 侧现资源名 `Finsher_Miriki` 仍兼容），开演才水平对视。弹反/识破确认窗口不走 Ground 处决距离门。
 - 弹反/识破窗口超时：Boss 架势从 100% 降到 80%，解除崩解并隐藏红点。
 - 忍杀开始前双方只转水平朝向彼此，不瞬移对齐站位。开始后隐藏红点；`IsFinisherLocked` 期间双方锁定命令、受击与强切攻击，直到动画播完。
 - Boss 崩解窗口内玩家再按攻击：优先处决（含连招后摇里的 AttackCommand），不进 `NextCombo`。崩解那一刀本身不会再发攻击指令，不会被同一刀直接处决。

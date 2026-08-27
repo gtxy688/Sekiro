@@ -10,9 +10,7 @@ public static class BossAttackBaker
         cfg.name = string.IsNullOrEmpty(animName) ? entry.id : entry.id + "_" + animName;
         cfg.AnimName = animName;
         cfg.TransitionDuration = w.transitionDuration;
-        cfg.BaseDamage = entry.baseDamage;
-        cfg.PostureDamage = entry.postureDamage;
-        cfg.Knockback = entry.knockback;
+        AttackCombatResolve.ApplyWindow(cfg, entry, w);
         cfg.StateDuration = w.stateDuration;
         cfg.AllowRotation = true;
         cfg.RotationSpeed = 720f;
@@ -36,7 +34,7 @@ public static class BossAttackBaker
                 {
                     HitPulse src = w.hitPulses[i];
                     if (src == null) continue;
-                    cfg.hitPulses[i] = new HitPulse { start = src.start, end = src.end };
+                    cfg.hitPulses[i] = src.Clone();
                 }
             }
         }

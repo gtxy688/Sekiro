@@ -101,7 +101,9 @@ public class PauseMenuController : MonoBehaviour
         AudioVolumeSettings.Load();
         playerMap = actions.FindActionMap("Player");
         EnsureEventSystem();
+        TmpChineseFont.EnsureReady();
         BuildUI();
+        TmpChineseFont.ApplyAll(pauseCanvas.transform);
         WireNavigation();
         HideMenu();
     }
@@ -458,6 +460,10 @@ public class PauseMenuController : MonoBehaviour
 
     private void SetGameplayInput(bool enabled)
     {
+        // 胜利结算仍要挡住玩家，并把设备留给胜利按钮
+        if (enabled && CombatInputGate.Blocked)
+            enabled = false;
+
         // 暂停时把设备从 PlayerInput 上放开，否则手柄被独占，默认 UI 模块收不到摇杆
         if (playerInput != null)
         {
@@ -835,6 +841,7 @@ public class PauseMenuController : MonoBehaviour
         go.transform.SetParent(parent, false);
 
         TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
+        TmpChineseFont.Apply(tmp);
         tmp.text = text;
         tmp.fontSize = fontSize;
         tmp.color = TextColor;
