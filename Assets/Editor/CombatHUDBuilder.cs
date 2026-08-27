@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -20,8 +21,13 @@ public static class CombatHUDBuilder
             return;
         }
 
-        GameObject old = GameObject.Find("CombatHUD");
+        GameObject old = GameObject.Find("GamePanel");
+        if (old == null) old = GameObject.Find("CombatHUD");
         if (old != null) Undo.DestroyObjectImmediate(old);
+        DestroyNamed("EndPanel");
+        DestroyNamed("RespawnPanel");
+        DestroyNamed("Victory");
+        DestroyNamed("RevivePrompt");
 
         Sprite uiSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
         Sprite knob = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd");
@@ -41,7 +47,7 @@ public static class CombatHUDBuilder
             canvasGo.AddComponent<GraphicRaycaster>();
         }
 
-        GameObject hud = CreateUi("CombatHUD", canvas.transform);
+        GameObject hud = CreateUi("GamePanel", canvas.transform);
         RectStretch(hud.GetComponent<RectTransform>());
 
         BossStatusView bossStatus = BuildBossStatus(hud.transform, uiSprite);
@@ -57,9 +63,9 @@ public static class CombatHUDBuilder
         HealKanjiView healKanji = Object.FindObjectOfType<HealKanjiView>(true);
         if (healKanji == null)
             Debug.LogWarning("[CombatHUD] 场景里没有治愈 Billboard。先跑 Tools/战斗/生成治愈特效。");
-        RevivePromptView revive = BuildPrompt(hud.transform, "RevivePrompt", "回生", "按攻击键复活");
+        RevivePromptView revive = BuildPrompt(canvas.transform, "RespawnPanel", "回生", "按攻击键复活");
         GameOverView gameOver = BuildPromptAsGameOver(hud.transform);
-        VictoryView victory = BuildVictory(hud.transform);
+        VictoryView victory = BuildVictory(canvas.transform);
 
         LockOnIndicatorView lockOn = BuildLockOn(canvas.transform, boss.transform, knob);
 
@@ -87,6 +93,201 @@ public static class CombatHUDBuilder
         EditorUtility.SetDirty(controller);
         Selection.activeGameObject = hud;
         Debug.Log("[CombatHUD] 已生成。Play 后应看到左上 Boss 血条、顶栏 Boss 架势、底栏正中玩家架势、左下血条、右下葫芦。");
+    }
+
+    [MenuItem("Tools/战斗/生成 SettingPanel")]
+    public static void BuildSettingPanel()
+    {
+        OrganizeCombatCanvasPanels(rebuildSettings: true);
+    }
+
+    [MenuItem("Tools/战斗/整理 CombatCanvas 面板")]
+    public static void OrganizePanels()
+    {
+        OrganizeCombatCanvasPanels(rebuildSettings: true);
+    }
+
+    private static void OrganizeCombatCanvasPanels(bool rebuildSettings)
+    {
+        Canvas canvas = FindCombatCanvas();
+        if (canvas == null)
+        {
+            EditorUtility.DisplayDialog("整理 CombatCanvas",
+                "场景里找不到 CombatCanvas。请先打开 GameScene。", "确定");
+            return;
+        }
+
+        Transform canvasTf = canvas.transform;
+        if (PrefabUtility.IsOutermostPrefabInstanceRoot(canvas.gameObject))
+            PrefabUtility.UnpackPrefabInstance(canvas.gameObject, PrefabUnpackMode.OutermostRoot, InteractionMode.AutomatedAction);
+
+        Transform hud = canvasTf.Find("GamePanel");
+        if (hud == null) hud = canvasTf.Find("CombatHUD");
+        if (hud != null && hud.name != "GamePanel")
+        {
+            Undo.RecordObject(hud.gameObject, "Rename GamePanel");
+            hud.gameObject.name = "GamePanel";
+        }
+
+        ReparentNamed(canvasTf, hud, "RespawnPanel", "RevivePrompt");
+        ReparentNamed(canvasTf, hud, "EndPanel", "Victory");
+
+        if (hud != null)
+            EnsureVoiceLine(hud);
+
+        if (rebuildSettings)
+        {
+            PauseMenuController pause = Object.FindObjectOfType<PauseMenuController>(true);
+            if (pause == null)
+            {
+                EditorUtility.DisplayDialog("生成 SettingPanel",
+                    "场景里找不到 PauseMenuController（通常在 Mgr 上）。", "确定");
+                return;
+            }
+
+            pause.EditorRebuildSettingPanel();
+            EditorUtility.SetDirty(pause);
+        }
+
+        EditorSceneManager.MarkSceneDirty(canvas.gameObject.scene);
+        PrefabUtility.RecordPrefabInstancePropertyModifications(canvas.gameObject);
+
+        Selection.activeGameObject = canvas.gameObject;
+        BakeUiPreview();
+        Debug.Log("[CombatHUD] CombatCanvas 面板：GamePanel / SettingPanel / EndPanel / RespawnPanel。字体在场景里改 TMP Font Asset，Play 不会再盖掉。");
+    }
+
+    [MenuItem("Tools/战斗/预览全部 UI")]
+    public static void BakeUiPreview()
+    {
+        Canvas canvas = FindCombatCanvas();
+        if (canvas == null)
+        {
+            EditorUtility.DisplayDialog("预览全部 UI", "场景里找不到 CombatCanvas。", "确定");
+            return;
+        }
+
+        Transform canvasTf = canvas.transform;
+        Transform hud = canvasTf.Find("GamePanel");
+        ReparentNamed(canvasTf, hud, "GameOver", "GameOver");
+
+        PauseMenuController pause = Object.FindObjectOfType<PauseMenuController>(true);
+        if (pause != null)
+            pause.EditorPreviewAllPages();
+
+        BakeCombatOverlay(canvasTf.Find("RespawnPanel"), false, new Vector2(-560f, -240f));
+        BakeCombatOverlay(hud != null ? hud.Find("GameOver") : null, false, new Vector2(0f, -240f));
+        BakeCombatOverlay(canvasTf.Find("GameOver"), false, new Vector2(0f, -240f));
+        BakeCombatOverlay(canvasTf.Find("EndPanel"), true, new Vector2(560f, -240f));
+
+        VoiceLineView voice = hud != null ? hud.GetComponentInChildren<VoiceLineView>(true) : null;
+        if (voice != null)
+        {
+            voice.gameObject.SetActive(true);
+            voice.OnViewInit();
+            CanvasGroup vg = voice.GetComponent<CanvasGroup>();
+            if (vg != null) vg.alpha = 1f;
+        }
+
+        EditorSceneManager.MarkSceneDirty(canvas.gameObject.scene);
+        Selection.activeGameObject = canvas.gameObject;
+        Debug.Log("[CombatHUD] 已把暂停/回生/真死/胜利铺到 GameScene，关掉压暗方便对照预览。Play 后会自动收回。");
+    }
+
+    private static void BakeCombatOverlay(Transform root, bool withActions, Vector2 panelOffset)
+    {
+        if (root == null) return;
+
+        UIView view = root.GetComponent<UIView>();
+        if (view != null)
+            view.OnViewInit();
+
+        root.gameObject.SetActive(true);
+        CanvasGroup group = root.GetComponent<CanvasGroup>();
+        if (group != null)
+        {
+            group.alpha = 1f;
+            group.interactable = false;
+            group.blocksRaycasts = false;
+        }
+
+        Transform dimmer = root.Find("Dimmer");
+        if (dimmer != null)
+            dimmer.gameObject.SetActive(false);
+
+        Transform panel = root.Find("Panel");
+        if (panel != null)
+        {
+            RectTransform rect = panel as RectTransform;
+            if (rect != null)
+                rect.anchoredPosition = panelOffset;
+        }
+
+        if (withActions)
+        {
+            CombatPromptStyle.EnsureActionButton(
+                root, "再来一局", "Replay", new Vector2(-140f, -108f), new Vector2(220f, 52f));
+            CombatPromptStyle.EnsureActionButton(
+                root, "退出游戏", "Quit", new Vector2(140f, -108f), new Vector2(220f, 52f));
+        }
+    }
+
+    private static Canvas FindCombatCanvas()
+    {
+        Canvas[] canvases = Object.FindObjectsOfType<Canvas>(true);
+        for (int i = 0; i < canvases.Length; i++)
+        {
+            if (canvases[i] != null && canvases[i].name == "CombatCanvas")
+                return canvases[i];
+        }
+        return Object.FindObjectOfType<Canvas>();
+    }
+
+    private static void ReparentNamed(Transform canvas, Transform hud, string name, string oldName)
+    {
+        Transform panel = canvas.Find(name);
+        if (panel == null && hud != null) panel = hud.Find(name);
+        if (panel == null) panel = canvas.Find(oldName);
+        if (panel == null && hud != null) panel = hud.Find(oldName);
+        if (panel == null) return;
+
+        if (panel.name != name)
+        {
+            Undo.RecordObject(panel.gameObject, "Rename " + name);
+            panel.gameObject.name = name;
+        }
+
+        if (panel.parent != canvas)
+            Undo.SetTransformParent(panel, canvas, "Reparent " + name);
+        panel.SetAsLastSibling();
+    }
+
+    private static void EnsureVoiceLine(Transform hud)
+    {
+        if (hud.GetComponentInChildren<VoiceLineView>(true) != null) return;
+        GameObject go = CreateUi("VoiceLine", hud);
+        go.AddComponent<CanvasGroup>();
+        VoiceLineView view = go.AddComponent<VoiceLineView>();
+        view.OnViewInit();
+    }
+
+    private static void DestroyNamed(string name)
+    {
+        GameObject go = FindSceneObject(name);
+        if (go != null) Undo.DestroyObjectImmediate(go);
+    }
+
+    private static GameObject FindSceneObject(string name)
+    {
+        Transform[] all = Resources.FindObjectsOfTypeAll<Transform>();
+        for (int i = 0; i < all.Length; i++)
+        {
+            Transform t = all[i];
+            if (t == null || t.name != name) continue;
+            if (!t.gameObject.scene.IsValid()) continue;
+            return t.gameObject;
+        }
+        return null;
     }
 
     private static BossStatusView BuildBossStatus(Transform parent, Sprite sprite)
@@ -237,7 +438,7 @@ public static class CombatHUDBuilder
 
     private static VictoryView BuildVictory(Transform parent)
     {
-        GameObject root = CreatePromptRoot(parent, "Victory");
+        GameObject root = CreatePromptRoot(parent, "EndPanel");
         TextMeshProUGUI text = CreateText(root.transform, "Title", "胜利", 42, TextAlignmentOptions.Center);
         TextMeshProUGUI hint = CreateText(root.transform, "Hint", "击败 苇名弦一郎", 26, TextAlignmentOptions.Center);
         CombatPromptStyle.EnsureChrome(root.transform, text, hint, new Vector2(500f, 340f), withActionButton: true);
@@ -389,7 +590,6 @@ public static class CombatHUDBuilder
     {
         GameObject go = CreateUi(name, parent);
         TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
-        TmpChineseFont.Apply(tmp);
         tmp.text = content;
         tmp.fontSize = size;
         tmp.alignment = align;

@@ -11,6 +11,13 @@ public class GameOverView : UIView
     public override void OnViewInit()
     {
         CombatPromptStyle.EnsureChrome(transform, deathText, hintText, new Vector2(500f, 280f));
+        Transform panel = transform.Find("Panel");
+        CombatPromptStyle.EnsureCloseButton(panel, CombatPromptStyle.QuitGame);
+        if (canvasGroup != null)
+        {
+            canvasGroup.interactable = true;
+            canvasGroup.blocksRaycasts = true;
+        }
     }
 
     public void ShowGameOver()

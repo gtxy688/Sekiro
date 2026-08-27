@@ -82,23 +82,53 @@ public static class CombatPromptStyle
         dividerRect.anchorMin = dividerRect.anchorMax = dividerRect.pivot = new Vector2(0.5f, 0.5f);
         dividerRect.sizeDelta = new Vector2(panelSize.x - 80f, 2f);
         dividerRect.anchoredPosition = new Vector2(0f, dividerY);
+
+        EnsureCloseButton(panelRect, null);
+
+        if (Application.isPlaying)
+        {
+            panelRect.anchoredPosition = Vector2.zero;
+            if (dimmerTf != null)
+                dimmerTf.gameObject.SetActive(true);
+        }
     }
 
     public static Button EnsureActionButton(Transform root, string label)
     {
+        return EnsureActionButton(root, label, "Replay", new Vector2(0f, -108f), new Vector2(280f, 52f));
+    }
+
+    public static Button EnsureActionButton(
+        Transform root,
+        string label,
+        string goName,
+        Vector2 position,
+        Vector2 size)
+    {
         Transform panel = root != null ? root.Find("Panel") : null;
         if (panel == null) return null;
 
-        Transform existing = panel.Find("Replay");
+        Transform existing = panel.Find(goName);
         if (existing != null)
-            return existing.GetComponent<Button>();
+        {
+            RectTransform existingRect = existing as RectTransform;
+            if (existingRect != null)
+            {
+                existingRect.sizeDelta = size;
+                existingRect.anchoredPosition = position;
+            }
 
-        Image image = CreateImage(panel, "Replay", Button);
+            TextMeshProUGUI existingLabel = existing.GetComponentInChildren<TextMeshProUGUI>();
+            if (existingLabel != null) existingLabel.text = label;
+            return existing.GetComponent<Button>();
+        }
+
+        Image image = CreateImage(panel, goName, Button);
         image.raycastTarget = true;
         RectTransform rect = image.rectTransform;
         rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = new Vector2(280f, 52f);
-        rect.anchoredPosition = new Vector2(0f, -108f);
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
 
         Button button = image.gameObject.AddComponent<Button>();
         button.transition = Selectable.Transition.None;
@@ -112,9 +142,83 @@ public static class CombatPromptStyle
         tmp.color = Text;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.raycastTarget = false;
-        TmpChineseFont.Apply(tmp);
-        Place(tmp.rectTransform, Vector2.zero, rect.sizeDelta);
+        Place(tmp.rectTransform, Vector2.zero, size);
         return button;
+    }
+
+    public static Button EnsureCloseButton(Transform panel, UnityEngine.Events.UnityAction onClick)
+    {
+        if (panel == null) return null;
+
+        Transform existing = panel.Find("Close");
+        Button button;
+        if (existing != null)
+        {
+            button = existing.GetComponent<Button>();
+            if (button == null) button = existing.gameObject.AddComponent<Button>();
+        }
+        else
+        {
+            Image hit = CreateImage(panel, "Close", new Color(1f, 1f, 1f, 0f));
+            hit.raycastTarget = true;
+            RectTransform rect = hit.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(1f, 1f);
+            rect.sizeDelta = new Vector2(48f, 48f);
+            rect.anchoredPosition = new Vector2(-8f, -8f);
+
+            Image icon = CreateImage(hit.transform, "Icon", Text);
+            icon.sprite = LoadCloseSprite();
+            icon.preserveAspect = true;
+            icon.raycastTarget = false;
+            RectTransform iconRect = icon.rectTransform;
+            iconRect.anchorMin = iconRect.anchorMax = iconRect.pivot = new Vector2(0.5f, 0.5f);
+            iconRect.sizeDelta = new Vector2(28f, 28f);
+            iconRect.anchoredPosition = Vector2.zero;
+
+            button = hit.gameObject.AddComponent<Button>();
+            button.transition = Selectable.Transition.None;
+            button.navigation = new Navigation { mode = Navigation.Mode.None };
+            button.targetGraphic = icon;
+        }
+
+        if (onClick != null)
+        {
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(onClick);
+        }
+
+        return button;
+    }
+
+    public static void QuitGame()
+    {
+        CombatInputGate.SetBlocked(false);
+        if (GamePause.IsPaused)
+            GamePause.SetPaused(false);
+
+        if (Application.isEditor)
+        {
+            HideNamed("EndPanel");
+            HideNamed("GameOver");
+            return;
+        }
+
+        Application.Quit();
+    }
+
+    private static void HideNamed(string name)
+    {
+        GameObject canvas = GameObject.Find("CombatCanvas");
+        Transform t = canvas != null ? canvas.transform.Find(name) : null;
+        if (t == null)
+        {
+            GameObject found = GameObject.Find(name);
+            t = found != null ? found.transform : null;
+        }
+
+        if (t != null)
+            t.gameObject.SetActive(false);
     }
 
     public static void ApplyButtonSelected(Button button, bool selected)
@@ -150,10 +254,41 @@ public static class CombatPromptStyle
         return tmp;
     }
 
+    private static Sprite LoadCloseSprite()
+    {
+        Transform setting = FindSettingCloseIcon();
+        if (setting != null)
+        {
+            Image icon = setting.GetComponent<Image>();
+            if (icon != null && icon.sprite != null)
+                return icon.sprite;
+        }
+
+#if UNITY_EDITOR
+        UnityEngine.Object[] assets = UnityEditor.AssetDatabase.LoadAllAssetsAtPath(
+            "Assets/Space_Exploration_GUI_Kit/Picto_Icons/White/cross-128.png");
+        if (assets != null)
+        {
+            for (int i = 0; i < assets.Length; i++)
+            {
+                Sprite sprite = assets[i] as Sprite;
+                if (sprite != null)
+                    return sprite;
+            }
+        }
+#endif
+        return null;
+    }
+
+    private static Transform FindSettingCloseIcon()
+    {
+        GameObject canvas = GameObject.Find("CombatCanvas");
+        if (canvas == null) return null;
+        return canvas.transform.Find("SettingPanel/HubPanel/Close/Icon");
+    }
+
     private static void StyleTitle(TextMeshProUGUI title)
     {
-        TmpChineseFont.Apply(title);
-        title.fontSize = 42f;
         title.fontStyle = FontStyles.Normal;
         title.color = Accent;
         title.alignment = TextAlignmentOptions.Center;
@@ -162,8 +297,6 @@ public static class CombatPromptStyle
 
     private static void StyleHint(TextMeshProUGUI hint)
     {
-        TmpChineseFont.Apply(hint);
-        hint.fontSize = 26f;
         hint.fontStyle = FontStyles.Normal;
         hint.color = Text;
         hint.alignment = TextAlignmentOptions.Center;

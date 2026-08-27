@@ -9,6 +9,11 @@ public class PlayerBrain : BrainBase
     private InputActionAsset actions;
     private InputAction moveAction;
     private InputAction attackAction;
+    private InputAction jumpAction;
+    private InputAction deflectAction;
+    private InputAction dodgeAction;
+    private InputAction healAction;
+    private InputAction lockOnAction;
 
     // 专门用来暂存摇杆当前的输入值
     private Vector2 currentMoveInput;
@@ -38,66 +43,128 @@ public class PlayerBrain : BrainBase
         var map = actions.FindActionMap("Player");
         moveAction = actions.FindAction("Move");
         attackAction = map.FindAction("Attack");
+        jumpAction = map.FindAction("Jump");
+        deflectAction = map.FindAction("Deflect");
+        dodgeAction = map.FindAction("Dodge");
+        healAction = map.FindAction("Heal");
+        lockOnAction = map.FindAction("LockOn");
 
-        // A. 绑定连续输入 (摇杆移动)
-        // performed: 摇杆被推时持续触发
-        moveAction.performed += ctx => currentMoveInput = ctx.ReadValue<Vector2>();
-        // canceled: 摇杆松开时触发归零
-        moveAction.canceled += _ => currentMoveInput = Vector2.zero;
-
-        // B. 绑定离散输入 (动作按键，带有输入缓冲)
-        // started: 按下按键的第一帧。我们生成对应的 Command 并丢进基类的缓冲池
-        attackAction.started += _ =>
-        {
-            if (!CanAcceptPlayInput()) return;
-            attackPressed = true;
-            holdAttackTriggered = false;
-            holdThresholdChecked = false;
-            attackPressedTime = Time.time;
-        };
-        attackAction.canceled += _ =>
-        {
-            if (attackPressed && !holdAttackTriggered && CanAcceptPlayInput())
-            {
-                body.ActiveAttack = null;
-                BufferCommand(new AttackCommand());
-            }
-            attackPressed = false;
-        };
-        map.FindAction("Jump").started += _ =>
-        {
-            if (CanAcceptPlayInput()) BufferCommand(new JumpCommand());
-        };
-        map.FindAction("Deflect").started += _ =>
-        {
-            if (CanAcceptPlayInput()) BufferCommand(new DeflectCommand());
-        };
-        // 松手时发 IdleCommand，让 DeflectState 退出回待机（防御按住不放的语义）
-        map.FindAction("Deflect").canceled += _ =>
-        {
-            if (CanAcceptPlayInput()) BufferCommand(new IdleCommand());
-        };
-        map.FindAction("Dodge").started += _ =>
-        {
-            if (CanAcceptPlayInput()) BufferCommand(new DodgeCommand());
-        };
-        map.FindAction("Heal").started += _ =>
-        {
-            if (CanAcceptPlayInput()) BufferCommand(new HealCommand());
-        };
-        // M11：锁定/解锁（单 Boss）
-        map.FindAction("LockOn").started += _ =>
-        {
-            if (!CanAcceptPlayInput()) return;
-            if (LockOnManager.Instance != null) LockOnManager.Instance.Toggle();
-        };
-
+        BindActions();
         GamePause.OnChanged += HandlePauseChanged;
     }
 
     private void OnDestroy()
     {
         GamePause.OnChanged -= HandlePauseChanged;
+        UnbindActions();
+    }
+
+    private void BindActions()
+    {
+        if (moveAction != null)
+        {
+            moveAction.performed += OnMovePerformed;
+            moveAction.canceled += OnMoveCanceled;
+        }
+        if (attackAction != null)
+        {
+            attackAction.started += OnAttackStarted;
+            attackAction.canceled += OnAttackCanceled;
+        }
+        if (jumpAction != null) jumpAction.started += OnJumpStarted;
+        if (deflectAction != null)
+        {
+            deflectAction.started += OnDeflectStarted;
+            deflectAction.canceled += OnDeflectCanceled;
+        }
+        if (dodgeAction != null) dodgeAction.started += OnDodgeStarted;
+        if (healAction != null) healAction.started += OnHealStarted;
+        if (lockOnAction != null) lockOnAction.started += OnLockOnStarted;
+    }
+
+    // InputActionAsset 可能是项目资源，场景重载/对象销毁后仍活着。
+    // lambda 无法解绑，必须用具名回调在 OnDestroy 里卸掉，否则会打到已销毁的 PlayerBrain。
+    private void UnbindActions()
+    {
+        if (moveAction != null)
+        {
+            moveAction.performed -= OnMovePerformed;
+            moveAction.canceled -= OnMoveCanceled;
+        }
+        if (attackAction != null)
+        {
+            attackAction.started -= OnAttackStarted;
+            attackAction.canceled -= OnAttackCanceled;
+        }
+        if (jumpAction != null) jumpAction.started -= OnJumpStarted;
+        if (deflectAction != null)
+        {
+            deflectAction.started -= OnDeflectStarted;
+            deflectAction.canceled -= OnDeflectCanceled;
+        }
+        if (dodgeAction != null) dodgeAction.started -= OnDodgeStarted;
+        if (healAction != null) healAction.started -= OnHealStarted;
+        if (lockOnAction != null) lockOnAction.started -= OnLockOnStarted;
+    }
+
+    private void OnMovePerformed(InputAction.CallbackContext ctx)
+    {
+        currentMoveInput = ctx.ReadValue<Vector2>();
+    }
+
+    private void OnMoveCanceled(InputAction.CallbackContext _)
+    {
+        currentMoveInput = Vector2.zero;
+    }
+
+    private void OnAttackStarted(InputAction.CallbackContext _)
+    {
+        if (!CanAcceptPlayInput()) return;
+        attackPressed = true;
+        holdAttackTriggered = false;
+        holdThresholdChecked = false;
+        attackPressedTime = Time.time;
+    }
+
+    private void OnAttackCanceled(InputAction.CallbackContext _)
+    {
+        if (attackPressed && !holdAttackTriggered && CanAcceptPlayInput())
+        {
+            body.ActiveAttack = null;
+            BufferCommand(new AttackCommand());
+        }
+        attackPressed = false;
+    }
+
+    private void OnJumpStarted(InputAction.CallbackContext _)
+    {
+        if (CanAcceptPlayInput()) BufferCommand(new JumpCommand());
+    }
+
+    private void OnDeflectStarted(InputAction.CallbackContext _)
+    {
+        if (CanAcceptPlayInput()) BufferCommand(new DeflectCommand());
+    }
+
+    private void OnDeflectCanceled(InputAction.CallbackContext _)
+    {
+        if (CanAcceptPlayInput()) BufferCommand(new IdleCommand());
+    }
+
+    private void OnDodgeStarted(InputAction.CallbackContext _)
+    {
+        if (CanAcceptPlayInput()) BufferCommand(new DodgeCommand());
+    }
+
+    private void OnHealStarted(InputAction.CallbackContext _)
+    {
+        if (CanAcceptPlayInput()) BufferCommand(new HealCommand());
+    }
+
+    private void OnLockOnStarted(InputAction.CallbackContext _)
+    {
+        if (!CanAcceptPlayInput()) return;
+        if (LockOnManager.Instance != null) LockOnManager.Instance.Toggle();
     }
 
     private void HandlePauseChanged(bool paused)
@@ -111,6 +178,8 @@ public class PlayerBrain : BrainBase
 
     private bool CanAcceptPlayInput()
     {
+        // Unity 伪 null：对象已销毁时读 isActiveAndEnabled 会抛 MissingReferenceException
+        if (this == null) return false;
         return isActiveAndEnabled && !GamePause.IsPaused && !CombatInputGate.Blocked;
     }
 

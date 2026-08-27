@@ -8,7 +8,7 @@ using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// 暂停菜单：Esc / Start 打开。战斗 HUD 不管这里。
+// 暂停菜单：Esc / Start 打开 SettingPanel（挂在 CombatCanvas 上，场景里改字体）。
 public class PauseMenuController : MonoBehaviour
 {
     private enum PausePage { Root, Hub, Keybind }
@@ -36,9 +36,11 @@ public class PauseMenuController : MonoBehaviour
     private Button resumeButton;
     private Button openSettingsButton;
     private Button quitButton;
+    private Button rootCloseButton;
     private Button hubKeybindButton;
     private Button hubBackButton;
     private Button hubCloseButton;
+    private Button settingsCloseButton;
     private Image hubCloseIcon;
     private Button keyboardTabButton;
     private Button gamepadTabButton;
@@ -102,8 +104,12 @@ public class PauseMenuController : MonoBehaviour
         playerMap = actions.FindActionMap("Player");
         EnsureEventSystem();
         TmpChineseFont.EnsureReady();
-        BuildUI();
-        TmpChineseFont.ApplyAll(pauseCanvas.transform);
+        pauseCanvas = EnsureSettingPanelRoot();
+        if (!TryBindExisting())
+            BuildUIInto(pauseCanvas.transform);
+        else
+            WireExistingListeners();
+        EnsurePauseCloseButtons();
         WireNavigation();
         HideMenu();
     }
@@ -183,6 +189,9 @@ public class PauseMenuController : MonoBehaviour
         GamePause.SetPaused(true);
         SetGameplayInput(false);
         pauseCanvas.SetActive(true);
+        Transform dimmer = pauseCanvas.transform.Find("Dimmer");
+        if (dimmer != null)
+            dimmer.gameObject.SetActive(true);
         ShowRoot();
     }
 
@@ -206,6 +215,9 @@ public class PauseMenuController : MonoBehaviour
     {
         CancelRebind();
         page = PausePage.Root;
+        ResetPanelPose(rootPanel);
+        ResetPanelPose(hubPanel);
+        ResetPanelPose(settingsPanel);
         rootPanel.SetActive(true);
         hubPanel.SetActive(false);
         settingsPanel.SetActive(false);
@@ -216,6 +228,9 @@ public class PauseMenuController : MonoBehaviour
     {
         CancelRebind();
         page = PausePage.Hub;
+        ResetPanelPose(rootPanel);
+        ResetPanelPose(hubPanel);
+        ResetPanelPose(settingsPanel);
         rootPanel.SetActive(false);
         hubPanel.SetActive(true);
         settingsPanel.SetActive(false);
@@ -229,6 +244,9 @@ public class PauseMenuController : MonoBehaviour
     private void ShowSettings()
     {
         page = PausePage.Keybind;
+        ResetPanelPose(rootPanel);
+        ResetPanelPose(hubPanel);
+        ResetPanelPose(settingsPanel);
         rootPanel.SetActive(false);
         hubPanel.SetActive(false);
         settingsPanel.SetActive(true);
@@ -477,33 +495,281 @@ public class PauseMenuController : MonoBehaviour
         else playerMap.Disable();
     }
 
-    private void BuildUI()
+    // 设置页做在 CombatCanvas/SettingPanel 上，场景里能改字体。没有子物体才现拼。
+    private GameObject EnsureSettingPanelRoot()
+    {
+        Transform canvas = FindCombatCanvas();
+        Transform existing = canvas != null ? canvas.Find("SettingPanel") : null;
+        if (existing != null)
+            return existing.gameObject;
+
+        Transform parent = canvas != null ? canvas : transform;
+        GameObject panel = new GameObject("SettingPanel", typeof(RectTransform));
+        panel.transform.SetParent(parent, false);
+        StretchFull(panel.GetComponent<RectTransform>());
+        panel.transform.SetAsLastSibling();
+        return panel;
+    }
+
+    private static Transform FindCombatCanvas()
+    {
+        GameObject named = GameObject.Find("CombatCanvas");
+        if (named != null)
+            return named.transform;
+
+        Canvas[] canvases = Object.FindObjectsOfType<Canvas>();
+        for (int i = 0; i < canvases.Length; i++)
+        {
+            if (canvases[i] != null && canvases[i].name == "CombatCanvas")
+                return canvases[i].transform;
+        }
+        return null;
+    }
+
+    private bool TryBindExisting()
+    {
+        if (pauseCanvas == null) return false;
+        Transform root = pauseCanvas.transform;
+        Transform rootTf = root.Find("RootPanel");
+        Transform hubTf = root.Find("HubPanel");
+        Transform settingsTf = root.Find("SettingsPanel");
+        if (rootTf == null || hubTf == null || settingsTf == null) return false;
+
+        rootPanel = rootTf.gameObject;
+        hubPanel = hubTf.gameObject;
+        settingsPanel = settingsTf.gameObject;
+
+        resumeButton = FindButton(rootTf, "继续战斗");
+        openSettingsButton = FindButton(rootTf, "设置");
+        quitButton = FindButton(rootTf, "退出战斗");
+        rootCloseButton = FindButton(rootTf, "Close");
+        hubKeybindButton = FindButton(hubTf, "键位设置");
+        hubBackButton = FindButton(hubTf, "返回");
+        hubCloseButton = FindButton(hubTf, "Close");
+        if (hubCloseButton != null)
+        {
+            Transform icon = hubCloseButton.transform.Find("Icon");
+            if (icon != null) hubCloseIcon = icon.GetComponent<Image>();
+        }
+
+        keyboardTabButton = FindButton(settingsTf, "键盘鼠标");
+        gamepadTabButton = FindButton(settingsTf, "手柄");
+        resetButton = FindButton(settingsTf, "恢复默认");
+        backButton = FindButton(settingsTf, "返回");
+        settingsCloseButton = FindButton(settingsTf, "Close");
+        waitingHint = FindTmp(settingsTf, "WaitingHint");
+
+        BindSliderRow(hubTf, "音乐音量Row", true);
+        BindSliderRow(hubTf, "音效音量Row", false);
+
+        bindingLabels.Clear();
+        rebindRowButtons.Clear();
+        for (int i = 0; i < InputRebindService.RemappableActions.Length; i++)
+        {
+            Transform row = settingsTf.Find("Row_" + InputRebindService.RemappableActions[i]);
+            if (row == null) return false;
+            Button rowButton = row.GetComponentInChildren<Button>();
+            if (rowButton == null) return false;
+            rebindRowButtons.Add(rowButton);
+            bindingLabels.Add(rowButton.GetComponentInChildren<TextMeshProUGUI>());
+        }
+
+        return resumeButton != null && bgmSlider != null && sfxSlider != null;
+    }
+
+    private void BindSliderRow(Transform hub, string rowName, bool isBgm)
+    {
+        Transform row = hub.Find(rowName);
+        if (row == null) return;
+        Slider slider = row.Find("Slider") != null ? row.Find("Slider").GetComponent<Slider>() : null;
+        Image handle = row.Find("Slider/Handle Slide Area/Handle/HandleGraphic") != null
+            ? row.Find("Slider/Handle Slide Area/Handle/HandleGraphic").GetComponent<Image>()
+            : null;
+        Image fill = row.Find("Slider/Track/Fill Area/Fill") != null
+            ? row.Find("Slider/Track/Fill Area/Fill").GetComponent<Image>()
+            : null;
+        Image tick = row.Find("Tick") != null ? row.Find("Tick").GetComponent<Image>() : null;
+        TextMeshProUGUI title = FindTmp(row, rowName.Replace("Row", string.Empty));
+        TextMeshProUGUI value = FindTmp(row, "Value");
+        if (isBgm)
+        {
+            bgmSlider = slider;
+            bgmHandle = handle;
+            bgmFill = fill;
+            bgmTick = tick;
+            bgmTitleLabel = title;
+            bgmValueLabel = value;
+        }
+        else
+        {
+            sfxSlider = slider;
+            sfxHandle = handle;
+            sfxFill = fill;
+            sfxTick = tick;
+            sfxTitleLabel = title;
+            sfxValueLabel = value;
+        }
+    }
+
+    private void WireExistingListeners()
+    {
+        BindClick(resumeButton, Resume);
+        BindClick(openSettingsButton, ShowHub);
+        BindClick(quitButton, RestartScene);
+        BindClick(rootCloseButton, Resume);
+        BindClick(hubKeybindButton, ShowSettings);
+        BindClick(hubBackButton, ShowRoot);
+        BindClick(hubCloseButton, ShowRoot);
+        BindClick(settingsCloseButton, ShowHub);
+        BindClick(keyboardTabButton, () => SwitchGroup(InputRebindService.KeyboardMouseGroup));
+        BindClick(gamepadTabButton, () => SwitchGroup(InputRebindService.GamepadGroup));
+        BindClick(resetButton, ResetCurrentGroup);
+        BindClick(backButton, ShowHub);
+
+        if (bgmSlider != null)
+        {
+            bgmSlider.onValueChanged.RemoveAllListeners();
+            bgmSlider.onValueChanged.AddListener(v =>
+            {
+                AudioVolumeSettings.SetBgm(v / 100f);
+                RefreshAudioLabels();
+            });
+        }
+
+        if (sfxSlider != null)
+        {
+            sfxSlider.onValueChanged.RemoveAllListeners();
+            sfxSlider.onValueChanged.AddListener(v =>
+            {
+                AudioVolumeSettings.SetSfx(v / 100f);
+                RefreshAudioLabels();
+            });
+        }
+
+        for (int i = 0; i < rebindRowButtons.Count; i++)
+        {
+            int index = i;
+            BindClick(rebindRowButtons[i], () => OnRowClicked(index));
+        }
+    }
+
+    private void EnsurePauseCloseButtons()
     {
         EnsureSliderSprites();
-        GameObject canvasObject = new GameObject("PauseCanvas");
-        canvasObject.transform.SetParent(transform, false);
-        pauseCanvas = canvasObject;
+        if (rootPanel != null && rootCloseButton == null)
+            rootCloseButton = CreateCloseButton(rootPanel.transform, Resume);
+        if (hubPanel != null && hubCloseButton == null)
+        {
+            hubCloseButton = CreateCloseButton(hubPanel.transform, ShowRoot);
+            Transform icon = hubCloseButton.transform.Find("Icon");
+            if (icon != null) hubCloseIcon = icon.GetComponent<Image>();
+        }
 
-        Canvas canvas = canvasObject.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 100;
-        canvasObject.AddComponent<GraphicRaycaster>();
+        if (settingsPanel != null && settingsCloseButton == null)
+            settingsCloseButton = CreateCloseButton(settingsPanel.transform, ShowHub);
 
-        CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        BindClick(rootCloseButton, Resume);
+        BindClick(hubCloseButton, ShowRoot);
+        BindClick(settingsCloseButton, ShowHub);
+    }
 
-        Image dimmer = CreateImage(canvasObject.transform, "Dimmer", new Color(0f, 0f, 0f, 0.72f));
+    public void EditorPreviewAllPages()
+    {
+        pauseCanvas = EnsureSettingPanelRoot();
+        if (!TryBindExisting())
+            BuildUIInto(pauseCanvas.transform);
+        EnsurePauseCloseButtons();
+        pauseCanvas.SetActive(true);
+        Transform dimmer = pauseCanvas.transform.Find("Dimmer");
+        if (dimmer != null)
+            dimmer.gameObject.SetActive(false);
+        if (rootPanel != null)
+        {
+            rootPanel.SetActive(true);
+            SetPanelPose(rootPanel, new Vector2(-620f, 200f));
+        }
+
+        if (hubPanel != null)
+        {
+            hubPanel.SetActive(true);
+            SetPanelPose(hubPanel, new Vector2(0f, 200f));
+        }
+
+        if (settingsPanel != null)
+        {
+            settingsPanel.SetActive(true);
+            SetPanelPose(settingsPanel, new Vector2(680f, 40f));
+        }
+    }
+
+    private static void ResetPanelPose(GameObject panel)
+    {
+        SetPanelPose(panel, Vector2.zero);
+    }
+
+    private static void SetPanelPose(GameObject panel, Vector2 position)
+    {
+        if (panel == null) return;
+        RectTransform rect = panel.GetComponent<RectTransform>();
+        if (rect != null)
+            rect.anchoredPosition = position;
+    }
+
+    private static void BindClick(Button button, UnityEngine.Events.UnityAction action)
+    {
+        if (button == null) return;
+        button.onClick.RemoveAllListeners();
+        button.onClick.AddListener(action);
+    }
+
+    private static Button FindButton(Transform root, string name)
+    {
+        Transform t = root != null ? root.Find(name) : null;
+        return t != null ? t.GetComponent<Button>() : null;
+    }
+
+    private static TextMeshProUGUI FindTmp(Transform root, string name)
+    {
+        Transform t = root != null ? root.Find(name) : null;
+        return t != null ? t.GetComponent<TextMeshProUGUI>() : null;
+    }
+
+    public void EditorRebuildSettingPanel()
+    {
+        pauseCanvas = EnsureSettingPanelRoot();
+        Transform root = pauseCanvas.transform;
+        for (int i = root.childCount - 1; i >= 0; i--)
+        {
+            Transform child = root.GetChild(i);
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+                Object.DestroyImmediate(child.gameObject);
+            else
+#endif
+                Object.Destroy(child.gameObject);
+        }
+
+        BuildUIInto(root);
+        HideMenu();
+    }
+
+    private void BuildUIInto(Transform canvasRoot)
+    {
+        EnsureSliderSprites();
+        pauseCanvas = canvasRoot.gameObject;
+
+        Image dimmer = CreateImage(canvasRoot, "Dimmer", new Color(0f, 0f, 0f, 0.72f));
         dimmer.raycastTarget = false;
         StretchFull(dimmer.rectTransform);
 
-        rootPanel = CreatePanel(canvasObject.transform, "RootPanel", new Vector2(460f, 420f));
+        rootPanel = CreatePanel(canvasRoot, "RootPanel", new Vector2(460f, 420f));
         CreateLabel(rootPanel.transform, "暂停", 42f, TextAlignmentOptions.Center, new Vector2(0f, 150f), new Vector2(400f, 60f));
         resumeButton = CreateMenuButton(rootPanel.transform, "继续战斗", new Vector2(0f, 50f), Resume);
         openSettingsButton = CreateMenuButton(rootPanel.transform, "设置", new Vector2(0f, -20f), ShowHub);
         quitButton = CreateMenuButton(rootPanel.transform, "退出战斗", new Vector2(0f, -90f), RestartScene);
+        rootCloseButton = CreateCloseButton(rootPanel.transform, Resume);
 
-        hubPanel = CreatePanel(canvasObject.transform, "HubPanel", new Vector2(560f, 500f));
+        hubPanel = CreatePanel(canvasRoot, "HubPanel", new Vector2(560f, 500f));
         CreateLabel(hubPanel.transform, "设置", 42f, TextAlignmentOptions.Center,
             new Vector2(0f, 190f), new Vector2(500f, 60f));
         hubCloseButton = CreateCloseButton(hubPanel.transform, ShowRoot);
@@ -513,14 +779,17 @@ public class PauseMenuController : MonoBehaviour
         hubKeybindButton = CreateMenuButton(hubPanel.transform, "键位设置", new Vector2(0f, -50f), ShowSettings);
         hubBackButton = CreateMenuButton(hubPanel.transform, "返回", new Vector2(0f, -118f), ShowRoot);
 
-        settingsPanel = CreatePanel(canvasObject.transform, "SettingsPanel", new Vector2(640f, 720f));
+        settingsPanel = CreatePanel(canvasRoot, "SettingsPanel", new Vector2(640f, 720f));
         CreateLabel(settingsPanel.transform, "键位设置", 36f, TextAlignmentOptions.Center, new Vector2(0f, 310f), new Vector2(560f, 50f));
+        settingsCloseButton = CreateCloseButton(settingsPanel.transform, ShowHub);
 
         keyboardTabButton = CreateMenuButton(settingsPanel.transform, "键盘鼠标", new Vector2(-140f, 250f),
             () => SwitchGroup(InputRebindService.KeyboardMouseGroup), new Vector2(240f, 44f));
         gamepadTabButton = CreateMenuButton(settingsPanel.transform, "手柄", new Vector2(140f, 250f),
             () => SwitchGroup(InputRebindService.GamepadGroup), new Vector2(240f, 44f));
 
+        bindingLabels.Clear();
+        rebindRowButtons.Clear();
         for (int i = 0; i < InputRebindService.RemappableActions.Length; i++)
         {
             float y = 180f - i * 58f;
@@ -528,7 +797,7 @@ public class PauseMenuController : MonoBehaviour
         }
 
         waitingHint = CreateLabel(settingsPanel.transform, string.Empty, 22f, TextAlignmentOptions.Center,
-            new Vector2(0f, -200f), new Vector2(560f, 36f));
+            new Vector2(0f, -200f), new Vector2(560f, 36f), "WaitingHint");
         waitingHint.color = AccentColor;
 
         resetButton = CreateMenuButton(settingsPanel.transform, "恢复默认", new Vector2(-140f, -270f), ResetCurrentGroup, new Vector2(240f, 44f));
@@ -578,7 +847,7 @@ public class PauseMenuController : MonoBehaviour
         titleLabel.color = SliderLabelIdle;
 
         TextMeshProUGUI valueLabel = CreateLabel(row.transform, "80%", 24f, TextAlignmentOptions.Right,
-            new Vector2(-78f, 0f), new Vector2(60f, 36f));
+            new Vector2(-78f, 0f), new Vector2(60f, 36f), "Value");
         valueLabel.color = SliderLabelIdle;
 
         Image hit = CreateImage(row.transform, "Slider", new Color(1f, 1f, 1f, 0f));
@@ -835,13 +1104,15 @@ public class PauseMenuController : MonoBehaviour
         float fontSize,
         TextAlignmentOptions align,
         Vector2 position,
-        Vector2 size)
+        Vector2 size,
+        string goName = null)
     {
-        GameObject go = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer));
+        GameObject go = new GameObject(
+            string.IsNullOrEmpty(goName) ? (string.IsNullOrEmpty(text) ? "Label" : text) : goName,
+            typeof(RectTransform), typeof(CanvasRenderer));
         go.transform.SetParent(parent, false);
 
         TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
-        TmpChineseFont.Apply(tmp);
         tmp.text = text;
         tmp.fontSize = fontSize;
         tmp.color = TextColor;

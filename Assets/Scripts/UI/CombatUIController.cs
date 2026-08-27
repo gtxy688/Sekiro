@@ -76,7 +76,6 @@ public class CombatUIController : MonoBehaviour
         revivePromptView?.OnViewInit();
         gameOverView?.OnViewInit();
         victoryView?.OnViewInit();
-        TmpChineseFont.ApplyAll(transform);
 
         BossVoiceDirector voice = GetComponent<BossVoiceDirector>();
         voice?.Bind(playerBody, bossBody, playerPostureBarView != null ? playerPostureBarView.transform as RectTransform : null);
@@ -179,8 +178,8 @@ public class CombatUIController : MonoBehaviour
     {
         if (c == playerBody)
         {
-            // 回生次数-1（熄灭花瓣）+ 弹回生提示
-            playerStatusView?.SetReviveDots(0);
+            // 这次死亡会用掉一次回生：立刻把对应活点换成 EndDot
+            playerStatusView?.SetReviveDots(Mathf.Max(0, playerBody.ReviveRemaining - 1));
             revivePromptView?.ShowPrompt();
         }
     }
@@ -190,6 +189,7 @@ public class CombatUIController : MonoBehaviour
         if (c == playerBody)
         {
             revivePromptView?.HidePrompt();
+            playerStatusView?.SetReviveDots(playerBody.ReviveRemaining);
         }
     }
 
@@ -198,6 +198,7 @@ public class CombatUIController : MonoBehaviour
         if (c == playerBody)
         {
             revivePromptView?.HidePrompt();
+            playerStatusView?.SetReviveDots(0);
             gameOverView?.ShowGameOver();
         }
     }

@@ -114,14 +114,29 @@ OnAttackSfx(AudioClip clip, Vector3 worldPos)  // 出招音效（AttackState 按
 
 - 挂在 `CombatCanvas` 的 View 上，事件驱动，不每帧轮询。
 - 外观跟暂停设置页同一套：全屏压暗 + 居中暗金面板 + 金字标题 + 浅字提示 + 细金线。不要粉红大字、不要太空紫。
-- 中文 TMP：`TmpChineseFont` 在进场景前给 SIMYOU / STFANGSO 打开多图集、互为回退，并预热战斗/暂停/台词用字。缺字不要变成空格。旧 HUD 里误用 LiberationSans 的中文也会走回退。
-- 胜利页多一个暗金「再来一局」按钮（鼠标点 / 手柄确认），重载当前场景。不要冻 `timeScale`。
+- 中文 TMP：`TmpChineseFont` 只在进场景前给 SIMYOU / STFANGSO 打开多图集、互为回退，并预热战斗/暂停/台词用字。**不要在运行时改 `tmp.font`**，字体在 `GameScene` 的面板上调。缺字走回退，不要变成空格。
+- 胜利页：「再来一局」重载当前场景；「退出游戏」打包后退出程序，**编辑器里不停 Play**（只关掉结算面板）。右上角叉号同样。不要冻 `timeScale`。
 - 胜利期间 `CombatInputGate` 挡住玩家移动和出招；`PlayerInput.DeactivateInput` 把设备让给 UI，避免手柄点不了按钮。
+- 暂停 / 设置 / 键位 / 回生 / 真死 / 胜利面板右上角都有叉号。暂停页叉号关闭菜单，设置/键位叉号返回上一页；胜利与真死叉号退出游戏；回生叉号只关提示（仍可按攻击键复活）。
+- 玩家回生节点：活点用 `ReviveDot`，用掉后换成同位置的 `EndDot`，不要把图标直接关掉。两次回生对应两对点。
+
+### CombatCanvas 面板
+
+全部做在 `GameScene` 的 `CombatCanvas` 下，方便在 Inspector 改 TMP Font Asset：
+
+| 物体 | 用途 |
+|------|------|
+| `GamePanel` | 战斗 HUD（血条、架势、Boss 名、真死 `GameOver`、台词 `VoiceLine`） |
+| `SettingPanel` | 暂停 / 设置 / 键位（不要再挂独立 Canvas） |
+| `EndPanel` | 胜利：「再来一局」/「退出游戏」 |
+| `RespawnPanel` | 回生提示 |
+
+整理菜单：`Tools/战斗/整理 CombatCanvas 面板`。预览：`Tools/战斗/预览全部 UI`（把暂停三页、回生、真死、胜利铺到场景里，关掉压暗；Play 后会收回）。`PauseMenuController` 仍挂在 Mgr 上，只引用场景里的 `SettingPanel`。
 
 ### 弦一郎台词
 
 - `BossVoiceDirector` 订阅事件，从 `Resources/Voices` 按编号加载 wav，台词钉在底栏正中 `PlayerPosture` 上方（不要贴左下血条）。响度 = 检视器 `volume` × 音效滑条。不要用 Mixer。
-- 旧 HUD 不用手改：`CombatUIController.Awake` 没有组件就补一个，台词条运行时生成。
+- 台词条放在 `GamePanel/VoiceLine`。没有组件时 `CombatUIController.Awake` 会补 `BossVoiceDirector`，没有 View 才运行时生成。
 - 时机与文本：
 
 | 时机 | 文件 | 台词 |

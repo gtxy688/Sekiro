@@ -62,11 +62,7 @@ public class VoiceLineView : UIView
                 lineText = existing.GetComponent<TextMeshProUGUI>();
         }
 
-        if (lineText != null)
-        {
-            TmpChineseFont.Apply(lineText);
-            return;
-        }
+        if (lineText != null) return;
 
         Image bg = gameObject.GetComponent<Image>();
         if (bg == null) bg = gameObject.AddComponent<Image>();
@@ -76,7 +72,6 @@ public class VoiceLineView : UIView
         GameObject textGo = new GameObject("Line", typeof(RectTransform), typeof(CanvasRenderer));
         textGo.transform.SetParent(transform, false);
         lineText = textGo.AddComponent<TextMeshProUGUI>();
-        TmpChineseFont.Apply(lineText);
         lineText.fontSize = 26f;
         lineText.color = CombatPromptStyle.Text;
         lineText.alignment = TextAlignmentOptions.Center;
