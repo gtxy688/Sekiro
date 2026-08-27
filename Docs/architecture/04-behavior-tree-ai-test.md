@@ -6,9 +6,8 @@
 
 1. Boss 模型挂 `CharacterBody` + `BTBrain`。
 2. 场景有玩家，BTBrain 的 `PlayerTarget` 拖入玩家 Transform。
-3. `CharacterBody.LightAttack` 使用 Boss `Attack1.asset`，不要引用玩家 atk1。
-4. `BTBrain.moveTable` 指向 `Assets/SO/Boss/GenichiroMoveTable.asset`。
-5. Boss 右手刀刃采样点挂 `Hitbox`；未挂时 AI 可以追击和播攻击，但不会造成伤害。
+3. `BTBrain.moveTable` 指向 `Assets/SO/Boss/GenichiroMoveTable.asset`。Boss 出招走招式表，不需要 `LightAttack` / `AttackSet`。
+4. Boss 右手刀刃采样点挂 `Hitbox`；未挂时 AI 可以追击和播攻击，但不会造成伤害。
 
 ## M5：行为树框架
 
@@ -49,7 +48,6 @@
 ## 常见问题
 
 - **Boss 不动**：检查黑板 target 是否设置、`BT_MoveToTarget` 是否读到 target。
-- **连段乱**：`BT_Combo` 内部第几刀索引没维护好（完整树已不挂该节点）。
 - **一直放同一招**：冷却字典没检查。
 - **被弹反不变招**：交锋依赖 `ForceParryStun` 置 `KengekiArmed`，硬直结束且距离 ≤ 2.5m 才会抽交锋表。
 - **Boss 还是裸受击**：确认 `BTBrain.Start` 已置 `body.EnablePassiveDeflect = true`（只给 Boss；玩家不开启）。

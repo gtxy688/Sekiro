@@ -30,8 +30,6 @@ public class BTBrain : MonoBehaviour
     [Header("完整 AI")]
     public BossMoveTable moveTable;
 
-    public AttackConfig BowShotConfig; // 保留槽位，弓在表里，不再单独挂
-
     private CharacterBody body;
     private Node behaviorTreeRoot;
     private Blackboard blackboard;
@@ -71,15 +69,7 @@ public class BTBrain : MonoBehaviour
             return;
         }
 
-        if (body.LightAttack == null)
-        {
-            Debug.LogError($"{name} 的 CharacterBody 缺少 LightAttack，AI 已停用。");
-            enabled = false;
-            return;
-        }
-
         blackboard = new Blackboard();
-        blackboard.Set("target", PlayerTarget);
         body.CombatTarget = PlayerTarget;
         body.MoveUsesWorldDir = true;
         // M7 被动防御（只狼攻防转换）：玩家命中 Boss 的瞬间做防御判定（普通格挡/计数升级弹反）。

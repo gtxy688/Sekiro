@@ -60,7 +60,6 @@ public static class AttackSlashBuilder
 
         Undo.RecordObject(fx, "Assign swing trail");
         fx.playerSwingTrailMat = mat;
-        fx.playerSlashFx = null;
         EditorUtility.SetDirty(fx);
         AssetDatabase.SaveAssets();
         Selection.activeObject = fx;

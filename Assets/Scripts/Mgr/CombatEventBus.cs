@@ -132,11 +132,6 @@ public static class CombatEventBus
         OnPerilousAttack?.Invoke(type);
     }
 
-    public static void TriggerFinisher(Vector3 pos)
-    {
-        OnFinisherTriggered?.Invoke(pos);
-    }
-
     public static void TriggerFinisherStarted(
         Vector3 pos,
         CharacterBody player,

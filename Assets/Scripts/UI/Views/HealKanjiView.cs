@@ -57,7 +57,6 @@ public class HealKanjiView : UIView
 
         KillTweens();
         Show();
-        BindRefs();
 
         transform.localScale = Vector3.zero;
         ApplyAlpha(0f);

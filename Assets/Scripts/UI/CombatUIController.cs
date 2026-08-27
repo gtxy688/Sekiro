@@ -12,7 +12,7 @@ public class CombatUIController : MonoBehaviour
     [Header("View 引用")]
     [SerializeField] private BossStatusView bossStatusView;        // 左上：红点+血条+名称
     [SerializeField] private BossPostureBarView bossPostureBarView;   // 顶部：Boss 架势条
-    [SerializeField] private BossPostureBarView playerPostureBarView; // 左下：玩家架势条（与 Boss 同一套宽度映射）
+    [SerializeField] private BossPostureBarView playerPostureBarView; // 底栏正中：玩家架势条（物体名必须是 PlayerPosture）
     [SerializeField] private PlayerStatusView playerStatusView;       // 左下：玩家血条+回生
     [SerializeField] private ItemSlotView itemSlotView;             // 右下：葫芦
     [SerializeField] private LockOnIndicatorView lockOnIndicatorView; // 屏幕锁定点，跟随 Boss Spine1
@@ -32,7 +32,6 @@ public class CombatUIController : MonoBehaviour
     // ===== 生命周期：订阅 / 取消订阅 =====
     private void OnEnable()
     {
-        CombatEventBus.OnTakeDamage += HandleTakeDamage;
         CombatEventBus.OnHPChanged += HandleHPChanged;
         CombatEventBus.OnPostureChanged += HandlePostureChanged;
         CombatEventBus.OnPostureBroken += HandlePostureBroken;
@@ -44,13 +43,11 @@ public class CombatUIController : MonoBehaviour
         CombatEventBus.OnVictory += HandleVictory;
         CombatEventBus.OnLifeCleared += HandleLifeCleared;
         CombatEventBus.OnPerilousAttack += HandlePerilousAttack;
-        CombatEventBus.OnFinisherTriggered += HandleFinisherTriggered;
         CombatEventBus.OnLockOnChanged += HandleLockOnChanged;
     }
 
     private void OnDisable()
     {
-        CombatEventBus.OnTakeDamage -= HandleTakeDamage;
         CombatEventBus.OnHPChanged -= HandleHPChanged;
         CombatEventBus.OnPostureChanged -= HandlePostureChanged;
         CombatEventBus.OnPostureBroken -= HandlePostureBroken;
@@ -62,7 +59,6 @@ public class CombatUIController : MonoBehaviour
         CombatEventBus.OnVictory -= HandleVictory;
         CombatEventBus.OnLifeCleared -= HandleLifeCleared;
         CombatEventBus.OnPerilousAttack -= HandlePerilousAttack;
-        CombatEventBus.OnFinisherTriggered -= HandleFinisherTriggered;
         CombatEventBus.OnLockOnChanged -= HandleLockOnChanged;
     }
 
@@ -77,8 +73,6 @@ public class CombatUIController : MonoBehaviour
         BindLockOnView();
         BindPerilousView();
         BindHealKanjiView();
-        perilousWarningView?.OnViewInit();
-        healKanjiView?.OnViewInit();
         revivePromptView?.OnViewInit();
         gameOverView?.OnViewInit();
         victoryView?.OnViewInit();
@@ -122,12 +116,6 @@ public class CombatUIController : MonoBehaviour
     }
 
     // ===== 事件处理 =====
-
-    // 血条：根据 victim 判断是玩家还是 Boss，转发给对应 View
-    private void HandleTakeDamage(CharacterBody victim, int dmg, int currentHp)
-    {
-        // 老事件（无 maxHp），用 OnHPChanged 那个带完整数据的
-    }
 
     private void HandleHPChanged(CharacterBody c, int currentHp, int maxHp)
     {
@@ -258,11 +246,6 @@ public class CombatUIController : MonoBehaviour
             BindPerilousView();
         perilousWarningView?.BindFollowTarget(bossBody);
         perilousWarningView?.ShowWarning(type);
-    }
-
-    private void HandleFinisherTriggered(Vector3 pos)
-    {
-        // 处决表现由 AudioManager/FX 订阅处理，这里不需要
     }
 
     private void HandleLockOnChanged(bool isLocked)

@@ -29,21 +29,20 @@
 - 放一个空物体挂 `CombatManager`（单例，自动 Awake）
 - 玩家/Boss 都配好 `CharacterBody`（Config、Light Attack、GroundCheck）
 
-### 4. 测试键（M1HitTest.cs 挂在玩家上）
+### 4. 验收方式
 
-- **K** = 开启武器判定（使用玩家 `LightAttack` 的配置）
-- **L** = 关闭武器判定
+Play `GameScene` 后用玩家普攻（点按）验收，不要再挂临时开闭 Hitbox 的测试脚本。攻击状态会按 `AttackConfig` 自己开关判定。
 
 ## M3 验收
 
 | # | 操作 | 预期 |
 |---|------|------|
 | 1 | Play，看 Console | 0 个编译错误 |
-| 2 | 玩家按 **K** 开启判定，走到 Boss 面前让刀扫过 Boss 身体 | Boss 掉血（`atk1.BaseDamage`）+ 进 StunnedState 播受击动画 |
+| 2 | 走到 Boss 面前点按攻击，让刀扫过 Boss 身体 | Boss 掉血（`atk1.BaseDamage`）+ 进 StunnedState 播受击动画 |
 | 3 | 一次挥砍反复扫过 Boss | **只结算一次**（hitTargets 去重，看 Boss 只掉一次血） |
-| 4 | 判定开启时扫向自己身体 | 不受伤（ReportHit 的 owner 排除） |
-| 5 | 按 **L** 关闭判定后再扫 Boss | 无伤害 |
-| 6 | 玩家和 Boss 都开判定，双方武器相交 | `ReportClash` 触发：双方涨架势 + `TriggerWeaponDeflected`（打铁火花/音效，配了资源才看得到） |
+| 4 | 挥砍扫向自己身体 | 不受伤（ReportHit 的 owner 排除） |
+| 5 | 不按攻击、只走近 Boss | 无伤害（Hitbox 未开） |
+| 6 | 玩家和 Boss 同时出刀，双方武器相交 | `ReportClash` 触发：双方涨架势 + `TriggerWeaponDeflected`（打铁火花/音效，配了资源才看得到） |
 | 7 | 高速挥砍（动画快速摆动） | 能命中（上一帧→当前帧一段式扫描，防穿透） |
 | 7b | Attack1 打中后接 Attack2 | 第二刀也能打中（Hitbox 在武器中央 + Boss 碰撞体包住身体） |
 | 7c | 进入 `RecoveryWindowStart` 后再贴身（刀已进入可取消段） | 不再掉血；没取消则动画仍播到 `StateDuration` |

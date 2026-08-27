@@ -76,8 +76,6 @@ Selector **只**对实现 `ISelectorLock` 的 Running 子节点记住索引。`B
 ### 新增 BT 节点（通用）
 
 - `BT_MoveToTarget`（已有，改用黑板）
-- `BT_Attack`（已有，改用黑板）
-- `BT_UseBlackboard`：读写黑板（可选）
 
 ## 二、弦一郎 Boss AI（M7）
 
@@ -109,7 +107,7 @@ Selector **只**对实现 `ISelectorLock` 的 Running 子节点记住索引。`B
 距离 ≤ 3m  → 贴身战（横砍+转身/踢一脚）+ 跳跃下刺
 ```
 
-> 当前实现已换成**完整薄树 + 招式表**。受击/崩解/忍杀结算不改。`BT_Combo` 的 AttackSet 下标连招不再作为弦一郎正路。
+> 当前实现已换成**完整薄树 + 招式表**。受击/崩解/忍杀结算不改。旧叶子 `BT_Combo` / `BT_HitOnce` / `BT_BowShot` / `BT_Attack` / `BT_Deflect` / `BT_DeflectIf` 已删除，树里不再挂。
 
 ### 完整薄树
 
@@ -136,13 +134,7 @@ Inspector：必须拖 `PlayerTarget` / `PlayerBody` / `moveTable`。
 
 ### 黑板数据
 
-```
-blackboard["target"]             = Player Transform
-blackboard["attackRange"]        = 攻击距离
-blackboard["playerPostureRatio"] = 玩家架势比 (0-1)
-blackboard["consecutiveGuard"]   = 连续防御次数
-blackboard["lastComboIndex"]     = 连段当前第几刀
-```
+现行薄树用黑板存招式冷却 `cd_<moveId>`（`SetCooldown` / `IsOnCooldown`）。节点直接持有 `PlayerTarget` / `PlayerBody`，不再写 `target` / `attackRange` / `playerPostureRatio` / `consecutiveGuard` / `lastComboIndex`。
 
 ### 新增 BT 节点（Boss 专用）
 
@@ -151,8 +143,6 @@ blackboard["lastComboIndex"]     = 连段当前第几刀
 - `BT_HealPunish`：喝药重箭（玩家 `IsHealing` 时抢出 `Bow_Heavy`，可打断正在播的主动/交锋招）
 - `BT_PickActive`：主动层抽招
 - `BT_MoveToTarget`（已有）
-
-`BT_Combo` / `BT_HitOnce` / `BT_BowShot` / `BT_DeflectIf` / `BT_Deflect` 文件可留，树里不挂（招架职责由 `CharacterBody.TryPassiveDeflect` 承担）。
 
 ### 冷却机制
 
@@ -168,7 +158,7 @@ blackboard["lastComboIndex"]     = 连段当前第几刀
 
 - 招式表：`Assets/Scripts/Boss/BossMoveTable.cs`、`BossMoveEntry.cs`、`BossMoveWindow.cs`、`BossAnimSequence.cs`、`BossMoveLayer.cs`、`BossMoveExtra.cs`
 - 抽招 / 烘焙：`BossMovePicker.cs`、`BossAttackBaker.cs`、`GenichiroMoveCatalog.cs`
-- 行为树：`BTBrain.cs`、`Selector.cs`（`ISelectorLock`）、`BT_ExecuteMove.cs`、`BT_Kengeki.cs`、`BT_DeflectIf.cs`、`BT_HealPunish.cs`、`BT_PickActive.cs`
+- 行为树：`BTBrain.cs`、`Selector.cs`（`ISelectorLock`）、`BT_ExecuteMove.cs`、`BT_Kengeki.cs`、`BT_HealPunish.cs`、`BT_PickActive.cs`
 - 武装：`CharacterBody.KengekiArmed` / `IsParried`，`ParriedState`
 - 数据：`Assets/SO/Boss/GenichiroMoveTable.asset`
 - Editor：`Assets/Editor/BossMoveTableEditor.cs`

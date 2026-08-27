@@ -212,10 +212,7 @@ public static class HealKanjiBuilder
         for (int i = 0; i < views.Length; i++)
         {
             if (views[i] == null) continue;
-            if (views[i].GetComponentInParent<Canvas>() != null)
-                views[i].gameObject.SetActive(false);
-            else
-                Undo.DestroyObjectImmediate(views[i].gameObject);
+            Undo.DestroyObjectImmediate(views[i].gameObject);
         }
 
         GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);

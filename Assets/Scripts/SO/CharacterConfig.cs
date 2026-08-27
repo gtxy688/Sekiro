@@ -28,7 +28,6 @@ public class CharacterConfig : ScriptableObject
     [Header("防御/弹反（M4）")]
     public float DeflectWindow = 0.3f;             // 完美弹反窗口（秒）
     public float DeflectPostureGain = 30f;         // 完美弹反成功：攻击者涨的架势
-    public float DeflectSelfPostureFactor = 0f;    // 已废弃：完美弹反不再涨自己架势，保留字段以免序列化丢失
     public float GuardPostureFactor = 0.5f;        // 格挡时自己涨架势的比例（×对方架势伤害）
     public float ParriedDuration = 1.0f;          // 被完美弹反后的最小硬直（下限，动画播完仍保底）。M7 攻防转换：给弹反成功方稳定反击窗口，回合制才成立
     public float ParryCounterHitDelay = 0.1f;     // 完美弹反后，反击命中时刻 = 被弹方硬直结束 + 该值（推荐 0~0.15）。命中早于玩家攻击前摇 → 贪刀必被罚；发起时刻由代码按反击招 HitStartTime 倒推
@@ -40,7 +39,6 @@ public class CharacterConfig : ScriptableObject
 
     [Header("架势（M9）")]
     public bool PostureDecayInverse = false;   // true=非线性（架势越高回越慢，Boss 用）；false=线性
-    public float PostureBrokenDuration = 5f;   // 仅文档/旧数据保留；攻击崩解窗口已改为跟倒地动画走
 
     [Header("命数（Boss 用，一阶段 2 条命）")]
     public int LifeCount = 1;      // 总命数（玩家填 1，Boss 填 2）

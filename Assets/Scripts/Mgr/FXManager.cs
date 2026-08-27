@@ -5,14 +5,9 @@ public class FXManager : MonoBehaviour
     [Header("特效预制体")]
     public GameObject normalBlockSparks;
     public GameObject perfectParrySparks;
-    [Tooltip("旧字段，细线刀光不再使用")]
-    public GameObject playerSlashFx;
     public Material playerSwingTrailMat;
 
     [Header("玩家刀光颜色")]
-    [Tooltip("旧字段，细线刀光不再使用")]
-    [ColorUsage(true, true)]
-    public Color playerSlashColor = new Color(0.85f, 0.95f, 1f, 1f);
     [Tooltip("刀光线靠近刀尖")]
     [ColorUsage(true, true)]
     public Color playerTrailStart = Color.white;

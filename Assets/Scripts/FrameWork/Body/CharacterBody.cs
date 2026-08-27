@@ -44,8 +44,8 @@ public class CharacterBody : MonoBehaviour
     // 角色配置（SO）：玩家/Boss 各配一份，数值全部从这里读
     public CharacterConfig Config;
 
-    // 默认攻击招式根节点（SO）：AttackCommand 不携带配置，状态机从这里取连招起点
-    // （用户决策：轻重击通过不同 AttackConfig 区分，不通过 Command 字段）
+    // 玩家默认普攻（SO）。AttackCommand 不携带配置，待机/走路从这里取连招起点。
+    // Boss 出招走 moveTable，不读这个槽。
     public AttackConfig LightAttack;
     public AttackConfig ThrustAttack;
 
@@ -100,9 +100,7 @@ public class CharacterBody : MonoBehaviour
     // 硬直结束后交锋层可抽一招；距离过远或抽空则清掉
     public bool KengekiArmed { get; set; }
 
-    // Boss 招式集（AI 切换招式用）：AttackCommand 不携带配置（用户决策 9），
-    // BT 节点先设置 ActiveAttack，AttackState 优先读它，null 则回退 LightAttack
-    public AttackConfig[] AttackSet;
+    // 下一次出手覆盖：Boss 表行烘焙、玩家突刺会先写这里。null 则玩家回退 LightAttack。
     public AttackConfig ActiveAttack { get; set; }
 
     // 硬直时长：从 Config 读，容错给默认值（旧场景没拖 Config 也能跑）
@@ -548,8 +546,7 @@ public class CharacterBody : MonoBehaviour
         return new Vector3(inputDir.x, 0f, inputDir.y).normalized;
     }
 
-    // 当前出手配置（M7 Boss AI 用）：Boss BT 先设 ActiveAttack 再发 AttackCommand；
-    // 玩家正常走 LightAttack。AttackCommand 不携带配置（用户决策 9）
+    // AttackCommand 不携带配置（用户决策 9）：有 ActiveAttack 用覆盖，否则玩家走 LightAttack。
     public AttackConfig GetAttackConfig()
     {
         return ActiveAttack != null ? ActiveAttack : LightAttack;

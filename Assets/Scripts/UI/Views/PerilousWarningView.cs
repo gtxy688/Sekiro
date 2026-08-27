@@ -43,7 +43,6 @@ public class PerilousWarningView : UIView
 
         KillTweens();
         Show();
-        BindRefs();
 
         transform.localScale = Vector3.zero;
         ApplyIntensity(0f);

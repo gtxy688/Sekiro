@@ -33,11 +33,11 @@
 | M16 葫芦 | `HealState` 喝药动画 + 可被打断 |
 | M14 复活 | `DeadState`（回生待机/游戏结束）+ 按攻击键复活/重开场景 |
 | M11 锁定 | `LockOnManager` + `MoveState` 锁定面向 Boss |
-| M5/M7 AI | `Blackboard` + Sequence/Selector Running 记忆 + `BT_Combo/BT_Deflect/BT_BowShot` + 三层 Boss AI 树 |
+| M5/M7 AI | `Blackboard` + Sequence/Selector Running 记忆 + `BossMoveTable` + `BT_ExecuteMove` / `BT_PickActive` / `BT_Kengeki` + 三层 Boss AI 树 |
 | 打击感 | `CombatManager.HitStop` 顿帧 |
 | 受击接口 | `HurtContext`（Normal/Heavy/Guard/Deflected）+ `CharacterConfig` 受击动画名映射 + `AttackConfig.Knockback` |
 | 输入 | 双 Control Scheme（KeyboardMouse/Gamepad）+ Player Input Auto-Switch + 每帧 ReadValue |
-| M13 UI | `RevivePromptView/GameOverView/VictoryView` 新增；`CombatUIController` 补全事件（清命/复活/锁定/胜利/死亡）；`PlayerStatusView.SetDanger` 架势高亮；事件总线补 `OnLifeCleared/OnRevived/OnLockOnChanged` |
+| M13 UI | `RevivePromptView/GameOverView/VictoryView` 新增；`CombatUIController` 补全事件（清命/复活/锁定/胜利/死亡）；玩家架势走 `PlayerPosture`；事件总线补 `OnLifeCleared/OnRevived/OnLockOnChanged` |
 | M15 音效 | `AudioManager`：格挡/弹反 Resources 池随机；玩家/Boss 受击各一条 Inspector |
 | M12 表现 | `CameraShake`（DoTween 震屏，订阅 OnCameraShake）；弹反/崩解/处决触发 |
 

@@ -45,7 +45,10 @@ public static class CombatHUDBuilder
         RectStretch(hud.GetComponent<RectTransform>());
 
         BossStatusView bossStatus = BuildBossStatus(hud.transform, uiSprite);
-        BossPostureBarView bossPosture = BuildBossPosture(hud.transform, uiSprite);
+        BossPostureBarView bossPosture = BuildPostureBar(hud.transform, uiSprite, "BossPosture",
+            new Vector2(0.5f, 1f), new Vector2(0, -16));
+        BossPostureBarView playerPosture = BuildPostureBar(hud.transform, uiSprite, "PlayerPosture",
+            new Vector2(0.5f, 0f), new Vector2(0, 16));
         PlayerStatusView playerStatus = BuildPlayerStatus(hud.transform, uiSprite);
         ItemSlotView items = BuildItemSlot(hud.transform, uiSprite);
         PerilousWarningView perilous = Object.FindObjectOfType<PerilousWarningView>(true);
@@ -70,6 +73,7 @@ public static class CombatHUDBuilder
         so.FindProperty("bossBody").objectReferenceValue = boss;
         so.FindProperty("bossStatusView").objectReferenceValue = bossStatus;
         so.FindProperty("bossPostureBarView").objectReferenceValue = bossPosture;
+        so.FindProperty("playerPostureBarView").objectReferenceValue = playerPosture;
         so.FindProperty("playerStatusView").objectReferenceValue = playerStatus;
         so.FindProperty("itemSlotView").objectReferenceValue = items;
         so.FindProperty("lockOnIndicatorView").objectReferenceValue = lockOn;
@@ -82,7 +86,7 @@ public static class CombatHUDBuilder
 
         EditorUtility.SetDirty(controller);
         Selection.activeGameObject = hud;
-        Debug.Log("[CombatHUD] 已生成。Play 后应看到左上 Boss 血条、顶栏架势、左下玩家血条/架势、右下葫芦。");
+        Debug.Log("[CombatHUD] 已生成。Play 后应看到左上 Boss 血条、顶栏 Boss 架势、底栏正中玩家架势、左下血条、右下葫芦。");
     }
 
     private static BossStatusView BuildBossStatus(Transform parent, Sprite sprite)
@@ -121,11 +125,11 @@ public static class CombatHUDBuilder
         return view;
     }
 
-    private static BossPostureBarView BuildBossPosture(Transform parent, Sprite sprite)
+    private static BossPostureBarView BuildPostureBar(Transform parent, Sprite sprite, string name,
+        Vector2 anchor, Vector2 anchoredPos)
     {
-        GameObject root = CreateUi("BossPosture", parent);
-        Rect(root, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0, -16), new Vector2(640, 18));
+        GameObject root = CreateUi(name, parent);
+        Rect(root, anchor, anchor, anchor, anchoredPos, new Vector2(640, 18));
 
         Image left = CreateFilled(root.transform, "Left", sprite, new Color(0.95f, 0.75f, 0.2f),
             Image.OriginHorizontal.Right);
@@ -154,7 +158,7 @@ public static class CombatHUDBuilder
     {
         GameObject root = CreateUi("PlayerStatus", parent);
         Rect(root, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0f, 0f),
-            new Vector2(24, 24), new Vector2(380, 86));
+            new Vector2(24, 24), new Vector2(380, 64));
 
         Image revive = CreateImage(CreateUi("ReviveDot", root.transform).transform, sprite,
             new Color(1f, 0.45f, 0.6f));
@@ -162,28 +166,14 @@ public static class CombatHUDBuilder
             new Vector2(8, -8), new Vector2(18, 18));
 
         Slider hp = CreateSlider(root.transform, "HPBar", sprite, new Color(0.7f, 0.12f, 0.12f));
-        Rect(hp.gameObject, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0.5f, 0.5f),
-            new Vector2(0, 4), new Vector2(-8, 18));
-
-        GameObject posture = CreateUi("Posture", root.transform);
-        Rect(posture, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 0),
-            new Vector2(0, 8), new Vector2(0, 14));
-        Image left = CreateFilled(posture.transform, "Left", sprite, new Color(0.95f, 0.75f, 0.2f),
-            Image.OriginHorizontal.Right);
-        Image right = CreateFilled(posture.transform, "Right", sprite, new Color(0.95f, 0.75f, 0.2f),
-            Image.OriginHorizontal.Left);
-        Rect(left.gameObject, new Vector2(0, 0), new Vector2(0.5f, 1), new Vector2(1, 0.5f),
-            Vector2.zero, Vector2.zero);
-        Rect(right.gameObject, new Vector2(0.5f, 0), new Vector2(1, 1), new Vector2(0, 0.5f),
-            Vector2.zero, Vector2.zero);
+        Rect(hp.gameObject, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 0),
+            new Vector2(0, 8), new Vector2(-8, 18));
 
         PlayerStatusView view = root.AddComponent<PlayerStatusView>();
         SerializedObject so = new SerializedObject(view);
         so.FindProperty("reviveDots").arraySize = 1;
         so.FindProperty("reviveDots").GetArrayElementAtIndex(0).objectReferenceValue = revive;
         so.FindProperty("hpBar").objectReferenceValue = hp;
-        so.FindProperty("postureLeftFill").objectReferenceValue = left;
-        so.FindProperty("postureRightFill").objectReferenceValue = right;
         so.ApplyModifiedProperties();
         return view;
     }

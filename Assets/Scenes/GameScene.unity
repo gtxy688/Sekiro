@@ -208,9 +208,7 @@ MonoBehaviour:
     type: 3}
   perfectParrySparks: {fileID: 100463523610347869, guid: 476c4fda0620e6c4f94c0a9209bc0ee5,
     type: 3}
-  playerSlashFx: {fileID: 0}
   playerSwingTrailMat: {fileID: 2100000, guid: 81844decb5ea6af4e83dce1f7bacaf85, type: 2}
-  playerSlashColor: {r: 1, g: 0.89550054, b: 0, a: 1}
   playerTrailStart: {r: 1, g: 1, b: 1, a: 1}
   playerTrailEnd: {r: 0.65, g: 0.85, b: 1, a: 1}
   offset: {x: 0, y: 0, z: 0}
@@ -532,6 +530,37 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ac0b09e7857660247b1477e93731de29, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &317536709
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 317536710}
+  m_Layer: 6
+  m_Name: BowSpawn
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &317536710
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 317536709}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.497, y: -0.251, z: -0.023}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 276800533945119226}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &319137691
 GameObject:
   m_ObjectHideFlags: 3
@@ -1951,22 +1980,22 @@ PrefabInstance:
     - target: {fileID: 3571258398300969314, guid: 51c0e8b2a74d4f6e9c1a3b5d7e9f0123,
         type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.7123676
+      value: 0.9904572
       objectReference: {fileID: 0}
     - target: {fileID: 3571258398300969314, guid: 51c0e8b2a74d4f6e9c1a3b5d7e9f0123,
         type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0.1481605
+      value: 0.07772125
       objectReference: {fileID: 0}
     - target: {fileID: 3571258398300969314, guid: 51c0e8b2a74d4f6e9c1a3b5d7e9f0123,
         type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0.6716167
+      value: -0.11346671
       objectReference: {fileID: 0}
     - target: {fileID: 3571258398300969314, guid: 51c0e8b2a74d4f6e9c1a3b5d7e9f0123,
         type: 3}
       propertyPath: m_LocalRotation.z
-      value: -0.13968499
+      value: 0.008903742
       objectReference: {fileID: 0}
     - target: {fileID: 3571258398300969314, guid: 51c0e8b2a74d4f6e9c1a3b5d7e9f0123,
         type: 3}
@@ -1982,6 +2011,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5825983257496055890, guid: 51c0e8b2a74d4f6e9c1a3b5d7e9f0123,
+        type: 3}
+      propertyPath: m_Enabled
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8605606883457227572, guid: 51c0e8b2a74d4f6e9c1a3b5d7e9f0123,
         type: 3}
@@ -2265,8 +2299,7 @@ PrefabInstance:
         type: 3}
       propertyPath: LightAttack
       value: 
-      objectReference: {fileID: 11400000, guid: 16797f3eb33fad440ad5ad542e34a080,
-        type: 2}
+      objectReference: {fileID: 0}
     - target: {fileID: 7093018238165780159, guid: 0abd895b2aed2ce48bc2d2b340c22288,
         type: 3}
       propertyPath: elbowHitbox
@@ -2279,7 +2312,11 @@ PrefabInstance:
       objectReference: {fileID: 996731827}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 7384287144042917219, guid: 0abd895b2aed2ce48bc2d2b340c22288,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 317536710}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 3533971927048908095, guid: 0abd895b2aed2ce48bc2d2b340c22288,
         type: 3}
@@ -2290,6 +2327,12 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 1617735324}
   m_SourcePrefab: {fileID: 100100000, guid: 0abd895b2aed2ce48bc2d2b340c22288, type: 3}
+--- !u!4 &276800533945119226 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 7384287144042917219, guid: 0abd895b2aed2ce48bc2d2b340c22288,
+    type: 3}
+  m_PrefabInstance: {fileID: 276800533945119225}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1335233536997301795
 PrefabInstance:
   m_ObjectHideFlags: 0
