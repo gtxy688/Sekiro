@@ -40,6 +40,10 @@ public class CharacterBody : MonoBehaviour
     public bool MoveUsesWorldDir { get; set; }
     // 每个角色自己的战斗目标；Boss 不能读取玩家 LockOnManager 的目标（它会指向 Boss 自己）。
     public Transform CombatTarget { get; set; }
+    // Boss 远距离拉近用 Walk（快），近身绕圈用 Walk_Strafe（慢）。玩家不设，仍按锁定选动画。
+    public bool PreferFastWalk { get; set; }
+    // HP 归零（倒地待回生 / 真死）。AI 用这个停招，不要去判 DeadState 类型。
+    public bool IsDowned => CurrentHP <= 0;
 
     // 4. 物理状态 (Body 负责检测，State 读取)
     public bool IsGrounded { get; private set; }
@@ -60,6 +64,7 @@ public class CharacterBody : MonoBehaviour
     // Boss 出招走 moveTable，不读这个槽。
     public AttackConfig LightAttack;
     public AttackConfig ThrustAttack;
+    public AttackConfig AirAttack;
 
     // 运行时状态
     public int CurrentHP { get; private set; }
@@ -81,8 +86,10 @@ public class CharacterBody : MonoBehaviour
     public bool IsAttacking { get; set; }
     public bool IsAttackRecoveryOpen { get; set; }
     public bool IsHealing { get; set; }
+    // 危字 / 飞舟：挨打仍扣血涨架势，不切受击、招不中断
+    public bool AttackUninterruptible { get; set; }
 
-    // 忍杀演出中：双方锁命令/受击/强切，直到动画播完
+    // 忍杀演出 / Elbow 投技中：双方锁命令/受击/强切，直到动画播完
     public bool IsFinisherLocked
     {
         get => isFinisherLocked;
@@ -112,6 +119,27 @@ public class CharacterBody : MonoBehaviour
     // 硬直结束后交锋层可抽一招；距离过远或抽空则清掉
     public bool KengekiArmed { get; set; }
 
+    // 横扫被踩后关刀：招继续播，但不走 ReceiveHit、也不再开判定
+    public bool SuppressAttackHitbox { get; set; }
+    public bool AirJump2Used { get; private set; }
+
+    public void ResetAirJump2()
+    {
+        AirJump2Used = false;
+    }
+    // 连续被对手近战完美弹开的次数。JumpThrust（3022）抽招读这个；出手或交锋中断后清零。
+    public int ConsecutiveTimesParried { get; private set; }
+
+    public void NotifyPerfectlyParried()
+    {
+        ConsecutiveTimesParried++;
+    }
+
+    public void ResetConsecutiveTimesParried()
+    {
+        ConsecutiveTimesParried = 0;
+    }
+
     // 下一次出手覆盖：Boss 表行烘焙、玩家突刺会先写这里。null 则玩家回退 LightAttack。
     public AttackConfig ActiveAttack { get; set; }
 
@@ -119,8 +147,18 @@ public class CharacterBody : MonoBehaviour
     public BossMoveEntry CurrentMoveEntry { get; set; }
     public BossMoveWindow CurrentMoveWindow { get; set; }
 
-    // 硬直时长：从 Config 读，容错给默认值（旧场景没拖 Config 也能跑）
+    // 硬直 / 受击后摇：从 Config 读。玩家垫步取消：Light=StunDuration，Mid=KnockdownStunDuration，Heavy=HeavyStunDuration。
     public float StunDuration => Config != null ? Config.StunDuration : 0.5f;
+
+    public float KnockdownStunDuration => Config != null ? Config.KnockdownStunDuration : 1.2f;
+
+    public float HeavyStunDuration => Config != null ? Config.HeavyStunDuration : 1.2f;
+
+    public float BrokenDeflectDodgeOpenTime =>
+        Config != null ? Config.BrokenDeflectDodgeOpenTime : 0f;
+
+    public float ArrowHeavyDeflectDodgeOpenTime =>
+        Config != null ? Config.ArrowHeavyDeflectDodgeOpenTime : 0f;
 
     // 距上次受击的时间，用于架势自然回复的延迟判断
     private float lastHitTime;
@@ -140,6 +178,13 @@ public class CharacterBody : MonoBehaviour
 
     [Tooltip("接地判定迟滞帧数：连续 N 帧结果一致才翻转，防物理抖动（默认 2）")]
     public int groundHysteresisFrames = 2;
+
+    [Header("坠出地图保护")]
+    [Tooltip("掉到该 Y 以下判定坠图，传回最近安全落点（地面 y≈0 时用默认值即可）")]
+    public float fallKillY = -12f;
+
+    private Vector3 lastSafePosition;
+    private bool hasSafePosition;
 
     // 跳跃冲量要等到 FixedUpdate 再写速度：
     // Animator 是 Animate Physics，根运动在物理帧里会把 velocity.y 盖掉。
@@ -166,6 +211,8 @@ public class CharacterBody : MonoBehaviour
         Rb.freezeRotation = true;
         if (Animator != null) Animator.applyRootMotion = UseRootMotion;
 
+        EnsureGroundDetectionWired();
+
         // 实例化纯 C# 的状态机引擎
         MainStateMachine = new StateMachine();
 
@@ -173,6 +220,36 @@ public class CharacterBody : MonoBehaviour
 
         // 从 Config 初始化战斗属性（M2）
         InitCombat();
+    }
+
+    // 地面检测接线：groundCheckPoint/groundLayer 都没赋值时，UpdateEnvironmentalChecks
+    // 会走 check=true 容错分支，IsGrounded 恒 true → 走出擂台边缘不进空中状态，
+    // 人悬浮着直接掉出地图。这里按胶囊体脚底自动生成检测点、按 Layer 名补掩码；
+    // Inspector 里赋过值的以手动为准。
+    private void EnsureGroundDetectionWired()
+    {
+        if (groundCheckPoint == null)
+        {
+            Transform t = transform.Find("GroundCheck");
+            if (t == null)
+            {
+                GameObject go = new GameObject("GroundCheck");
+                t = go.transform;
+                t.SetParent(transform, false);
+                float bottom = 0f;
+                CapsuleCollider cap = bodyCollider as CapsuleCollider;
+                if (cap != null)
+                    bottom = cap.center.y - cap.height * 0.5f;
+                t.localPosition = new Vector3(0f, bottom + 0.05f, 0f);
+            }
+            groundCheckPoint = t;
+        }
+
+        if (groundLayer == 0)
+        {
+            int ground = LayerMask.NameToLayer("Ground");
+            groundLayer = 1 << (ground >= 0 ? ground : 3);
+        }
     }
 
     private void Start()
@@ -189,6 +266,10 @@ public class CharacterBody : MonoBehaviour
         // 1. 每帧更新物理环境感知 (例如是否接地)
         // 这样做的好处是：所有 State 只需要读取 body.IsGrounded，不需要在各自内部写射线检测
         UpdateEnvironmentalChecks();
+
+        // 1.5 坠出地图兜底：地面是整块 MeshCollider、边缘无围栏，
+        // 走位/垫步/击退越过边缘后只剩重力会无限下坠，必须传回安全点
+        UpdateFallSafety();
 
         // 2. 架势自然回复（只狼：一段时间不受击就缓慢回架势）
         UpdatePostureDecay();
@@ -222,6 +303,55 @@ public class CharacterBody : MonoBehaviour
         pendingJumpSpeed = speed;
         hasPendingJump = true;
         ApplyJumpVelocity(speed);
+    }
+
+    public bool IsPerformingSweep()
+    {
+        if (!IsAttacking) return false;
+        if (CurrentMoveWindow != null && CurrentMoveWindow.perilous == PerilousType.Sweep)
+            return true;
+        if (CurrentMoveEntry != null && CurrentMoveEntry.perilous == PerilousType.Sweep)
+            return true;
+        return false;
+    }
+
+    public bool IsWithinSweepStompRange(CharacterBody boss)
+    {
+        if (boss == null || Config == null) return false;
+        Vector3 feet = groundCheckPoint != null ? groundCheckPoint.position : transform.position;
+        Vector3 bossPos = boss.transform.position;
+        Vector3 delta = bossPos - feet;
+        delta.y = 0f;
+        if (delta.sqrMagnitude > Config.SweepStompRadius * Config.SweepStompRadius)
+            return false;
+        float dy = feet.y - bossPos.y;
+        return dy >= 0f && dy <= Config.SweepStompHeight;
+    }
+
+    // 返回 true = 命令吃掉。playedNew = 本次新播了 Jump2（已用过则为 false）。
+    public bool TryAirJump2(out bool playedNew)
+    {
+        playedNew = false;
+        if (AirJump2Used) return true;
+        AirJump2Used = true;
+
+        if (!AnimUtil.HasState(Animator, "Jump2"))
+        {
+            Debug.LogError($"{name} 的 Animator 缺少状态：Jump2");
+            return true;
+        }
+
+        AnimUtil.TryCrossFade(Animator, "Jump2", Config != null ? Config.JumpAnimBlend : 0.08f);
+        playedNew = true;
+
+        CharacterBody boss = CombatManager.Instance != null ? CombatManager.Instance.BossRef : null;
+        if (boss != null && boss.IsPerformingSweep() && IsWithinSweepStompRange(boss))
+        {
+            QueueJump();
+            CombatManager.Instance.ApplySweepStomp(this, boss);
+        }
+
+        return true;
     }
 
     private void ApplyJumpVelocity(float speed)
@@ -386,6 +516,7 @@ public class CharacterBody : MonoBehaviour
     // --- 物理环境检测 ---
     private bool groundedHysteresis;     // 上一帧接地结果
     private int groundedChangeFrames;    // 连续"与上一帧相反"的帧数
+    private bool groundedCheckRaw;       // 本帧 CheckSphere 原始结果（未迟滞，坠图保护用）
 
     private void UpdateEnvironmentalChecks()
     {
@@ -398,6 +529,7 @@ public class CharacterBody : MonoBehaviour
         {
             check = true; // 容错
         }
+        groundedCheckRaw = check;
 
         // 迟滞防抖：结果必须连续 N 帧保持一致才翻转 IsGrounded。
         // 否则球边缘蹭到地面时，物理步进会让 true/false 每帧抖动，
@@ -416,6 +548,33 @@ public class CharacterBody : MonoBehaviour
             }
         }
         IsGrounded = groundedHysteresis;
+    }
+
+    // --- 坠出地图保护 ---
+    // 脚下有真实地面时持续记录；坠过 fallKillY 传回最近一次记录。
+    // 必须用原始检测结果记录，不能用 IsGrounded：迟滞有 2 帧延迟，
+    // 被传送/击飞到空中的头几帧 IsGrounded 仍是 true，会把空中坐标记成"安全点"，
+    // 之后每次回传都落回虚空，永远回不到地面（实测踩过的坑）。
+    // 写 transform 后同步 Rb.position 并清零速度（与 OnAnimatorMove 同一套写法），
+    // 落回地面后原始检测立刻为 true，迟滞跟进翻转，空中状态经正常落地流程回地面。
+    private void UpdateFallSafety()
+    {
+        if (groundedCheckRaw)
+        {
+            lastSafePosition = transform.position;
+            hasSafePosition = true;
+            return;
+        }
+
+        if (!hasSafePosition || transform.position.y >= fallKillY) return;
+
+        transform.position = lastSafePosition;
+        if (Rb != null)
+        {
+            Rb.position = lastSafePosition;
+            Rb.velocity = Vector3.zero;
+        }
+        Debug.LogWarning($"[CharacterBody] {name} 坠出地图（y < {fallKillY}），已传回安全落点 {lastSafePosition}");
     }
 
     // --- 供 State 调用的公共方法举例 ---
@@ -633,6 +792,13 @@ public class CharacterBody : MonoBehaviour
         }
     }
 
+    public float LastDeflectCancelTime { get; private set; }
+
+    public void NotifyDeflectCancel()
+    {
+        LastDeflectCancelTime = Time.time;
+    }
+
     // 当前生效的弹反窗口（已计入抖刀惩罚）
     public float GetDeflectWindow()
     {
@@ -676,11 +842,13 @@ public class CharacterBody : MonoBehaviour
     }
 
     // 被完美弹反后的硬直入口（M4）：物理强制覆写，不走 Command，直接切顶层状态机。
+    // 只用于玩家被 Boss 弹开。Boss 连段被玩家弹反不走这里，招继续。
     // ParriedState 装在 GroundedState 内（通过带初始子状态的构造），顶层结构不变。
     public void ForceParryStun()
     {
         EnsureRuntimeReady();
         IsAttacking = false;
+        AttackUninterruptible = false;
         DisableWeaponHit();
         KengekiArmed = true;
         MainStateMachine.ChangeState(new GroundedState(this, new ParriedState(this)));
@@ -691,6 +859,7 @@ public class CharacterBody : MonoBehaviour
     {
         EnsureRuntimeReady();
         IsAttacking = false;
+        AttackUninterruptible = false;
         DisableWeaponHit();
         string anim = AnimUtil.ResolveState(Animator, "Mikiri_Deflect", "Miriki_Deflect");
         if (string.IsNullOrEmpty(anim))
@@ -745,6 +914,7 @@ public class CharacterBody : MonoBehaviour
     {
         EnsureRuntimeReady();
         IsAttacking = false;
+        AttackUninterruptible = false;
         DisableWeaponHit();
         KengekiArmed = false;
         CombatEventBus.TriggerCameraShake(0.8f); // 崩解震屏
@@ -807,8 +977,8 @@ public class CharacterBody : MonoBehaviour
         CombatEventBus.TriggerAttackSwingEnd(this);
     }
 
-    // 时间轴 arrowCues 到点由 AttackState 调用。伤害读招式表，不读烘焙 AttackConfig。
-    public void SpawnArrow()
+    // 时间轴 arrowCues 到点由 AttackState 调用。伤害读招式表该支出箭，不读烘焙 AttackConfig。
+    public void SpawnArrow(int cueIndex = 0)
     {
         if (arrowPrefab == null || arrowSpawn == null)
         {
@@ -822,15 +992,24 @@ public class CharacterBody : MonoBehaviour
             return;
         }
 
+        ArrowSpawnCue cue = null;
+        if (CurrentMoveWindow != null && CurrentMoveWindow.arrowCues != null
+            && cueIndex >= 0 && cueIndex < CurrentMoveWindow.arrowCues.Length)
+            cue = CurrentMoveWindow.arrowCues[cueIndex];
+
         AttackCombatResolve.Resolve(
-            CurrentMoveEntry, CurrentMoveWindow,
-            out int damage, out float posture, out float knockback);
+            CurrentMoveEntry, CurrentMoveWindow, cue,
+            out int damage, out float posture, out float knockback, out HitGrade grade);
 
         Vector3 origin = arrowSpawn.position;
         Vector3 aim = ResolveProjectileAimPoint();
         Vector3 dir = aim - origin;
         if (dir.sqrMagnitude < 0.0001f)
-            dir = transform.forward;
+            dir = arrowSpawn.forward.sqrMagnitude > 0.0001f ? arrowSpawn.forward : transform.forward;
+        dir.Normalize();
+
+        // 出射点沿瞄准方向略前移，避免从弓身侧面穿出；方向以瞄准为准。
+        origin += dir * 0.35f;
 
         LayerMask layers = arrowTargetLayers;
         if (layers == 0 && Weapon != null)
@@ -840,7 +1019,7 @@ public class CharacterBody : MonoBehaviour
 
         ArrowProjectile arrow = Instantiate(arrowPrefab, origin, Quaternion.LookRotation(dir, Vector3.up));
         arrow.Fire(this, dir, arrowSpeed, arrowCastRadius, layers, arrowLifetime,
-            damage, posture, knockback);
+            damage, posture, knockback, grade);
     }
 
     public Vector3 GetProjectileAimPoint()
@@ -1005,14 +1184,29 @@ public class CharacterBody : MonoBehaviour
         return true;
     }
 
-    // 死亡判定（M14）：有复活次数 → 进回生待机（可按攻击键复活，超时真死）；否则直接真死
+    // 对手已倒地：打断当前攻击回 Idle，给 Boss 改走位用。不经过 Command。
+    public void CancelAttackToIdle()
+    {
+        if (IsFinisherLocked || IsPostureBroken) return;
+        IsAttacking = false;
+        AttackUninterruptible = false;
+        IsAttackRecoveryOpen = false;
+        ActiveAttack = null;
+        DisableWeaponHit();
+        ClearSteerYaw();
+        SetSuppressRootYaw(false);
+        MainStateMachine.ChangeState(new GroundedState(this));
+    }
+
+    // 死亡判定（M14）：有复活次数 → 进回生待机（先变暗，倒完再出选项）；否则直接真死
     private void HandleDeath()
     {
         IsAttacking = false;
+        AttackUninterruptible = false;
         DisableWeaponHit();
         if (ReviveRemaining > 0)
         {
-            // 弹复活提示（M13 UI 接 OnReviveAvailable），进回生待机状态
+            // 画面开始变暗（M13 接 OnReviveAvailable）；倒完再出回生选项
             CombatEventBus.TriggerReviveAvailable(this);
             MainStateMachine.ChangeState(new DeadState(this, true));
         }
@@ -1036,6 +1230,8 @@ public class CharacterBody : MonoBehaviour
         CombatEventBus.TriggerHPChanged(this, CurrentHP, Config.MaxHP);
         CombatEventBus.TriggerPostureChanged(this, CurrentPosture, Config.MaxPosture);
         CombatEventBus.TriggerRevived(this); // UI 隐藏回生提示
+        if (HitReactionUtil.IsPlayer(this) && CombatManager.Instance != null && CombatManager.Instance.BossRef != null)
+            CombatManager.Instance.BossRef.ResetConsecutiveTimesParried();
     }
 
     // 处决清一条命（M10 用）：扣命 → 没命了发胜利事件；还有命 → 重置架势回满血接着打
@@ -1044,6 +1240,7 @@ public class CharacterBody : MonoBehaviour
         LivesRemaining--;
         CurrentPosture = 0f;
         IsPostureBroken = false;
+        ResetConsecutiveTimesParried();
         CombatEventBus.TriggerFinisherOpportunityChanged(this, false);
 
         CombatEventBus.TriggerLifeCleared(this, LivesRemaining);
@@ -1085,7 +1282,9 @@ public class CharacterBody : MonoBehaviour
     // 接收外界物理碰撞传来的打击
     public void ReceiveHit(CharacterBody attacker, int healthDmg, float postureDmg, Vector3 hitPoint,
                            bool isPerilous = false, PerilousType perilousType = PerilousType.None,
-                           float knockback = 0f)
+                           float knockback = 0f,
+                           HitGrade hitGrade = HitGrade.Light,
+                           bool isProjectile = false)
     {
         EnsureRuntimeReady();
         if (IsFinisherLocked) return;
@@ -1099,7 +1298,9 @@ public class CharacterBody : MonoBehaviour
             hitPoint = hitPoint,
             isPerilous = isPerilous,           // M17 危字攻击标记
             perilousType = perilousType,
-            knockback = knockback              // 受击表现接口：击退强度
+            knockback = knockback,             // 受击表现接口：击退强度
+            hitGrade = hitGrade,
+            isProjectile = isProjectile
         };
 
         bool alreadyBroken = IsPostureBroken;
@@ -1119,8 +1320,17 @@ public class CharacterBody : MonoBehaviour
 
         // 2. 没拦住 → 伤害/架势结算（M2）：扣血 + 涨架势 + 死亡判定
         TakeDamage(healthDmg, postureDmg);
+        // 玩家挨实锤打断 Boss 连弹计数，下次要重新弹满 2 次才可能 JumpThrust。
+        if (HitReactionUtil.IsPlayer(this) && attacker != null)
+            attacker.ResetConsecutiveTimesParried();
 
         if (CurrentHP <= 0) return;
+
+        if (hit.isPerilous && hit.perilousType == PerilousType.Grab
+            && HitReactionUtil.IsPlayer(this)
+            && CombatManager.Instance != null
+            && CombatManager.Instance.TryStartGrabThrow(attacker, this))
+            return;
 
         HurtContext ctx = knockback > 0f ? HurtContext.Heavy : HurtContext.Normal;
 
@@ -1128,10 +1338,10 @@ public class CharacterBody : MonoBehaviour
         // Boss 崩解是处决窗口，保持倒地，不能被普通命中抬起来。
         if (alreadyBroken)
         {
-            if (CombatManager.Instance != null && this == CombatManager.Instance.PlayerRef)
+            if (HitReactionUtil.IsPlayer(this))
             {
                 ClearPostureBreak();
-                MainStateMachine.ChangeState(new StunnedState(this, HurtContext.Heavy));
+                MainStateMachine.ChangeState(new StunnedState(this, HitGrade.Heavy));
             }
             return;
         }
@@ -1139,7 +1349,14 @@ public class CharacterBody : MonoBehaviour
         // 本次命中才刚打崩：TakeDamage 已切 StaggerBroken，不要覆盖成普通受击
         if (IsPostureBroken) return;
 
-        // 3. 强制打断当前行为，切入受击父状态
-        MainStateMachine.ChangeState(new StunnedState(this, ctx));
+        // 危字 / 飞舟：结算伤害但不切受击，招继续
+        if (AttackUninterruptible)
+            return;
+
+        // 3. 强制打断当前行为，切入受击父状态。玩家按招式等级，Boss 仍按击退。
+        if (HitReactionUtil.IsPlayer(this))
+            MainStateMachine.ChangeState(new StunnedState(this, hit.hitGrade));
+        else
+            MainStateMachine.ChangeState(new StunnedState(this, ctx));
     }
 }

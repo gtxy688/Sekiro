@@ -9,11 +9,12 @@ public class HitPulse
     public float start;
     public float end;
 
-    [Tooltip("勾选后本刀用下面三个数；不勾则继承段覆盖或招默认值")]
+    [Tooltip("勾选后本刀用下面的伤害和等级；不勾则继承段覆盖或招默认值")]
     public bool overrideCombat;
     public int baseDamage;
     public float postureDamage;
     public float knockback;
+    public HitGrade hitGrade;
 
     public HitPulse Clone()
     {
@@ -24,7 +25,8 @@ public class HitPulse
             overrideCombat = overrideCombat,
             baseDamage = baseDamage,
             postureDamage = postureDamage,
-            knockback = knockback
+            knockback = knockback,
+            hitGrade = hitGrade
         };
     }
 }
@@ -40,6 +42,26 @@ public class AttackSfxCue
 public class ArrowSpawnCue
 {
     public float time;
+
+    [Tooltip("勾选后本箭用下面的伤害和等级；不勾则继承段覆盖或招默认值")]
+    public bool overrideCombat;
+    public int baseDamage;
+    public float postureDamage;
+    public float knockback;
+    public HitGrade hitGrade;
+
+    public ArrowSpawnCue Clone()
+    {
+        return new ArrowSpawnCue
+        {
+            time = time,
+            overrideCombat = overrideCombat,
+            baseDamage = baseDamage,
+            postureDamage = postureDamage,
+            knockback = knockback,
+            hitGrade = hitGrade
+        };
+    }
 }
 
 // 这个标签让你可以在 Unity 项目的右键菜单里直接创建这个配置文件
@@ -54,6 +76,9 @@ public class AttackConfig : ScriptableObject
     public int BaseDamage = 10;         // 基础伤害
     public float PostureDamage = 15f;   // 躯干伤害
     public float Knockback = 0f;        // 击退强度（0=普通受击；>0 对方播 Heavy 受击/击飞动画，接口预留）
+
+    [Tooltip("打到玩家时的受击等级。Boss 被打仍看 Knockback。")]
+    public HitGrade HitGrade = HitGrade.Light;
 
     [Header("危字攻击（M17）")]
     // 危字攻击不可被普通防御/弹反抵挡，玩家必须用对应方式应对
@@ -78,6 +103,9 @@ public class AttackConfig : ScriptableObject
     public bool AllowRotation = true;
     public float RotationSpeed = 720f;
     public float RotationWindowEnd = 0.3f;
+
+    [Tooltip("为 true 时等 AnimName 播完才结束本段（JumpThrust 起跳）。")]
+    public bool WaitAnimEnd;
 
     [Header("连招派生")]
     // 极其关键：指向下一段攻击的配置！如果没有下一段，留空即可

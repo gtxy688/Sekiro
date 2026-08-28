@@ -33,7 +33,7 @@ public class VoiceLineView : UIView
         if (canvasGroup == null) return;
         canvasGroup.DOKill();
         canvasGroup.alpha = 0f;
-        canvasGroup.DOFade(1f, 0.12f).SetUpdate(true);
+        canvasGroup.DOFade(1f, 0.12f).SetUpdate(true).SetLink(gameObject);
     }
 
     public void HideLine()
@@ -45,7 +45,20 @@ public class VoiceLineView : UIView
         }
 
         canvasGroup.DOKill();
-        canvasGroup.DOFade(0f, 0.2f).SetUpdate(true).OnComplete(Hide);
+        canvasGroup.DOFade(0f, 0.2f)
+            .SetUpdate(true)
+            .SetLink(gameObject)
+            .OnComplete(() =>
+            {
+                if (this == null) return;
+                Hide();
+            });
+    }
+
+    private void OnDisable()
+    {
+        if (canvasGroup != null)
+            canvasGroup.DOKill();
     }
 
     private void EnsureUi()
@@ -62,12 +75,11 @@ public class VoiceLineView : UIView
                 lineText = existing.GetComponent<TextMeshProUGUI>();
         }
 
-        if (lineText != null) return;
+        Image bg = GetComponent<Image>();
+        if (bg != null)
+            bg.enabled = false;
 
-        Image bg = gameObject.GetComponent<Image>();
-        if (bg == null) bg = gameObject.AddComponent<Image>();
-        bg.color = new Color(0.07f, 0.07f, 0.07f, 0.72f);
-        bg.raycastTarget = false;
+        if (lineText != null) return;
 
         GameObject textGo = new GameObject("Line", typeof(RectTransform), typeof(CanvasRenderer));
         textGo.transform.SetParent(transform, false);

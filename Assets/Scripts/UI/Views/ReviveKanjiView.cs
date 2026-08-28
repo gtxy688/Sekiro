@@ -4,14 +4,14 @@ using UnityEngine;
 using UnityEditor;
 #endif
 
-// 「危」字：直接画危.png（亮度当透明）。不走加法 Shader，避免整块 Quad 被烧亮。
+// 「回生」字：直接画回生.png（亮度当透明）。位置与治字相同，钉在玩家头顶。
 [ExecuteAlways]
-public class PerilousWarningView : UIView
+public class ReviveKanjiView : UIView
 {
     [SerializeField] private Transform followTarget;
     [SerializeField] private float headOffset = -0.4f;
     [SerializeField] private MeshRenderer glyphRenderer;
-    [SerializeField] private Color tint = new Color(0.95f, 0.16f, 0.12f, 1f);
+    [SerializeField] private Color tint = new Color(0.96f, 0.88f, 0.62f, 1f);
     [SerializeField] private float showDuration = 0.8f;
 
     private const float PopDuration = 0.12f;
@@ -19,7 +19,6 @@ public class PerilousWarningView : UIView
 
     private float alpha;
     private Tweener alphaTween;
-    // 必须写全名：全局命名空间已有行为树 Sequence，会盖住 using DG.Tweening
     private DG.Tweening.Sequence showSeq;
     private MaterialPropertyBlock block;
 
@@ -40,16 +39,16 @@ public class PerilousWarningView : UIView
         }
     }
 
-    public void BindFollowTarget(CharacterBody target)
+    public void BindFollowTarget(CharacterBody player)
     {
-        if (target == null) return;
-        Transform found = FindDeep(target.transform, "Head")
-            ?? FindDeep(target.transform, "Spine1")
-            ?? FindDeep(target.transform, "Spine");
-        followTarget = found != null ? found : target.transform;
+        if (player == null) return;
+        Transform found = FindDeep(player.transform, "Head")
+            ?? FindDeep(player.transform, "Spine1")
+            ?? FindDeep(player.transform, "Spine");
+        followTarget = found != null ? found : player.transform;
     }
 
-    public void ShowWarning(PerilousType type)
+    public void ShowRevive()
     {
         BindRefs();
         if (glyphRenderer == null)

@@ -122,6 +122,6 @@ Esc / 手柄 Start 打开暂停（`PauseMenuController`）。`Time.timeScale = 0
 
 手柄锁定只绑 `rightStickPress`（按下右摇杆），推右摇杆不再索敌。
 
-设置页两个 Tab（`KeyboardMouse` / `Gamepad`），只改 Attack / Deflect / Dodge / Jump / Heal / LockOn。改键走 `PerformInteractiveRebinding`，同一 Scheme 撞键自动对调，override 存 `PlayerPrefs`。Move / Look 不开放。
+设置页两个 Tab（`KeyboardMouse` / `Gamepad`），只改 Attack / Deflect / Dodge / Jump / Heal / LockOn。改键走 `PerformInteractiveRebinding`，同一 Scheme 撞键自动对调，override 存 `PlayerPrefs`。Move / Look 不开放。`PlayerBrain.Start` 必须 `InputRebindService.Load`，否则没开过暂停时战斗和回生提示都还是默认键。
 
 顿帧结束时若仍在暂停，保持 `timeScale = 0`，不拨回 1。

@@ -21,6 +21,30 @@ public static class AttackWindowSync
         return recover - hitStart >= MinMeleeHitSpan;
     }
 
+    public static bool IsArrowWindow(BossMoveWindow w)
+    {
+        if (w == null) return false;
+        if (w.arrowCues != null && w.arrowCues.Length > 0) return true;
+        return !CanMeleeHit(w.hitStartTime, w.recoverStart, w.hitPulses) && w.stateDuration >= 0.8f;
+    }
+
+    public static bool EntryUsesArrowNums(BossMoveEntry entry)
+    {
+        if (entry == null || entry.windows == null) return false;
+        bool anyMelee = false;
+        bool anyArrow = false;
+        for (int i = 0; i < entry.windows.Length; i++)
+        {
+            BossMoveWindow w = entry.windows[i];
+            if (w == null) continue;
+            if (CanMeleeHit(w.hitStartTime, w.recoverStart, w.hitPulses))
+                anyMelee = true;
+            else if (IsArrowWindow(w))
+                anyArrow = true;
+        }
+        return anyArrow && !anyMelee;
+    }
+
     public static bool PulseIsMelee(HitPulse p)
     {
         return p != null && p.end - p.start >= MinMeleeHitSpan;
@@ -56,6 +80,7 @@ public static class AttackWindowSync
         cfg.RecoveryWindowStart = last.end;
         if (cfg.ComboWindowEnd < cfg.RecoveryWindowStart)
             cfg.ComboWindowEnd = cfg.RecoveryWindowStart;
+        CoverDuration(cfg);
     }
 
     public static void ApplyPulses(BossMoveWindow w, HitPulse[] pulses)
@@ -70,6 +95,68 @@ public static class AttackWindowSync
         w.recoverStart = last.end;
         if (w.comboWindowEnd < w.recoverStart)
             w.comboWindowEnd = w.recoverStart;
+        CoverDuration(w);
+    }
+
+    // 时间轴只保存红条时，stateDuration 可能仍是旧占位值。时长必须盖住判定/连招窗，否则 AttackState 会拒收。
+    public static void CoverDuration(AttackConfig cfg)
+    {
+        if (cfg == null) return;
+        if (cfg.ComboWindowEnd < cfg.RecoveryWindowStart)
+            cfg.ComboWindowEnd = cfg.RecoveryWindowStart;
+        float need = NeededDuration(
+            cfg.HitStartTime, cfg.RecoveryWindowStart, cfg.ComboWindowEnd, cfg.hitPulses);
+        need = MaxCueTime(need, cfg.sfxCues, cfg.arrowCues);
+        if (cfg.StateDuration < need)
+            cfg.StateDuration = need;
+    }
+
+    public static void CoverDuration(BossMoveWindow w)
+    {
+        if (w == null) return;
+        if (w.comboWindowEnd < w.recoverStart)
+            w.comboWindowEnd = w.recoverStart;
+        float need = NeededDuration(w.hitStartTime, w.recoverStart, w.comboWindowEnd, w.hitPulses);
+        need = MaxCueTime(need, w.sfxCues, w.arrowCues);
+        if (w.stateDuration < need)
+            w.stateDuration = need;
+    }
+
+    static float NeededDuration(float hitStart, float recover, float comboEnd, HitPulse[] pulses)
+    {
+        float need = hitStart;
+        if (recover > need) need = recover;
+        if (comboEnd > need) need = comboEnd;
+        if (pulses == null) return need;
+        for (int i = 0; i < pulses.Length; i++)
+        {
+            HitPulse p = pulses[i];
+            if (p == null) continue;
+            if (p.start > need) need = p.start;
+            if (p.end > need) need = p.end;
+        }
+        return need;
+    }
+
+    static float MaxCueTime(float need, AttackSfxCue[] sfx, ArrowSpawnCue[] arrows)
+    {
+        if (sfx != null)
+        {
+            for (int i = 0; i < sfx.Length; i++)
+            {
+                if (sfx[i] != null && sfx[i].time > need)
+                    need = sfx[i].time;
+            }
+        }
+        if (arrows != null)
+        {
+            for (int i = 0; i < arrows.Length; i++)
+            {
+                if (arrows[i] != null && arrows[i].time > need)
+                    need = arrows[i].time;
+            }
+        }
+        return need;
     }
 
     public static HitPulse[] ClampPulses(HitPulse[] pulses, float clipLength)

@@ -30,15 +30,23 @@ public class CinemachineOrbitInput : MonoBehaviour
     public float YRecenterSpeed = 2f;
 
     private CinemachineFreeLook freeLook;
+    private float ignoreLookUntil;
+
+    public void IgnoreLookUntil(float unscaledTime)
+    {
+        ignoreLookUntil = unscaledTime;
+    }
 
     private void Awake()
     {
         freeLook = GetComponent<CinemachineFreeLook>();
+        ignoreLookUntil = Time.unscaledTime + 0.45f;
     }
 
     private void Update()
     {
         if (freeLook == null || GamePause.IsPaused) return;
+        if (Time.unscaledTime < ignoreLookUntil) return;
 
         Vector2 mouseDelta = Mouse.current != null ? Mouse.current.delta.ReadValue() : Vector2.zero;
         Vector2 stick = ReadRightStick();

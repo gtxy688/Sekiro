@@ -12,9 +12,14 @@ public static class BossAttackBaker
         cfg.TransitionDuration = w.transitionDuration;
         AttackCombatResolve.ApplyWindow(cfg, entry, w);
         cfg.StateDuration = w.stateDuration;
+        cfg.WaitAnimEnd = w.waitAnimEnd;
         cfg.AllowRotation = true;
-        cfg.RotationSpeed = 720f;
-        cfg.RotationWindowEnd = w.rotateEnd;
+        cfg.RotationSpeed = 1080f;
+        // 弓段跟玩家转到出箭结束，不要用短垫步那套 0.15s 转向窗。
+        bool bowTrack = (w.arrowCues != null && w.arrowCues.Length > 0)
+            || (!AttackWindowSync.CanMeleeHit(w.hitStartTime, w.recoverStart, w.hitPulses)
+                && w.stateDuration > 0.8f);
+        cfg.RotationWindowEnd = bowTrack ? w.stateDuration : w.rotateEnd;
         cfg.NextCombo = null;
 
         // NoHit：hitStart>=recover，或只剩 0~0.01 假红条。残窗也烤成时长对齐，AttackState 全程不开刀。
@@ -60,9 +65,12 @@ public static class BossAttackBaker
             {
                 ArrowSpawnCue src = w.arrowCues[i];
                 if (src == null) continue;
-                cfg.arrowCues[i] = new ArrowSpawnCue { time = src.time };
+                cfg.arrowCues[i] = src.Clone();
             }
         }
+        AttackWindowSync.CoverDuration(cfg);
+        if (bowTrack || w.waitAnimEnd)
+            cfg.RotationWindowEnd = cfg.StateDuration;
         return cfg;
     }
 }

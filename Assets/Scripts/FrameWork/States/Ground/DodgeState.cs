@@ -24,6 +24,9 @@ public class DodgeState : BaseState
 
     public override void OnEnter()
     {
+        if (parent == null)
+            parent = body.MainStateMachine.CurrentState as HierarchicalState;
+
         dodgeTimer = 0f;
         lockedDodge = IsLockedOnTarget();
         // 进垫步当下有没有方向键：识破只认无方向，不看垫步动画叫前还是后
@@ -50,6 +53,7 @@ public class DodgeState : BaseState
 
         if (dodgeTimer >= dodgeDuration)
         {
+            if (parent == null) return;
             if (body.MoveDirection.sqrMagnitude > 0.01f)
             {
                 bool locked = IsLockedOnTarget();

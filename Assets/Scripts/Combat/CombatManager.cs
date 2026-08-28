@@ -23,6 +23,11 @@ public class CombatManager : MonoBehaviour
     private CharacterBody activeFinisherPlayer;
     private CharacterBody activeFinisherVictim;
     private bool finisherResolved;
+    private CharacterBody grabThrowAttacker;
+    private CharacterBody grabThrowVictim;
+    private bool grabThrowResolved;
+    private bool grabThrowAttackerDone;
+    private bool grabThrowVictimDone;
 
     private void Awake()
     {
@@ -87,13 +92,35 @@ public class CombatManager : MonoBehaviour
 
         // 2. 全局规则扩展位（后续：减伤 Buff、全场无敌、友军伤害开关等）
 
-        // 3. 伤害数据来自 AttackConfig（SO），这里只做转发（含危字标记 M17 / 击退强度）
+        // 3. 伤害数据来自 AttackConfig（SO），这里只做转发（含危字标记 M17 / 击退 / 受击等级）
         if (hitbox.Config == null) return;
         target.ReceiveHit(attacker, hitbox.Config.BaseDamage, hitbox.Config.PostureDamage, hitPoint,
                           hitbox.Config.Perilous != PerilousType.None, hitbox.Config.Perilous,
-                          hitbox.Config.Knockback);
+                          hitbox.Config.Knockback, hitbox.Config.HitGrade, false);
 
         // 命中顿帧（打击感）
+        HitStop();
+    }
+
+    // 横扫踩头：扣血涨架势但不走 ReceiveHit（Boss 不播受击、不切状态）。
+    public void ApplySweepStomp(CharacterBody player, CharacterBody boss)
+    {
+        if (player == null || boss == null || player == boss) return;
+
+        int hp = 10;
+        float posture = 15f;
+        if (player.LightAttack != null)
+        {
+            hp = player.LightAttack.BaseDamage;
+            posture = player.LightAttack.PostureDamage;
+        }
+
+        boss.SuppressAttackHitbox = true;
+        boss.DisableWeaponHit();
+        boss.TakeDamage(hp, posture);
+        CombatEventBus.TriggerWeaponDeflected(
+            CombatFxPoint.BetweenWeapons(player, boss, boss.transform.position + Vector3.up * 1.2f),
+            DeflectType.Perfect);
         HitStop();
     }
 
@@ -104,13 +131,14 @@ public class CombatManager : MonoBehaviour
         Vector3 hitPoint,
         int healthDmg,
         float postureDmg,
-        float knockback)
+        float knockback,
+        HitGrade hitGrade)
     {
         CharacterBody target = hurtbox != null ? hurtbox.Owner : null;
         if (attacker == null || target == null || attacker == target) return;
 
         target.ReceiveHit(attacker, healthDmg, postureDmg, hitPoint,
-            false, PerilousType.None, knockback);
+            false, PerilousType.None, knockback, hitGrade, true);
         HitStop();
     }
 
@@ -290,6 +318,87 @@ public class CombatManager : MonoBehaviour
             victim.MainStateMachine.ChangeState(new GroundedState(victim));
         }
         player.MainStateMachine.ChangeState(new GroundedState(player));
+    }
+
+    // Elbow 投技：打中玩家后双方播 Elbow_Danger。不瞬移，只水平对视。
+    public bool TryStartGrabThrow(CharacterBody attacker, CharacterBody victim)
+    {
+        if (attacker == null || victim == null || attacker == victim) return false;
+        if (attacker.IsFinisherLocked || victim.IsFinisherLocked) return false;
+        if (activeFinisherPlayer != null) return false;
+        if (grabThrowAttacker != null) return false;
+        if (!AnimUtil.HasState(attacker.Animator, GrabThrowState.AnimName)
+            || !AnimUtil.HasState(victim.Animator, GrabThrowState.AnimName))
+        {
+            Debug.LogError($"投技缺少 {GrabThrowState.AnimName}：请检查 {attacker.name} 与 {victim.name} 的 Animator。");
+            return false;
+        }
+
+        grabThrowAttacker = attacker;
+        grabThrowVictim = victim;
+        grabThrowResolved = false;
+        grabThrowAttackerDone = false;
+        grabThrowVictimDone = false;
+
+        attacker.DisableWeaponHit();
+        victim.DisableWeaponHit();
+        attacker.IsAttacking = false;
+        attacker.AttackUninterruptible = false;
+        attacker.IsAttackRecoveryOpen = false;
+        attacker.ActiveAttack = null;
+        attacker.CurrentMoveEntry = null;
+        attacker.CurrentMoveWindow = null;
+
+        Vector3 toVictim = victim.transform.position - attacker.transform.position;
+        toVictim.y = 0f;
+        if (toVictim.sqrMagnitude > 0.0001f)
+        {
+            attacker.SnapYaw(toVictim, GrabThrowState.AnimName);
+            victim.SnapYaw(-toVictim, GrabThrowState.AnimName);
+        }
+
+        attacker.IsFinisherLocked = true;
+        victim.IsFinisherLocked = true;
+
+        attacker.MainStateMachine.ChangeState(
+            new GroundedState(attacker, new GrabThrowState(attacker)));
+        victim.MainStateMachine.ChangeState(
+            new GroundedState(victim, new GrabThrowState(victim)));
+
+        CombatEventBus.TriggerCameraShake(0.45f);
+        return true;
+    }
+
+    public void CompleteGrabThrow(CharacterBody source)
+    {
+        if (grabThrowResolved) return;
+        if (source == null) return;
+        if (source == grabThrowAttacker)
+            grabThrowAttackerDone = true;
+        else if (source == grabThrowVictim)
+            grabThrowVictimDone = true;
+        else
+            return;
+
+        // 双方 Clip 长度可能不同，等两边都到点再一起回 Idle，避免短的一方把长的掐掉。
+        if (!grabThrowAttackerDone || !grabThrowVictimDone) return;
+
+        grabThrowResolved = true;
+        CharacterBody attacker = grabThrowAttacker;
+        CharacterBody victim = grabThrowVictim;
+        grabThrowAttacker = null;
+        grabThrowVictim = null;
+
+        if (attacker != null)
+        {
+            attacker.IsFinisherLocked = false;
+            attacker.MainStateMachine.ChangeState(new GroundedState(attacker));
+        }
+        if (victim != null && victim.CurrentHP > 0)
+        {
+            victim.IsFinisherLocked = false;
+            victim.MainStateMachine.ChangeState(new GroundedState(victim));
+        }
     }
 
     private static bool MatchesBreakSource(

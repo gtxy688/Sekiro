@@ -76,11 +76,13 @@ public class CameraController : MonoBehaviour
         dollyDuration = 1.4f
     };
 
+    // 参考 Docs/references/pics/识破忍杀：越肩后方机位，往右侧偏一点、略抬高俯视，
+    // 瞄准点压低对准"玩家踩住 Boss 兵器"的关键画面，Boss 正面和踏刀点都要在画面里。
     [Tooltip("识破踩刀处决机位（Finsher_Mikiri）")]
     [SerializeField] private FinisherCameraProfile mikiriFinisherProfile = new FinisherCameraProfile
     {
-        followOffset = new Vector3(-0.42f, -0.15f, -2.7f),
-        lookAtOffset = new Vector3(0f, 1.05f, 0f),
+        followOffset = new Vector3(0.55f, 0.2f, -2.6f),
+        lookAtOffset = new Vector3(0.1f, 0.85f, 0f),
         fov = 47f,
         enableDolly = true,
         dollyDistance = 0.38f,
@@ -91,11 +93,54 @@ public class CameraController : MonoBehaviour
     [Tooltip("会挡住镜头的层。玩家/Boss 在 Hurtbox，不要勾进去，否则会把镜头拉进角色")]
     [SerializeField] private LayerMask obstacleLayers = 1 | (1 << 3); // Default + Ground
 
+    [Header("避障虚化（镜头被墙挤死时把玩家淡出让位）")]
+    [Tooltip("实际距离 < 期望距离 × 该比例 → 判定镜头被墙挤死，开始虚化玩家")]
+    [SerializeField] private float squeezeFadeEnter = 0.45f;
+    [Tooltip("迟滞恢复阈值：比例高于该值才恢复不透明，避免临界距离闪烁")]
+    [SerializeField] private float squeezeFadeExit = 0.62f;
+
+    [Header("重箭格挡/弹反镜头（下压 + 后拉，跟随玩家后滑）")]
+    [Tooltip("普通格挡重箭：后拉距离（米）")]
+    [SerializeField] private float arrowGuardBack = 0.55f;
+    [Tooltip("普通格挡重箭：下压距离（米）")]
+    [SerializeField] private float arrowGuardDown = 0.3f;
+    [Tooltip("完美弹反重箭：后拉距离（米）")]
+    [SerializeField] private float arrowDeflectBack = 0.35f;
+    [Tooltip("完美弹反重箭：下压距离（米）")]
+    [SerializeField] private float arrowDeflectDown = 0.18f;
+    [Tooltip("下沉/后拉到位时间（秒）。要快，跟上打击感")]
+    [SerializeField] private float arrowReactAttack = 0.12f;
+    [Tooltip("整个镜头反应总时长（秒），≈ 重箭后滑时长")]
+    [SerializeField] private float arrowReactDuration = 0.85f;
+
+    [Header("JumpThrust 镜头（Boss 起跳段上抬 + 略后拉）")]
+    [SerializeField] private float jumpThrustLift = 1.15f;
+    [SerializeField] private float jumpThrustBack = 0.45f;
+    [SerializeField] private float jumpThrustBlendIn = 0.28f;
+    [SerializeField] private float jumpThrustBlendOut = 0.45f;
+
     private bool setupDone;
     private CinemachineBrain brain;
     private Coroutine releaseLockYawCo;
     private Coroutine finisherDollyCo;
     private bool isInFinisher;
+
+    private CameraObstacleFader obstacleFader;
+    private bool obstacleSqueezed;
+
+    private float arrowReactStart = -999f;
+    private float arrowBackPeak;
+    private float arrowDownPeak;
+    private float lastArrowEnv;
+
+    private bool jumpThrustActive;
+    private float jumpThrustEnv;
+    private float jumpThrustTarget;
+
+    private CinemachineTransposer lockTransposer;
+    private Vector3 lockBaseOffset;
+    private float[] baseOrbitRadius;
+    private float[] baseOrbitHeight;
 
     private void Awake()
     {
@@ -107,6 +152,8 @@ public class CameraController : MonoBehaviour
         CombatEventBus.OnLockOnChanged += HandleLockOnChanged;
         CombatEventBus.OnFinisherStarted += HandleFinisherStarted;
         CombatEventBus.OnFinisherEnded += HandleFinisherEnded;
+        CombatEventBus.OnHeavyArrowDefended += HandleHeavyArrowDefended;
+        CombatEventBus.OnJumpThrustCamera += HandleJumpThrustCamera;
     }
 
     private void OnDisable()
@@ -114,6 +161,8 @@ public class CameraController : MonoBehaviour
         CombatEventBus.OnLockOnChanged -= HandleLockOnChanged;
         CombatEventBus.OnFinisherStarted -= HandleFinisherStarted;
         CombatEventBus.OnFinisherEnded -= HandleFinisherEnded;
+        CombatEventBus.OnHeavyArrowDefended -= HandleHeavyArrowDefended;
+        CombatEventBus.OnJumpThrustCamera -= HandleJumpThrustCamera;
 
         if (releaseLockYawCo != null)
         {
@@ -131,9 +180,134 @@ public class CameraController : MonoBehaviour
     private void Start()
     {
         EnsureSetup();
-        // 进 Play 时按当前锁定状态对齐一次（非轮询，只做初始化）
         bool locked = LockOnManager.Instance != null && LockOnManager.Instance.IsLockedOn;
         HandleLockOnChanged(locked);
+        if (!locked)
+            StartCoroutine(SnapBehindAfterFollowReady());
+    }
+
+    private IEnumerator SnapBehindAfterFollowReady()
+    {
+        yield return null;
+        if (LockOnManager.Instance != null && LockOnManager.Instance.IsLockedOn) yield break;
+        SnapFreeLookBehindPlayer();
+    }
+
+    // ===== 0. 每帧驱动：避障虚化 + 重箭防御镜头 =====
+
+    private void LateUpdate()
+    {
+        UpdateObstacleFade();
+        UpdateJumpThrustCamera();
+        UpdateArrowReaction();
+    }
+
+    private void HandleJumpThrustCamera(bool active)
+    {
+        if (isInFinisher) return;
+        jumpThrustActive = active;
+        jumpThrustTarget = active ? 1f : 0f;
+    }
+
+    // JumpThrust 起跳：仅更新混合权重，偏移在 UpdateArrowReaction 里与重箭反应叠加。
+    private void UpdateJumpThrustCamera()
+    {
+        if (isInFinisher) return;
+        float speed = jumpThrustTarget > jumpThrustEnv ? jumpThrustBlendIn : jumpThrustBlendOut;
+        if (speed <= 0.01f) speed = 0.25f;
+        jumpThrustEnv = Mathf.MoveTowards(jumpThrustEnv, jumpThrustTarget, Time.deltaTime / speed);
+    }
+
+    // 镜头被墙挤死（实际距离远小于期望距离）→ 虚化玩家给镜头让位。
+    // 用迟滞区间（enter 低 / exit 高）做开关，临界距离来回横跳时不会闪烁。
+    private void UpdateObstacleFade()
+    {
+        if (obstacleFader == null) return;
+
+        bool squeezed = false;
+        if (!isInFinisher && followProxy != null && freeLook != null && lockVcam != null)
+        {
+            Camera cam = Camera.main;
+            if (cam != null)
+            {
+                float desired = GetDesiredFollowDistance();
+                float actual = Vector3.Distance(followProxy.transform.position, cam.transform.position);
+                float ratio = desired > 0.05f ? actual / desired : 1f;
+                squeezed = obstacleSqueezed
+                    ? ratio < squeezeFadeExit   // 已虚化：回到安全比例才恢复
+                    : ratio < squeezeFadeEnter; // 未虚化：压得更狠才触发
+            }
+        }
+
+        obstacleSqueezed = squeezed;
+        obstacleFader.SetOccluded(squeezed);
+    }
+
+    // 当前机位的"期望"镜头距离。永远用基准值算，避免和重箭反应偏移互相喂形成反馈回路。
+    private float GetDesiredFollowDistance()
+    {
+        if (lockVcam.Priority > freeLook.Priority)
+            return followOffset.magnitude;
+
+        if (freeLook.m_Orbits == null || freeLook.m_Orbits.Length < 3 || baseOrbitRadius == null)
+            return 3.2f;
+
+        float y = Mathf.Clamp01(freeLook.m_YAxis.Value);
+        // Cinemachine FreeLook：m_YAxis 0 = 底轨 m_Orbits[2]，0.5 = 中轨，1 = 顶轨 m_Orbits[0]
+        return y <= 0.5f
+            ? Mathf.Lerp(baseOrbitRadius[2], baseOrbitRadius[1], y * 2f)
+            : Mathf.Lerp(baseOrbitRadius[1], baseOrbitRadius[0], (y - 0.5f) * 2f);
+    }
+
+    // 重箭命中：玩家借力后滑，镜头跟着下压 + 后拉，让"顶开"的力量感落在镜头上。
+    private void HandleHeavyArrowDefended(CharacterBody body, bool perfect)
+    {
+        if (isInFinisher) return;
+        if (body == null || playerFollow == null || body.transform != playerFollow) return;
+
+        arrowBackPeak = perfect ? arrowDeflectBack : arrowGuardBack;
+        arrowDownPeak = perfect ? arrowDeflectDown : arrowGuardDown;
+        arrowReactStart = Time.time;
+    }
+
+    private void UpdateArrowReaction()
+    {
+        float e = isInFinisher ? 0f : ComputeArrowEnvelope();
+        float jLift = jumpThrustLift * jumpThrustEnv;
+        float jBack = jumpThrustBack * jumpThrustEnv;
+        if (e <= 0f && lastArrowEnv <= 0f && jumpThrustEnv <= 0f) return;
+        lastArrowEnv = e;
+
+        // 锁定机位：直接推 Transposer 偏移（Z 越负越远，Y 越低越贴地）
+        if (lockTransposer != null)
+            lockTransposer.m_FollowOffset = lockBaseOffset
+                + new Vector3(0f, jLift - arrowDownPeak * e, -jBack - arrowBackPeak * e);
+
+        // 自由机位：推三条轨道的半径和高度
+        if (freeLook != null && freeLook.m_Orbits != null && freeLook.m_Orbits.Length >= 3
+            && baseOrbitRadius != null)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                freeLook.m_Orbits[i].m_Radius = baseOrbitRadius[i] + jBack + arrowBackPeak * e;
+                freeLook.m_Orbits[i].m_Height = baseOrbitHeight[i] + jLift - arrowDownPeak * e;
+            }
+        }
+    }
+
+    // 快速下沉到位（attack 段），再随玩家后滑结束缓回（decay 段）
+    private float ComputeArrowEnvelope()
+    {
+        if (arrowBackPeak <= 0f && arrowDownPeak <= 0f) return 0f;
+
+        float t = Time.time - arrowReactStart;
+        float total = Mathf.Max(0.05f, arrowReactDuration);
+        if (t < 0f || t >= total) return 0f;
+
+        float attack = Mathf.Clamp(arrowReactAttack, 0.01f, total * 0.5f);
+        if (t < attack)
+            return Mathf.SmoothStep(0f, 1f, t / attack);
+        return 1f - Mathf.SmoothStep(0f, 1f, (t - attack) / (total - attack));
     }
 
     // ===== 1. 锁定逻辑 =====
@@ -218,34 +392,40 @@ public class CameraController : MonoBehaviour
         releaseLockYawCo = null;
     }
 
-    // World Space 下 X=0 在目标世界 -Z；X=角色 yaw 时镜头在 -forward，即背后。
+    // World Space 下 X=角色 yaw 时镜头在 -forward，即背后。
+    // 不要 ForceCameraPosition(场景主相机)：编辑器里主相机经常在侧面，会把 FreeLook 钉在侧机位。
     private void SnapFreeLookBehindPlayer()
     {
         if (freeLook == null) return;
 
         Transform player = playerFollow != null ? playerFollow
             : (followProxy != null ? followProxy.source : null);
-        if (player != null)
-        {
-            Vector3 fwd = player.forward;
-            fwd.y = 0f;
-            if (fwd.sqrMagnitude > 0.001f)
-            {
-                fwd.Normalize();
-                float yaw = Mathf.Atan2(fwd.x, fwd.z) * Mathf.Rad2Deg;
-                if (yaw > 180f) yaw -= 360f;
-                else if (yaw < -180f) yaw += 360f;
-                freeLook.m_XAxis.Value = yaw;
-            }
-        }
+        if (player == null) return;
+
+        Vector3 fwd = player.forward;
+        fwd.y = 0f;
+        if (fwd.sqrMagnitude < 0.001f) return;
+        fwd.Normalize();
+
+        float yaw = Mathf.Atan2(fwd.x, fwd.z) * Mathf.Rad2Deg;
+        if (yaw > 180f) yaw -= 360f;
+        else if (yaw < -180f) yaw += 360f;
+        freeLook.m_XAxis.Value = yaw;
 
         float y = orbitInput != null ? orbitInput.YCenter : 0.45f;
         freeLook.m_YAxis.Value = Mathf.Clamp(y, 0.02f, 0.98f);
 
-        Camera live = GetComponent<Camera>();
-        if (live == null) live = Camera.main;
-        if (live != null)
-            freeLook.ForceCameraPosition(live.transform.position, live.transform.rotation);
+        float radius = 3.2f;
+        if (freeLook.m_Orbits != null && freeLook.m_Orbits.Length > 1)
+            radius = Mathf.Max(1.6f, freeLook.m_Orbits[1].m_Radius);
+
+        float height = followProxy != null ? followProxy.height : 1.4f;
+        Vector3 pivot = player.position + Vector3.up * height;
+        Vector3 camPos = pivot - fwd * radius;
+        freeLook.ForceCameraPosition(camPos, Quaternion.LookRotation(fwd, Vector3.up));
+
+        if (orbitInput != null)
+            orbitInput.IgnoreLookUntil(Time.unscaledTime + 0.45f);
     }
 
     // ===== 2. 处决特写运镜逻辑（只狼式刀刃侧低机位特写） =====
@@ -419,7 +599,36 @@ public class CameraController : MonoBehaviour
         EnsureLockVcam();
         EnsureFinisherVcam();
         EnsureBrainBlend();
+        EnsureObstacleFader();
+        CaptureCameraBases();
         setupDone = freeLook != null && lockVcam != null && finisherVcam != null;
+    }
+
+    private void EnsureObstacleFader()
+    {
+        if (obstacleFader == null)
+            obstacleFader = GetComponent<CameraObstacleFader>();
+        if (obstacleFader == null)
+            obstacleFader = gameObject.AddComponent<CameraObstacleFader>();
+        if (playerFollow != null)
+            obstacleFader.Configure(playerFollow);
+    }
+
+    // 缓存机位基准值：重箭镜头反应在基准上做偏移，结束精确归零
+    private void CaptureCameraBases()
+    {
+        lockTransposer = lockVcam != null
+            ? lockVcam.GetCinemachineComponent<CinemachineTransposer>() : null;
+        lockBaseOffset = followOffset;
+
+        if (freeLook == null || freeLook.m_Orbits == null || freeLook.m_Orbits.Length < 3) return;
+        baseOrbitRadius = new float[3];
+        baseOrbitHeight = new float[3];
+        for (int i = 0; i < 3; i++)
+        {
+            baseOrbitRadius[i] = freeLook.m_Orbits[i].m_Radius;
+            baseOrbitHeight[i] = freeLook.m_Orbits[i].m_Height;
+        }
     }
 
     private void EnsureFreeLookFollowProxy()
@@ -525,7 +734,8 @@ public class CameraController : MonoBehaviour
     private static void ApplyTransitionHints(CinemachineFreeLook vcam)
     {
         if (vcam == null) return;
-        vcam.m_Transitions.m_InheritPosition = true;
+        // 开局不要 Inherit 场景主相机：编辑器里主相机常在角色侧面。
+        vcam.m_Transitions.m_InheritPosition = false;
         vcam.m_Transitions.m_BlendHint = CinemachineVirtualCameraBase.BlendHint.CylindricalPosition;
     }
 
@@ -678,8 +888,10 @@ public class CameraController : MonoBehaviour
         vcamCollider.m_Strategy = CinemachineCollider.ResolutionStrategy.PreserveCameraHeight;
         vcamCollider.m_CameraRadius = 0.25f;
         vcamCollider.m_MinimumDistanceFromTarget = 0.4f;
-        vcamCollider.m_Damping = 0.15f;
-        vcamCollider.m_DampingWhenOccluded = 0.05f;
-        vcamCollider.m_SmoothingTime = 0.08f;
+        // 阻尼/平滑都调缓：被墙挤近和松开回位都慢慢来，
+        // 靠帧内硬位移是绕墙抖动的主要来源；挤死时的观感交给玩家虚化兜底
+        vcamCollider.m_Damping = 0.3f;
+        vcamCollider.m_DampingWhenOccluded = 0.15f;
+        vcamCollider.m_SmoothingTime = 0.2f;
     }
 }

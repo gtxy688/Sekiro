@@ -29,12 +29,18 @@ public class GameOverView : UIView
         if (deathText != null) deathText.transform.DOKill();
 
         canvasGroup.alpha = 0f;
-        canvasGroup.DOFade(1f, 0.4f).SetUpdate(true);
+        canvasGroup.DOFade(1f, 0.4f).SetUpdate(true).SetLink(gameObject);
         if (deathText != null)
         {
             deathText.color = CombatPromptStyle.Accent;
             deathText.transform.localScale = Vector3.one * 0.92f;
             deathText.transform.DOScale(Vector3.one, 0.3f).SetEase(Ease.OutCubic).SetUpdate(true);
         }
+    }
+
+    private void OnDisable()
+    {
+        if (canvasGroup != null) canvasGroup.DOKill();
+        if (deathText != null) deathText.transform.DOKill();
     }
 }

@@ -1,37 +1,114 @@
 using UnityEngine;
 
-// 地面受击子状态：双脚着地被打的硬直，结束后回地面
-// 受击动画按 HurtContext 从 CharacterConfig 映射（受击表现接口，留空回退普通受击）
+// 地面受击子状态。玩家按 HitGrade 选动画并处理连续受击；Boss 仍按 HurtContext。
 public class GroundStunnedState : BaseState
 {
     private const float HeavyFallbackDuration = 2.5f;
 
     private float stunTimer;
     private readonly HurtContext context;
+    private readonly bool useHitGrade;
+    private HitGrade grade;
+    private bool lightRepeat;
+    private bool heavyRepeat;
     private string animName;
     private float duration;
     private bool waitForAnim;
     private bool seenStart;
 
-    public GroundStunnedState(CharacterBody body, HierarchicalState parent, HurtContext context) : base(body)
+    public GroundStunnedState(
+        CharacterBody body,
+        HierarchicalState parent,
+        HurtContext context,
+        bool useHitGrade = false,
+        HitGrade grade = HitGrade.Light) : base(body)
     {
         this.context = context;
+        this.useHitGrade = useHitGrade;
+        this.grade = grade;
+    }
+
+    public bool CanDodgeCancel
+    {
+        get
+        {
+            if (!useHitGrade || !body.IsGrounded) return false;
+            float open = DodgeCancelOpenTime();
+            if (open <= 0f) return false;
+            return stunTimer >= open;
+        }
+    }
+
+    public bool CanMidToGuard
+    {
+        get
+        {
+            if (!useHitGrade || grade != HitGrade.Mid || heavyRepeat) return false;
+            float end = body.Config != null ? body.Config.HurtMidFallEndTime : 0.4f;
+            return stunTimer < end;
+        }
+    }
+
+    // Light（含 Hurt_Light2）全程可抬刀；空中受击落地前不给，没有空中格挡。
+    public bool CanLightGuardCancel
+    {
+        get
+        {
+            if (!useHitGrade || !body.IsGrounded) return false;
+            return grade == HitGrade.Light && !heavyRepeat;
+        }
+    }
+
+    bool IsKnockdown => grade == HitGrade.Mid || grade == HitGrade.Heavy || heavyRepeat;
+
+    float DodgeCancelOpenTime()
+    {
+        if (grade == HitGrade.Heavy || heavyRepeat)
+            return body.HeavyStunDuration;
+        if (grade == HitGrade.Mid)
+            return body.KnockdownStunDuration;
+        return body.StunDuration;
     }
 
     public override void OnEnter()
     {
         stunTimer = 0f;
         seenStart = false;
-        animName = body.ResolveHurtAnim(context);
-        bool played = AnimUtil.TryCrossFade(body.Animator, animName, 0.05f);
+        if (useHitGrade)
+        {
+            animName = HitReactionUtil.UnguardedAnim(body, grade, lightRepeat, heavyRepeat);
+            bool played = AnimUtil.TryCrossFade(body.Animator, animName, 0.05f);
+            waitForAnim = played;
+            duration = waitForAnim ? HeavyFallbackDuration : body.StunDuration;
+            if (!played)
+            {
+                animName = HitReactionUtil.UnguardedAnim(body, HitGrade.Light, false, false);
+                AnimUtil.TryCrossFade(body.Animator, animName, 0.05f);
+            }
+            return;
+        }
 
-        // 破防后倒地受击跟 Hurt_Heavy 播完走，不要被普通 StunDuration（0.5s）掐掉
-        waitForAnim = context == HurtContext.Heavy && played;
+        animName = body.ResolveHurtAnim(context);
+        bool bossPlayed = AnimUtil.TryCrossFade(body.Animator, animName, 0.05f);
+        waitForAnim = context == HurtContext.Heavy && bossPlayed;
         duration = waitForAnim ? HeavyFallbackDuration : body.StunDuration;
-        if (!played)
+        if (!bossPlayed)
         {
             AnimUtil.TryCrossFade(body.Animator, body.ResolveHurtAnim(HurtContext.Normal), 0.05f);
         }
+    }
+
+    public void ReceiveFollowUpHit(HitData hit)
+    {
+        if (!useHitGrade) return;
+        if (!HitReactionUtil.ShouldRefreshHurt(grade, hit.hitGrade, out bool toHeavyRepeat))
+            return;
+
+        if (grade == HitGrade.Light)
+            lightRepeat = true;
+        grade = toHeavyRepeat ? HitGrade.Heavy : hit.hitGrade;
+        heavyRepeat = toHeavyRepeat;
+        OnEnter();
     }
 
     public override void OnUpdate()
@@ -47,28 +124,31 @@ public class GroundStunnedState : BaseState
                 {
                     seenStart = true;
                     if (info.length > 0.05f)
-                    {
                         duration = Mathf.Max(body.StunDuration, info.length);
-                    }
                 }
 
                 if (seenStart && info.normalizedTime >= 0.99f && !body.Animator.IsInTransition(0))
                 {
-                    body.MainStateMachine.ChangeState(new GroundedState(body));
+                    FinishStun();
                     return;
                 }
             }
 
             if (stunTimer >= duration)
-            {
-                body.MainStateMachine.ChangeState(new GroundedState(body));
-            }
+                FinishStun();
             return;
         }
 
         if (stunTimer >= duration)
-        {
+            FinishStun();
+    }
+
+    void FinishStun()
+    {
+        bool knockdown = useHitGrade && IsKnockdown;
+        if (knockdown)
+            body.MainStateMachine.ChangeState(new GroundedState(body, new StandingState(body)));
+        else
             body.MainStateMachine.ChangeState(new GroundedState(body));
-        }
     }
 }

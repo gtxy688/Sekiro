@@ -19,6 +19,12 @@ public class BTBrain : MonoBehaviour
     [Tooltip("朝玩家逼近分量（0-1，<1 不会直接撞上去）")]
     public float roamApproachStrength = 0.35f;
 
+    [Header("主动招间隔")]
+    [Tooltip("主动出招结束后强制走位的最短秒数，避免刀刀衔接")]
+    public float roamAfterAttack = 2.5f;
+    [Tooltip("在最短间隔上再随机加这么多秒，走位节奏不那么机械")]
+    public float roamAfterAttackJitter = 1.2f;
+
     [Header("调试（测试弹反用）")]
     [Tooltip("只近战模式：屏蔽弓/后跳/特殊招，Boss 只用近战普通攻击 + 被动格挡/弹反。测弹反后立即反击的纯净环境")]
     public bool MeleeOnly = false;
@@ -92,20 +98,63 @@ public class BTBrain : MonoBehaviour
         behaviorTreeRoot.SetBlackboard(blackboard);
     }
 
+    private BT_ExecuteMove activeExecutor;
+    private BT_ExecuteMove kengekiExecutor;
+    private BT_ExecuteMove interruptExecutor;
+    private BT_HealPunish healPunish;
+    private Node moveToTarget;
+    private bool circlingDownedPlayer;
+
     private void Update()
     {
         if (PlayerTarget == null || behaviorTreeRoot == null) return;
+
         // 忍杀演出 / 被弹反或识破硬直：树不跑。否则出招节点一失败就会落到
         // BT_MoveToTarget，近身 Roam 每帧 RotateYaw 对准玩家（识破后猛转）。
         if (body.IsFinisherLocked || body.IsParried)
         {
             // 树不跑时也要把 Busy 执行器清掉，否则硬直结束会接着播被打断招的下一段。
-            activeExecutor?.ResetMove();
-            kengekiExecutor?.ResetMove();
-            interruptExecutor?.ResetMove();
+            ResetExecutors();
             return;
         }
+
+        bool playerDowned = PlayerBody != null && PlayerBody.IsDowned;
+        if (playerDowned && !circlingDownedPlayer)
+        {
+            circlingDownedPlayer = true;
+            ResetExecutors();
+            if (body.IsAttacking)
+                body.CancelAttackToIdle();
+        }
+        else if (!playerDowned)
+        {
+            circlingDownedPlayer = false;
+        }
+
+        // 开场语音：可以走位，但不要出招。
+        if (IsOpeningHold())
+        {
+            ResetExecutors();
+            if (body.IsAttacking)
+                body.CancelAttackToIdle();
+            moveToTarget?.Evaluate();
+            return;
+        }
+
+        healPunish?.ArmIfPlayerHealing();
         behaviorTreeRoot.Evaluate();
+    }
+
+    private static bool IsOpeningHold()
+    {
+        return BossVoiceDirector.Instance != null && BossVoiceDirector.Instance.IsOpeningHold;
+    }
+
+    private void ResetExecutors()
+    {
+        activeExecutor?.ResetMove();
+        kengekiExecutor?.ResetMove();
+        interruptExecutor?.ResetMove();
     }
 
     private void OnDisable()
@@ -113,12 +162,9 @@ public class BTBrain : MonoBehaviour
         if (body == null) return;
         body.MoveDirection = Vector3.zero;
         body.MoveUsesWorldDir = false;
+        body.PreferFastWalk = false;
         body.CombatTarget = null;
     }
-
-    private BT_ExecuteMove activeExecutor;
-    private BT_ExecuteMove kengekiExecutor;
-    private BT_ExecuteMove interruptExecutor;
 
     // 完整树：崩解跳过 → 交锋 → 喝药重箭 → 主动抽招 → 追击
     // 招架层已由 CharacterBody.TryPassiveDeflect（受击拦截）替代，不再挂 BT_DeflectIf。
@@ -138,12 +184,16 @@ public class BTBrain : MonoBehaviour
         if (!DisableBossAttacks)
         {
             children.Add(new BT_Kengeki(body, moveTable, PlayerTarget, kengekiExecutor));
-            children.Add(new BT_HealPunish(body, moveTable, PlayerBody, interruptExecutor));
-            children.Add(new BT_PickActive(body, moveTable, PlayerTarget, activeExecutor));
+            healPunish = new BT_HealPunish(body, moveTable, PlayerBody, interruptExecutor);
+            children.Add(healPunish);
+            children.Add(new BT_PickActive(
+                body, moveTable, PlayerTarget, activeExecutor,
+                roamAfterAttack, roamAfterAttackJitter));
         }
 
-        children.Add(new BT_MoveToTarget(body, PlayerTarget, attackRange,
-            roamStrafeDuration, roamStrafeStrength, roamApproachStrength));
+        moveToTarget = new BT_MoveToTarget(body, PlayerTarget, attackRange,
+            roamStrafeDuration, roamStrafeStrength, roamApproachStrength);
+        children.Add(moveToTarget);
 
         return new Selector(children);
     }

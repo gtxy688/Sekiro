@@ -16,6 +16,15 @@ public class StaggerBrokenState : BaseState
     private bool triedNestedPath;
     private bool seenStart;
 
+    public bool CanDeflectOrDodgeCancel
+    {
+        get
+        {
+            float open = body.BrokenDeflectDodgeOpenTime;
+            return open > 0f && timer >= open;
+        }
+    }
+
     public StaggerBrokenState(CharacterBody body) : base(body)
     {
     }
@@ -89,7 +98,34 @@ public class StaggerBrokenState : BaseState
 
     public override bool HandleCommand(ICommand cmd)
     {
+        // 到达 BrokenDeflectDodgeOpenTime 后：
+        //   DeflectCommand → DeflectState（格挡/抬刀）
+        //   DodgeCommand   → DodgeState（垫步）
+        if (cmd is DeflectCommand || cmd is DodgeCommand)
+        {
+            if (CanDeflectOrDodgeCancel &&
+                body.MainStateMachine.CurrentState is GroundedState grounded)
+            {
+                CancelBreakTo(grounded, cmd is DeflectCommand);
+                return true;
+            }
+
+            // 窗口未到：不消耗，留缓冲重试（格挡键可长按）
+            return false;
+        }
+
         return true;
+    }
+
+    void CancelBreakTo(GroundedState grounded, bool toDeflect)
+    {
+        // 架势条同步清空（与 RecoverFromBreak 一致），留在同一个 GroundedState 里只换子状态，
+        // 不走 RecoverFromBreak 重建顶层（会掐断垫步/抬刀的进场）。
+        body.ClearPostureBreak();
+        if (toDeflect)
+            grounded.SubStateMachine.ChangeState(new DeflectState(body, grounded));
+        else
+            grounded.SubStateMachine.ChangeState(new DodgeState(body, grounded));
     }
 
     private void FinishBreak()

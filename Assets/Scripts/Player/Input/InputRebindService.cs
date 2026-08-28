@@ -29,6 +29,37 @@ public static class InputRebindService
         asset.LoadBindingOverridesFromJson(json);
     }
 
+    // 跟 PlayerInput Auto-Switch 走；方案还空时看最近动过的设备
+    public static string ResolveControlGroup(PlayerInput input)
+    {
+        if (input != null)
+        {
+            string scheme = input.currentControlScheme;
+            if (scheme == GamepadGroup) return GamepadGroup;
+            if (scheme == KeyboardMouseGroup) return KeyboardMouseGroup;
+            if (!string.IsNullOrEmpty(scheme))
+            {
+                if (scheme.IndexOf("Gamepad", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    return GamepadGroup;
+                if (scheme.IndexOf("Keyboard", System.StringComparison.OrdinalIgnoreCase) >= 0
+                    || scheme.IndexOf("Mouse", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    return KeyboardMouseGroup;
+            }
+        }
+
+        double bestTime = double.NegativeInfinity;
+        bool gamepad = false;
+        foreach (InputDevice device in InputSystem.devices)
+        {
+            if (!device.added) continue;
+            if (device.lastUpdateTime < bestTime) continue;
+            bestTime = device.lastUpdateTime;
+            gamepad = device is Gamepad;
+        }
+
+        return gamepad ? GamepadGroup : KeyboardMouseGroup;
+    }
+
     public static void Save(InputActionAsset asset)
     {
         if (asset == null) return;
@@ -55,8 +86,18 @@ public static class InputRebindService
     public static string GetBindingDisplay(InputAction action, string group)
     {
         int index = FindBindingIndex(action, group);
-        if (index < 0) return "—";
-        return action.GetBindingDisplayString(index);
+        if (index >= 0)
+            return action.GetBindingDisplayString(index);
+
+        for (int i = 0; i < action.bindings.Count; i++)
+        {
+            InputBinding binding = action.bindings[i];
+            if (binding.isPartOfComposite) continue;
+            if (string.IsNullOrEmpty(binding.groups) || !binding.groups.Contains(group)) continue;
+            return action.GetBindingDisplayString(i);
+        }
+
+        return "—";
     }
 
     public static void ResetGroup(InputActionAsset asset, string group)

@@ -33,8 +33,10 @@ public static class CombatEventBus
     public static event Action<CharacterBody, int> OnGourdUsed;
     // 角色死亡
     public static event Action<CharacterBody> OnDeath;
-    // 复活可用（角色）—— 弹出回生提示
+    // 复活可用（角色）—— 倒地开始，画面变暗
     public static event Action<CharacterBody> OnReviveAvailable;
+    // 倒地结束（角色）—— 弹出回生选项，开始接收输入
+    public static event Action<CharacterBody> OnReviveChoiceReady;
     // 胜利（Boss 命数清空）—— M10 处决完最后一条命触发
     public static event Action<CharacterBody> OnVictory;
     // 清命（角色, 剩余命数）—— 忍杀灯熄灭一个（M10 UI）
@@ -54,6 +56,10 @@ public static class CombatEventBus
     public static event Action<CharacterBody, CharacterBody> OnFinisherEnded;
     // 相机震动（强度）—— 弹反/崩解/处决时触发
     public static event Action<float> OnCameraShake;
+    // 重箭被格挡/弹反（角色, 是否完美弹反）—— 玩家会借力后滑，镜头跟随下压后拉
+    public static event Action<CharacterBody, bool> OnHeavyArrowDefended;
+    // Boss JumpThrust 起跳段：镜头上抬跟随
+    public static event Action<bool> OnJumpThrustCamera;
     // 出招音效（clip, 世界坐标）—— clip 由 AttackSfxCue 经事件传入，表现层不持有资源
     public static event Action<AudioClip, Vector3> OnAttackSfx;
     // 出刀瞬间（Hitbox 打开）—— 玩家挥刀刀光
@@ -107,6 +113,11 @@ public static class CombatEventBus
         OnReviveAvailable?.Invoke(c);
     }
 
+    public static void TriggerReviveChoiceReady(CharacterBody c)
+    {
+        OnReviveChoiceReady?.Invoke(c);
+    }
+
     public static void TriggerVictory(CharacterBody c)
     {
         OnVictory?.Invoke(c);
@@ -150,6 +161,16 @@ public static class CombatEventBus
     public static void TriggerCameraShake(float intensity)
     {
         OnCameraShake?.Invoke(intensity);
+    }
+
+    public static void TriggerHeavyArrowDefended(CharacterBody body, bool perfect)
+    {
+        OnHeavyArrowDefended?.Invoke(body, perfect);
+    }
+
+    public static void TriggerJumpThrustCamera(bool active)
+    {
+        OnJumpThrustCamera?.Invoke(active);
     }
 
     public static void TriggerAttackSfx(AudioClip clip, Vector3 worldPos)

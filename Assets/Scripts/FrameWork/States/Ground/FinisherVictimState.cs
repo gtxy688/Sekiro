@@ -19,6 +19,7 @@ public class FinisherVictimState : BaseState
         timer = 0f;
         body.IsFinisherLocked = true;
         body.IsAttacking = false;
+        body.AttackUninterruptible = false;
         body.MoveDirection = Vector3.zero;
         body.DisableWeaponHit();
         if (body.Rb != null)

@@ -40,6 +40,8 @@ public struct HitData
     public bool isPerilous;           // 是否危字攻击（M17）
     public PerilousType perilousType; // 危字类型（M17）
     public float knockback;           // 击退强度（0=普通受击，>0 触发 Heavy 受击表现）
+    public HitGrade hitGrade;         // 打到玩家时的受击等级；Boss 被打仍看 knockback
+    public bool isProjectile;         // 箭走这条，用来区分箭 Heavy 的格挡/弹反
 }
 
 public struct IdleCommand : ICommand { }

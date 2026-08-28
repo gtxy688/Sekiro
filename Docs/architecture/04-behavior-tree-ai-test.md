@@ -28,20 +28,30 @@
 | 6 | 5–7m | 能见 `Slash_Rush2` / 飞舟（Boss 架势累计过半、偏高时 `Boat`） |
 | 6b | `Boat` 的 `Boat1` 段贴身吃满 | 同一段动画里应能挨到 **最多 5 下**（不是整段只一下）；`Boat2` 仍一刀。时间不准就改 `hitPulses` |
 | 7 | 3–5m | 能见 `Slash_Double` / `Slash_Heavy` / `Slash_SpinElbow` |
-| 8 | ≤3m | 能见 `Slash_StepTurn`、`Kick`、`Bow_Air5` |
+| 8 | ≤3m | 能见 `Slash_StepTurn`、`Kick`、`Bow_Air5`；**未**连续完美弹开两次时不应出 `JumpThrust` |
+| 8b | 贴身连续完美弹开 Boss 两刀（近战，不要箭），保持 ≤5m | 下一次主动抽招有较大机会 `JumpThrust`（3022）。这不是交锋 `Kengeki_Thrust`（3062） |
+| 8c | 连弹一次后改成普通格挡或挨一刀 | 连弹计数清零，不应立刻跳 |
 | 9 | 完美弹刀且未崩解、贴身 | 还击来自交锋表；多次 `Kengeki_Slash` 会换片 |
 | 10 | 弹刀后拉开 >2.5m | 不交锋，回主动 |
 | 11 | Boss HP <75% 时弹刀 | 有机会 `Boat_Full` |
-| 12 | `JumpThrust` / `Kengeki_Thrust` | 危字 + 识破仍崩解 |
+| 12 | 第一条命逼出 `JumpThrust` | 起跳无危字；落地**一定是突刺**（可识破） |
+| 12e | 处决掉第一条命后，再逼出 JumpThrust，多试几次 | 落地横扫明显多于突刺（约 7:3）；不应再出现「第一条命那种必突刺」 |
+| 12c | 落地突刺 | 「危」在落地弹出；无方向垫步可识破（同 9） |
+| 12d | 落地横扫（须第二条命） | 「危」在落地弹出；Jump2 踩头仍成立（同 13） |
+| 12b | `Kengeki_Thrust`（交锋 3062） | 危字突刺，识破仍崩解 |
 | 13 | `Perilous_Sweep` | 危字 + 跳踩仍成立 |
-| 14 | 玩家喝药（Boss 正在近战/走位都可以） | Boss **立刻打断**当前招，改出 `Bow_Heavy`；葫芦动画期间箭应能打中 |
+| 14 | 玩家喝药，Boss **正在近战/交锋** | 当前招打完，再等剩余 `HealPunishDelay`（若已到点则立刻）出 `Bow_Heavy`，中途不切重箭 |
+| 14b | 玩家喝药，Boss **走位/待机** | 等 `HealPunishDelay` 后出 `Bow_Heavy`；箭在出箭点（约 1.5s）飞出。调大 Delay 应能在喝完后抬刀弹反 |
 | 15 | 空中五连 | 能完整播完；有时会被重箭打断 |
 | 16 | 玩家锁定 Boss 后重复远近移动 | Boss 仍面向并追踪玩家 |
 | 17 | 走近后挥刀打 Boss（Boss 非攻击中） | 命中瞬间 Boss 强制进入格挡判定：普通格挡（Block/`Hurt_Guard` 姿态 + 火花 + Boss 架势涨），不再裸受击 |
 | 18 | 用识破令 Boss 架势刚好崩解 | Boss 播 `Stagger_Broken_Miriki`，确认窗口不猛转到玩家；按攻击后成对忍杀才水平对视 |
 | 19 | Console | 缺 Animator 状态的招不出（权重 0），无新的每帧 error |
 | 20 | 连续挥刀打 Boss（未抓前摇） | 第 1、2 刀被普通格挡；**第 3 刀 Boss 强制完美弹反**（大火花 + 你被弹开硬直），随后 Boss 开始反击 |
-| 21 | Boss 出手动画中（前摇/命中段）打它 | 正常受击（玩家可抓前摇破招），不进入被动格挡 |
+| 21 | Boss 出手动画中（前摇/命中段）打它 | 普通挥砍：正常受击（可抓前摇），不进入被动格挡 |
+| 21b | Boss 放危字（突刺/横扫/肘击 Grab）时打它 | **打不断**：Boss 继续播招，仍扣血涨架势；架势打满仍崩 |
+| 21c | Boss 放 `Boat` / `Boat_Full` 时打它 | 同 21b，飞舟打不断 |
+| 21d | Boss 放 `JumpThrust` 起跳（尚未落地）时打它 | 同 21b：虽无危字，起跳仍霸体 |
 | 22 | 打 Boss 两刀后停手 3s 再打 | 连续格挡计数清零（2.5s 重置窗口），下一刀重新从普通格挡开始 |
 | 23 | 危字攻击（突刺/横扫）打 Boss | 不触发被动格挡；正常走识破/跳踩链路 |
 
@@ -50,5 +60,6 @@
 - **Boss 不动**：检查黑板 target 是否设置、`BT_MoveToTarget` 是否读到 target。
 - **一直放同一招**：冷却字典没检查。
 - **被弹反不变招**：交锋依赖 `ForceParryStun` 置 `KengekiArmed`，硬直结束且距离 ≤ 2.5m 才会抽交锋表。
+- **从不跳 JumpThrust**：先贴身近战完美弹开两次；看 BTBrain 是否勾了 `MeleeOnly`（白名单不含 JumpThrust）；距离须 ≤5m。
 - **Boss 还是裸受击**：确认 `BTBrain.Start` 已置 `body.EnablePassiveDeflect = true`（只给 Boss；玩家不开启）。
 - **Boss 弹反太频繁**：调大 `passiveDeflectThreshold`（默认 2 = 第 3 刀弹反）或 `passiveDeflectResetWindow`（默认 2.5s）。

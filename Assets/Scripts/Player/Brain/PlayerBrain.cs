@@ -21,11 +21,13 @@ public class PlayerBrain : BrainBase
     private bool holdAttackTriggered;
     private bool holdThresholdChecked;
     private float attackPressedTime;
+    private float acceptInputAfter;
 
     protected override void Awake()
     {
         base.Awake();
         playerInput = GetComponent<PlayerInput>();
+        acceptInputAfter = Time.unscaledTime + 0.35f;
     }
 
     // 订阅放在 Start：Player Input 组件可能在自己 Awake 里才实例化动作资产，
@@ -39,6 +41,7 @@ public class PlayerBrain : BrainBase
         actions = (playerInput != null && playerInput.actions != null)
             ? playerInput.actions
             : new PlayerInputActions().asset;
+        InputRebindService.Load(actions);
 
         var map = actions.FindActionMap("Player");
         moveAction = actions.FindAction("Move");
@@ -151,9 +154,12 @@ public class PlayerBrain : BrainBase
         if (CanAcceptPlayInput()) BufferCommand(new IdleCommand());
     }
 
-    private void OnDodgeStarted(InputAction.CallbackContext _)
+    private void OnDodgeStarted(InputAction.CallbackContext ctx)
     {
-        if (CanAcceptPlayInput()) BufferCommand(new DodgeCommand());
+        // 进 Play / Enable 时 Input System 会把残留按键当成 started，看起来像开局垫步。
+        if (!ctx.ReadValueAsButton()) return;
+        if (!CanAcceptPlayInput()) return;
+        BufferCommand(new DodgeCommand());
     }
 
     private void OnHealStarted(InputAction.CallbackContext _)
@@ -180,12 +186,21 @@ public class PlayerBrain : BrainBase
     {
         // Unity 伪 null：对象已销毁时读 isActiveAndEnabled 会抛 MissingReferenceException
         if (this == null) return false;
+        if (Time.unscaledTime < acceptInputAfter) return false;
         return isActiveAndEnabled && !GamePause.IsPaused && !CombatInputGate.Blocked;
     }
 
     protected override void Update()
     {
         if (GamePause.IsPaused) return;
+
+        if (Time.unscaledTime < acceptInputAfter)
+        {
+            currentMoveInput = Vector2.zero;
+            if (body != null)
+                body.TryExecuteCommand(new MoveCommand(Vector2.zero));
+            return;
+        }
 
         // 胜利结算：丢掉预输入，持续发零移动，避免还停在走路动画里
         if (CombatInputGate.Blocked)
@@ -210,6 +225,10 @@ public class PlayerBrain : BrainBase
 
         // 1. 调用基类的 Update，让它去处理缓冲池里的 攻击、弹反、跳跃 指令
         base.Update();
+
+        // 崩解倒地：长按格挡键应在 BrokenDeflectDodgeOpenTime 到达后切入 DeflectState
+        if (body.IsPostureBroken && deflectAction != null && deflectAction.IsPressed())
+            BufferCommand(new DeflectCommand(), 0.15f);
 
         // 2. 独立处理移动指令（连绵不断的意图，不走缓冲）
         if (moveAction == null) return;

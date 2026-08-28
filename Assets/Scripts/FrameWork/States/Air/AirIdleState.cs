@@ -9,8 +9,13 @@ public class AirIdleState : BaseState
     {
         Takeoff,  // Jump：起跳
         Airborne, // Jumping：空中持续
+        Jump2,    // 空中二段（踩头 / 无踩只播片）
         Landing   // Fall：落地
     }
+
+    private readonly HierarchicalState parent;
+    private readonly bool startInJump2;
+    private readonly bool resumeAirborne;
 
     private Phase phase;
     private float enterTime;
@@ -19,14 +24,35 @@ public class AirIdleState : BaseState
     // AirState 落地后要等 Fall 播完才回地面
     public bool CanLeaveAir { get; private set; }
 
-    public AirIdleState(CharacterBody body, HierarchicalState parent) : base(body)
+    public AirIdleState(CharacterBody body, HierarchicalState parent, bool startInJump2 = false, bool resumeAirborne = false) : base(body)
     {
+        this.parent = parent;
+        this.startInJump2 = startInJump2;
+        this.resumeAirborne = resumeAirborne;
     }
 
     public override void OnEnter()
     {
+        // Jump2 已由 TryAirJump2 CrossFade；再走起跳会盖掉 Jump2 播 Jump
+        if (startInJump2)
+        {
+            enterTime = Time.time;
+            CanLeaveAir = false;
+            phase = Phase.Jump2;
+            return;
+        }
+
         enterTime = Time.time;
         CanLeaveAir = false;
+
+        if (resumeAirborne)
+        {
+            // 空中刀结束仍滞空：上升/下落都播 Jumping，不要重播地面起跳 Jump。
+            // Fall 仍由 TryStartLanding 在近地时切。
+            Play("Jumping", JumpBlend);
+            phase = Phase.Airborne;
+            return;
+        }
 
         // 踩空：没有起跳，直接空中持续
         if (body.Rb.velocity.y < 0f)
@@ -47,9 +73,14 @@ public class AirIdleState : BaseState
             TryEnterAirborne();
         }
 
+        if (phase == Phase.Jump2)
+            TryFinishJump2();
+
         if (phase != Phase.Landing)
         {
-            TryStartLanding();
+            // Jump2 刚切上来时脚可能还贴地，不能按 Fall 落地逻辑掐掉 Jump2
+            if (phase != Phase.Jump2)
+                TryStartLanding();
         }
         else
         {
@@ -68,25 +99,53 @@ public class AirIdleState : BaseState
 
     public override bool HandleCommand(ICommand cmd)
     {
-        // 空中攻击/格挡已移除。落地动画期间仍在 AirState，指令留给缓冲，落地后再执行。
+        // Fall 期间仍在 AirState，指令留给缓冲，落地后再执行
+        if (phase == Phase.Landing) return false;
+
+        if (cmd is JumpCommand)
+        {
+            body.TryAirJump2(out bool played);
+            if (played)
+            {
+                // 同态切 Jump2 不会走 OnEnter；不刷新 enterTime 的话
+                // TakeoffFailsafe / 过顶点会立刻把 Jump2 切成 Jumping
+                enterTime = Time.time;
+                phase = Phase.Jump2;
+            }
+            return true;
+        }
+
+        if (cmd is AttackCommand)
+        {
+            AttackConfig air = body.AirAttack;
+            if (air == null || string.IsNullOrEmpty(air.AnimName))
+            {
+                Debug.LogError($"{body.name} 未配置 AirAttack，空中平 A 无效。");
+                return true;
+            }
+            if (!AnimUtil.HasState(body.Animator, air.AnimName))
+            {
+                Debug.LogError($"{body.name} 的 Animator 缺少空中攻击状态：{air.AnimName}");
+                return true;
+            }
+            // 空中平 A 走 AirAttack 槽；清掉 Brain 长按可能写入的突刺 ActiveAttack
+            body.ActiveAttack = null;
+            parent.SubStateMachine.ChangeState(new AirAttackState(body, parent, air));
+            return true;
+        }
+
+        if (cmd is MoveCommand moveCmd)
+        {
+            body.MoveDirection = moveCmd.Direction;
+            return true;
+        }
+
         return false;
     }
 
     public override bool OnHitReceived(HitData hit)
     {
-        if (hit.isPerilous && hit.perilousType == PerilousType.Sweep)
-        {
-            if (hit.attacker != null)
-            {
-                float gain = body.Config != null ? body.Config.MikiriPostureGain : 30f;
-                hit.attacker.AccumulatePosture(gain);
-                hit.attacker.ForceParryStun();
-            }
-            CombatEventBus.TriggerWeaponDeflected(
-                CombatFxPoint.BetweenWeapons(hit.attacker, body, hit.hitPoint), DeflectType.Perfect);
-            CombatManager.Instance?.HitStop();
-            return true;
-        }
+        // 空中挨扫不再自动涨 Boss 架势 / ForceParryStun；裸受击交给上层 ReceiveHit
         return false;
     }
 
@@ -121,6 +180,25 @@ public class AirIdleState : BaseState
             && Time.time - enterTime >= TakeoffFailsafe;
 
         if (!jumpFinished && !atApex && !jumpGone) return;
+
+        Play("Jumping", JumpBlend);
+        phase = Phase.Airborne;
+    }
+
+    // 对齐 TryEnterAirborne：Jump2 播到阈值 / 过顶点 / 状态已切走超过兜底，再进 Jumping
+    private void TryFinishJump2()
+    {
+        AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
+        bool jump2Done = AnimUtil.IsPlaying(info, "Jump2")
+            && info.normalizedTime >= JumpToJumpingNorm
+            && !body.Animator.IsInTransition(0);
+        bool atApex = SwitchAtApex
+            && body.Rb.velocity.y < 0f
+            && Time.time - enterTime >= MinAirTime;
+        bool gone = !AnimUtil.IsPlaying(info, "Jump2")
+            && Time.time - enterTime >= TakeoffFailsafe;
+
+        if (!jump2Done && !atApex && !gone) return;
 
         Play("Jumping", JumpBlend);
         phase = Phase.Airborne;

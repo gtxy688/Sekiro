@@ -1,18 +1,17 @@
 using UnityEngine;
 
-// 回生待机（M14）：Dead 倒地 → Deading 躺地等待；
-// 按攻击键 → Revive 爬起；超时未确认 → 真死（已躺着，不再重播倒地）
+// 回生待机（M14）：Dead 倒地 → Deading 躺地等待。
+// 倒地过程中不收输入；躺平且压暗结束后，攻击 / 起死回生 → Revive 爬起；防御 / 就此死去 → 真死。不超时。
 public class RevivePendingState : BaseState
 {
     private HierarchicalState parent;
-    private float timer;
-    private float timeout = 3f;
     private float fallTimer;
     private float fallDuration = 1.2f;
     private float reviveTimer;
     private float reviveDuration = 1.5f;
     private bool lying;
     private bool reviving;
+    private bool choiceReady;
 
     public RevivePendingState(CharacterBody body, HierarchicalState parent) : base(body)
     {
@@ -21,11 +20,11 @@ public class RevivePendingState : BaseState
 
     public override void OnEnter()
     {
-        timer = 0f;
         fallTimer = 0f;
         reviveTimer = 0f;
         lying = false;
         reviving = false;
+        choiceReady = false;
         AnimUtil.TryCrossFade(body.Animator, "Dead", 0.1f);
     }
 
@@ -41,38 +40,54 @@ public class RevivePendingState : BaseState
             return;
         }
 
-        timer += Time.deltaTime;
-
-        if (!lying)
-        {
+        if (!choiceReady)
             fallTimer += Time.deltaTime;
-            if (IsFallFinished())
-            {
-                lying = true;
-                AnimUtil.TryCrossFade(body.Animator, "Deading", 0.05f);
-            }
+
+        if (!lying && IsFallFinished())
+        {
+            lying = true;
+            AnimUtil.TryCrossFade(body.Animator, "Deading", 0.05f);
         }
 
-        if (timer >= timeout)
+        // 等倒地时长走完再开选项，避免动画提前结束时变暗期间就能按键
+        if (lying && !choiceReady && fallTimer >= fallDuration)
         {
-            CombatEventBus.TriggerDeath(body);
-            body.MainStateMachine.ChangeState(new DeadState(body, false, alreadyDowned: true));
+            choiceReady = true;
+            CombatEventBus.TriggerReviveChoiceReady(body);
         }
     }
 
     public override bool HandleCommand(ICommand cmd)
     {
-        if (reviving) return true;
+        if (reviving || !choiceReady) return true;
 
         if (cmd is AttackCommand)
         {
-            body.Revive();
-            reviving = true;
-            reviveTimer = 0f;
-            AnimUtil.TryCrossFade(body.Animator, "Revive", 0.1f);
+            BeginRevive();
             return true;
         }
+
+        if (cmd is DeflectCommand)
+        {
+            GiveUp();
+            return true;
+        }
+
         return true;
+    }
+
+    private void BeginRevive()
+    {
+        body.Revive();
+        reviving = true;
+        reviveTimer = 0f;
+        AnimUtil.TryCrossFade(body.Animator, "Revive", 0.1f);
+    }
+
+    private void GiveUp()
+    {
+        CombatEventBus.TriggerDeath(body);
+        body.MainStateMachine.ChangeState(new DeadState(body, false, alreadyDowned: true));
     }
 
     private bool IsFallFinished()

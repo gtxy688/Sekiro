@@ -12,6 +12,7 @@ public class MoveState : BaseState
     private float enterDuration = 0.45f;
     private bool inEnterTransition;
     private bool wasLocked;
+    private bool wasFastWalk;
 
     public MoveState(CharacterBody body, HierarchicalState parent, string enterAnim = "IdleToWalk") : base(body)
     {
@@ -29,6 +30,7 @@ public class MoveState : BaseState
         // 没有起步 Clip（Boss 没有 IdleToWalk）就直接循环走，避免 CrossFade 静默失败站着滑
         inEnterTransition = AnimUtil.HasState(body.Animator, enterAnim);
         wasLocked = IsLockedOnTarget();
+        wasFastWalk = body.PreferFastWalk;
         UpdateStrafeParams(instant: true);
         AnimUtil.TryCrossFade(body.Animator, inEnterTransition ? enterAnim : LoopAnim, 0.1f);
     }
@@ -38,9 +40,10 @@ public class MoveState : BaseState
         bool locked = IsLockedOnTarget();
         UpdateStrafeParams(instant: false);
 
-        if (locked != wasLocked)
+        if (locked != wasLocked || body.PreferFastWalk != wasFastWalk)
         {
             wasLocked = locked;
+            wasFastWalk = body.PreferFastWalk;
             inEnterTransition = false;
             AnimUtil.TryCrossFade(body.Animator, LoopAnim, 0.1f);
         }
@@ -80,7 +83,8 @@ public class MoveState : BaseState
         body.RotateYaw(moveDir, rotationSpeed);
     }
 
-    private string LoopAnim => IsLockedOnTarget() ? "Walk_Strafe" : "Walk";
+    // Walk_Strafe = 锁定/近身慢走绕圈；Walk = 未锁定或 Boss 远距离快跑拉近。
+    private string LoopAnim => body.PreferFastWalk || !IsLockedOnTarget() ? "Walk" : "Walk_Strafe";
 
     private void UpdateStrafeParams(bool instant)
     {

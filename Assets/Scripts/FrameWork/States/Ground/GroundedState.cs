@@ -32,7 +32,7 @@ public class GroundedState : HierarchicalState
     //所有的地面状态，都共用这个跳跃逻辑！
     protected override bool OnParentHandleCommand(ICommand cmd)
     {
-        // 忍杀演出：父层也吞掉跳跃/喝药，不能把 FinisherState 切走。
+        // 忍杀 / Elbow 投技：父层也吞掉跳跃/喝药，不能把演出切走。
         if (body.IsFinisherLocked)
         {
             return true;

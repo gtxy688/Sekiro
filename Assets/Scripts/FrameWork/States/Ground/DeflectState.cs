@@ -54,6 +54,11 @@ public class DeflectState : BaseState
     private string guardHurtAnim;
     private bool waitingGuardHurt;
     private bool hasSeenGuardHurt;
+    private bool arrowHeavyGuard; // 箭 Heavy 普通格挡：播完 Stagger_Broken 才能回举刀
+    private bool arrowHeavyDeflect; // 箭 Heavy 完美弹反：播完 Deflect_HeavyArrow 才能回举刀
+    private float arrowHeavyLockTimer;
+    private bool raiseSpamGuard; // 连续举刀放刀：窗口内也只算普通格挡
+    private bool guardStable;    // 已进入举刀循环，抖刀 remash 不算 spam
     private float rotationSpeed = 720f;
 
     public DeflectState(CharacterBody body, HierarchicalState parent, bool remash = false,
@@ -68,6 +73,10 @@ public class DeflectState : BaseState
 
     public override void OnEnter()
     {
+        // 受击取消进格挡时父节点还是 null，进场时顶层已经是 GroundedState。
+        if (parent == null)
+            parent = body.MainStateMachine.CurrentState as HierarchicalState;
+
         enterTime = Time.time;
         hasReleased = false;
         guardFlinchTimer = 0f;
@@ -78,6 +87,11 @@ public class DeflectState : BaseState
         guardHurtAnim = null;
         waitingGuardHurt = false;
         hasSeenGuardHurt = false;
+        arrowHeavyGuard = false;
+        arrowHeavyDeflect = false;
+        arrowHeavyLockTimer = 0f;
+        raiseSpamGuard = false;
+        guardStable = remash;
         pendingCounter = null;
         counterFireTime = 0f;
         parriedDurationOnHit = 0f;
@@ -102,6 +116,13 @@ public class DeflectState : BaseState
 
         body.RegisterDeflectPress();
         window = body.GetDeflectWindow();
+
+        float mashWindow = body.Config != null ? body.Config.DeflectMashWindow : 0.5f;
+        if (!remash && !IsPlayingLocomotion()
+            && Time.time - body.LastDeflectCancelTime < mashWindow)
+        {
+            raiseSpamGuard = true;
+        }
 
         // 格挡中再按：抖刀，不要重播抬刀。没有 Repeat Clip（Boss）则走原来的抬刀/走路融合
         if (remash && AnimUtil.HasState(body.Animator, "Deflect_Repeat"))
@@ -194,9 +215,23 @@ public class DeflectState : BaseState
 
         UpdateStrafeParams(instant: false);
 
+        if ((arrowHeavyGuard || arrowHeavyDeflect) && waitingGuardHurt)
+            arrowHeavyLockTimer += Time.deltaTime;
+
         if (waitingGuardHurt)
         {
             UpdateGuardHurt();
+            if (!waitingGuardHurt && (arrowHeavyGuard || arrowHeavyDeflect))
+            {
+                arrowHeavyGuard = false;
+                arrowHeavyDeflect = false;
+                if (hasReleased)
+                {
+                    parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+                    return;
+                }
+                PlayGuardLoop(force: true);
+            }
         }
         else if (guardFlinchTimer > 0f)
         {
@@ -212,7 +247,9 @@ public class DeflectState : BaseState
             RotateIfMoving();
         }
 
-        if (hasReleased && Time.time - enterTime >= window)
+        // 箭 Heavy 格挡/弹反动画未结束时不能因松手提前回 Idle。
+        if (hasReleased && Time.time - enterTime >= window
+            && !((arrowHeavyGuard || arrowHeavyDeflect) && waitingGuardHurt))
         {
             parent.SubStateMachine.ChangeState(new IdleState(body, parent));
         }
@@ -242,6 +279,28 @@ public class DeflectState : BaseState
     public override bool HandleCommand(ICommand cmd)
     {
         // 格挡全程可被再格挡（刷新窗口 + 抖刀计数）或垫步取消，含抬刀/举刀/弹刀成功/收刀
+        // 箭 Heavy 特殊格挡/弹反动画：默认必须播完；到达 ArrowHeavyDeflectDodgeOpenTime 后可提前格挡/垫步。
+        if ((arrowHeavyGuard || arrowHeavyDeflect) && waitingGuardHurt)
+        {
+            if (cmd is IdleCommand)
+            {
+                hasReleased = true;
+                return true;
+            }
+
+            if (cmd is DeflectCommand || cmd is DodgeCommand)
+            {
+                if (CanArrowHeavyDeflectDodgeCancel())
+                {
+                    FinishArrowHeavyLockEarly(cmd is DeflectCommand);
+                    return true;
+                }
+                return false;
+            }
+
+            return true;
+        }
+
         if (cmd is DeflectCommand)
         {
             parent.SubStateMachine.ChangeState(new DeflectState(body, parent, remash: true));
@@ -295,20 +354,24 @@ public class DeflectState : BaseState
 
     public override bool OnHitReceived(HitData hit)
     {
-        // 危字应对规则（M17）：仅横扫不可防御（必须跳/躲或踩头）；
-        // 突刺/跳跃突刺/抓取防御系依然有效（弹反窗口内弹开 / 窗口外格挡）。
-        if (hit.isPerilous && hit.perilousType == PerilousType.Sweep)
+        // 危字：普通格挡等于没防。横扫连弹反窗口也不吃；其余危字只有弹反窗口内能弹开。
+        if (hit.isPerilous)
         {
+            if (hit.perilousType == PerilousType.Sweep || canceling)
+                return false;
+            float perilousElapsed = Time.time - enterTime;
+            if (perilousElapsed <= window || inBegin)
+                return HandlePerfectParry(hit);
             return false;
         }
         if (canceling) return false;
 
         float elapsed = Time.time - enterTime;
+        bool inParryWindow = elapsed <= window || inBegin;
+        bool multiHit = HitReactionUtil.IsMultiHitParryException(hit);
 
-        if (elapsed <= window)
-        {
+        if (inParryWindow && (!raiseSpamGuard || multiHit))
             return HandlePerfectParry(hit);
-        }
 
         return HandleGuardHit(hit);
     }
@@ -317,23 +380,26 @@ public class DeflectState : BaseState
     private bool HandlePerfectParry(HitData hit)
     {
         bool brokeAttackerPosture = false;
-        if (hit.attacker != null)
+        // 箭不是刀刃相撞：弹开只挡伤害，不涨攻击者架势、不把 Boss 弹进硬直。
+        if (hit.attacker != null && !hit.isProjectile)
         {
             float gain = body.Config != null ? body.Config.DeflectPostureGain : 30f;
             brokeAttackerPosture = hit.attacker.AccumulatePosture(
                 gain,
                 allowBreak: true,
                 source: PostureBreakSource.Deflect);
-            if (!brokeAttackerPosture)
-            {
+            // 玩家被弹开进 ParriedState。Boss 连段（飞舟等）被弹不打断，才能连续弹反。
+            if (!brokeAttackerPosture && HitReactionUtil.IsPlayer(hit.attacker))
                 hit.attacker.ForceParryStun();
-            }
         }
 
         // 弹反成功方获得优先反击权（回合制）：
-        // Boss 弹反玩家后 KengekiArmed=true → BT_Kengeki 层（树序优先、短前摇）立刻抽交锋还击招，
-        // 保证"弹反方的下一步动作一定快于被弹方"（被弹方还在 Parried 最小硬直里）。
-        body.KengekiArmed = true;
+        // 只有 Boss 弹反玩家才武装交锋；玩家弹反 Boss 不该给玩家挂 KengekiArmed。
+        if (!hit.isProjectile && !HitReactionUtil.IsPlayer(body))
+            body.KengekiArmed = true;
+        // 玩家近战弹开 Boss：累计连续弹开次数，供主动层 JumpThrust（≠ 交锋 3062）。
+        if (!hit.isProjectile && HitReactionUtil.IsPlayer(body) && hit.attacker != null)
+            hit.attacker.NotifyPerfectlyParried();
         // 精确记录被弹方硬直：反击命中时刻基准是"被弹方恢复"，不是弹反方自己的配置
         parriedDurationOnHit = hit.attacker != null && hit.attacker.Config != null
             ? hit.attacker.Config.ParriedDuration
@@ -343,6 +409,10 @@ public class DeflectState : BaseState
             CombatFxPoint.BetweenWeapons(hit.attacker, body, hit.hitPoint), DeflectType.Perfect);
         CombatEventBus.TriggerCameraShake(0.3f);
         CombatManager.Instance?.HitStop();
+
+        // 重箭弹反：弹开箭矢威力太大，玩家会借力后滑，镜头跟随下压后拉（普通近战弹反不动）
+        if (HitReactionUtil.IsPlayer(body) && HitReactionUtil.IsArrowHeavyGuard(hit))
+            CombatEventBus.TriggerHeavyArrowDefended(body, perfect: true);
 
         // 弹反忍杀确认窗口只给玩家（DeflectToFinsher）。Boss 被动弹反玩家不进入处决准备；
         // Boss 打崩玩家后继续播弹反挥刀（Normal 且攻击者是玩家时 mode 也是 Normal，此处靠
@@ -357,9 +427,9 @@ public class DeflectState : BaseState
 
         inBegin = false;
         currentLoopAnim = null;
-        string deflectAnim = hit.knockback > 0f
-            ? "Deflect_HeavySlash"
-            : "Deflect_Slash";
+        string deflectAnim = HitReactionUtil.IsPlayer(body)
+            ? HitReactionUtil.PerfectParryAnim(hit)
+            : (hit.knockback > 0f ? "Deflect_HeavySlash" : "Deflect_Slash");
         if (!AnimUtil.HasState(body.Animator, deflectAnim))
         {
             Debug.LogError($"{body.name} 的 Animator 缺少弹反状态：{deflectAnim}");
@@ -368,13 +438,38 @@ public class DeflectState : BaseState
         {
             AnimUtil.TryCrossFade(body.Animator, deflectAnim, 0.05f);
         }
-        guardFlinchTimer = 0.25f;
+
+        // 箭 Heavy 完美弹反必须播完 Deflect_HeavyArrow，不能走 0.25s 硬直后立刻举刀。
+        if (HitReactionUtil.IsPlayer(body) && HitReactionUtil.IsArrowHeavyGuard(hit))
+        {
+            guardHurtAnim = deflectAnim;
+            waitingGuardHurt = true;
+            hasSeenGuardHurt = false;
+            arrowHeavyDeflect = true;
+            guardFlinchTimer = 0f;
+            arrowHeavyLockTimer = 0f;
+        }
+        else
+        {
+            guardFlinchTimer = 0.25f;
+        }
         return true;
     }
 
-    // 窗口外挡住：普通格挡受击（GuardHurt 动画 + 架势上涨，格挡系数削弱架势伤害）
+        // 窗口外挡住：普通格挡受击（GuardHurt 动画 + 架势上涨，格挡系数削弱架势伤害）
     private bool HandleGuardHit(HitData hit)
     {
+        if (HitReactionUtil.IsPlayer(body))
+        {
+            if (HitReactionUtil.IsMeleeHeavyPierce(hit))
+                return false;
+            if (HitReactionUtil.IsArrowHeavyGuard(hit))
+                return PlayArrowHeavyGuard(hit);
+            // 普通格挡打断「连续弹开」：JumpThrust 只认连弹，不认举盾挨打。
+            if (hit.attacker != null && !hit.isProjectile)
+                hit.attacker.ResetConsecutiveTimesParried();
+        }
+
         float posture = hit.postureDmg * (body.Config != null ? body.Config.GuardPostureFactor : 0.5f);
         if (body.AccumulatePosture(posture))
         {
@@ -384,10 +479,15 @@ public class DeflectState : BaseState
 
         inBegin = false;
         currentLoopAnim = null;
-        HurtContext guardHurt = hit.knockback > 0f ? HurtContext.GuardHeavy : HurtContext.Guard;
+        HurtContext guardHurt;
+        if (HitReactionUtil.IsPlayer(body))
+            guardHurt = HurtContext.Guard;
+        else
+            guardHurt = hit.knockback > 0f ? HurtContext.GuardHeavy : HurtContext.Guard;
         guardHurtAnim = body.ResolveHurtAnim(guardHurt);
         waitingGuardHurt = true;
         hasSeenGuardHurt = false;
+        arrowHeavyGuard = false;
         guardFlinchTimer = 0f;
         AnimUtil.TryCrossFade(body.Animator, guardHurtAnim, 0.03f);
 
@@ -396,10 +496,34 @@ public class DeflectState : BaseState
         return true;
     }
 
+    // 箭 Heavy：共用崩解动画，但不是真崩架势。必须播完才能回举刀。
+    private bool PlayArrowHeavyGuard(HitData hit)
+    {
+        float posture = hit.postureDmg * (body.Config != null ? body.Config.GuardPostureFactor : 0.5f);
+        if (body.AccumulatePosture(posture))
+            return true;
+
+        inBegin = false;
+        currentLoopAnim = null;
+        guardHurtAnim = HitReactionUtil.BrokenAnim(body);
+        waitingGuardHurt = true;
+        hasSeenGuardHurt = false;
+        arrowHeavyGuard = true;
+        guardFlinchTimer = 0f;
+        arrowHeavyLockTimer = 0f;
+        AnimUtil.TryCrossFade(body.Animator, guardHurtAnim, 0.05f);
+        CombatEventBus.TriggerWeaponDeflected(
+            CombatFxPoint.BetweenWeapons(hit.attacker, body, hit.hitPoint), DeflectType.Normal);
+        // 箭 Heavy 格挡：架势顶不住会往后滑，镜头跟随下压后拉
+        CombatEventBus.TriggerHeavyArrowDefended(body, perfect: false);
+        return true;
+    }
+
     private void StartCancel()
     {
         if (canceling) return;
 
+        body.NotifyDeflectCancel();
         canceling = true;
         inBegin = false;
         cancelTimer = 0f;
@@ -423,6 +547,11 @@ public class DeflectState : BaseState
         }
 
         currentLoopAnim = want;
+        if (!inBegin)
+        {
+            guardStable = true;
+            raiseSpamGuard = false;
+        }
         AnimUtil.TryCrossFadeInFixedTime(body.Animator, want, blendSeconds, 0, startAt);
     }
 
@@ -489,5 +618,35 @@ public class DeflectState : BaseState
     {
         return LockOnManager.Instance != null && LockOnManager.Instance.IsLockedOn
             && LockOnManager.Instance.Target != null;
+    }
+
+    bool CanArrowHeavyDeflectDodgeCancel()
+    {
+        float open = body.ArrowHeavyDeflectDodgeOpenTime;
+        return open > 0f && arrowHeavyLockTimer >= open;
+    }
+
+    void FinishArrowHeavyLockEarly(bool toDeflect)
+    {
+        waitingGuardHurt = false;
+        arrowHeavyGuard = false;
+        arrowHeavyDeflect = false;
+        guardHurtAnim = null;
+        hasSeenGuardHurt = false;
+        inBegin = false;
+        currentLoopAnim = null;
+        guardFlinchTimer = 0f;
+
+        if (toDeflect)
+        {
+            if (hasReleased)
+                parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+            else
+                parent.SubStateMachine.ChangeState(new DeflectState(body, parent, remash: true));
+        }
+        else
+        {
+            parent.SubStateMachine.ChangeState(new DodgeState(body, parent));
+        }
     }
 }

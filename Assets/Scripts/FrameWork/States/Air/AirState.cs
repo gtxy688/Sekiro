@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// 空中父状态：子状态按 Jump → Jumping → Fall 切动画。
+// 空中父状态：子状态按 Jump → Jumping → Fall 切动画；空中刀是独立叶子。
 // 根运动保持开启（XZ 跟贴图）；高度走 JumpSpeed + 重力。
 public class AirState : HierarchicalState
 {
@@ -9,6 +9,8 @@ public class AirState : HierarchicalState
     public override void OnEnter()
     {
         body.IsAirborne = true;
+        // 每次进空重置：同一滞空只能 Jump2 一次，落地再跳重新给
+        body.ResetAirJump2();
         base.OnEnter();
     }
 
@@ -27,10 +29,19 @@ public class AirState : HierarchicalState
     {
         base.OnUpdate();
 
+        if (SubStateMachine.CurrentState is AirAttackState airAtk && airAtk.WantsImmediateLand)
+        {
+            LeaveAir();
+            return;
+        }
+
         AirIdleState air = SubStateMachine.CurrentState as AirIdleState;
         if (air == null || !air.CanLeaveAir) return;
+        LeaveAir();
+    }
 
-        // Fall 播完（或崩解落地跳过 Fall）再回地面。
+    private void LeaveAir()
+    {
         if (body.IsPostureBroken)
         {
             body.MainStateMachine.ChangeState(

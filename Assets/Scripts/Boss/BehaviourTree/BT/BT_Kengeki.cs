@@ -24,7 +24,7 @@ public class BT_Kengeki : Node, ISelectorLock
 
     public override NodeState Evaluate()
     {
-        if (IsTargetHealing(target))
+        if (IsTargetDowned(target))
         {
             executor?.ResetMove();
             return NodeState.Failure;
@@ -56,11 +56,11 @@ public class BT_Kengeki : Node, ISelectorLock
         return executor.Begin(move);
     }
 
-    private static bool IsTargetHealing(Transform target)
+    private static bool IsTargetDowned(Transform target)
     {
         if (target == null) return false;
         CharacterBody player = target.GetComponent<CharacterBody>();
         if (player == null) player = target.GetComponentInParent<CharacterBody>();
-        return player != null && player.IsHealing;
+        return player != null && player.IsDowned;
     }
 }

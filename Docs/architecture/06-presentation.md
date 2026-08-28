@@ -19,7 +19,8 @@ OnPostureChanged(CharacterBody c, float posture, float maxPosture)  // 架势
 OnPostureBroken(CharacterBody c)
 OnGourdUsed(CharacterBody c, int remaining)
 OnDeath(CharacterBody c)
-OnReviveAvailable(CharacterBody c)
+OnReviveAvailable(CharacterBody c)          // 倒地开始，画面变暗
+OnReviveChoiceReady(CharacterBody c)        // 倒地结束，弹出回生选项并收输入
 
 // 新增（表现）
 OnFinisherTriggered(Vector3 pos)      // 忍杀音效/特效
@@ -35,8 +36,8 @@ OnAttackSfx(AudioClip clip, Vector3 worldPos)  // 出招音效（AttackState 按
 ### 危字 Billboard（M17 表现）
 
 - 事件：`OnPerilousAttack(PerilousType)`（签名不改）。
-- 位置：世界空间 Billboard，跟随 **Boss** 的 `Head`（没有则 `Spine1` / `Spine`）+ `headOffset`（默认 0.55m）。**不跟玩家、不放屏幕正中。**
-- 绘制：`ARPG/FX/PerilousKanji` 加法 Shader，白字黑底当遮罩；两层 Quad（光晕 0.78m / 字形 0.60m）；`ZTest Always`。笔画粗细调材质 `Stroke Thickness`（越大越粗）；`Dark Crush` 越大笔画越细。
+- 位置：世界空间 Billboard，跟随 **玩家** 的 `Head`（没有则 `Spine1` / `Spine`）+ `headOffset`（与治/回生相同）。**不跟 Boss、不放屏幕正中。**
+- 绘制：直接画 `危.png`（白字黑底，亮度当透明）。`ARPG/FX/HealSprite` 单层 Quad（约 0.60m），红色染色。透明混合，**不**走加法 Shader（加法会把整块 Quad 烧成方块）。`ZTest Always`。
 - 时间：弹出后约 0.8 秒淡出。`LateUpdate` 只做跟随/朝向相机，不轮询战斗数值。
 - 生成：`Tools/战斗/生成危字特效`。贴图放 `Assets/Art/FX`。
 
@@ -47,6 +48,12 @@ OnAttackSfx(AudioClip clip, Vector3 worldPos)  // 出招音效（AttackState 按
 - 绘制：直接画 `治.png`（白字黑底，亮度当透明）。`ARPG/FX/HealSprite` 单层 Quad（约 0.60m），绿色染色。透明混合，**不**走危字加法 Shader（加法会把整块 Quad 烧成方块）。`ZTest Always`。
 - 时间：弹出后约 0.8 秒淡出。喝药被打断时特效仍播完。`LateUpdate` 只做跟随/朝向相机，不轮询战斗数值。
 - 生成：`Tools/战斗/生成治愈特效`。贴图 `Assets/Sekrio/FX/治.png`。
+
+### 回生 Billboard
+
+- 事件：`OnRevived(CharacterBody c)`。仅玩家爬起成功时弹出。
+- 位置：与「治」相同，跟随 **玩家** 头顶。贴图 `Assets/Prefabs/FX/Respawn/回生.png`，Shader 同 `ARPG/FX/HealSprite`（金白染色）。
+- 生成：`Tools/战斗/生成回生特效`。运行时只播，不新建层级。
 
 > 为什么事件带完整数据：M2（CharacterConfig）还没实现时表现层也能独立编译运行，不依赖读取 CharacterBody 内部字段。
 
@@ -113,12 +120,29 @@ OnAttackSfx(AudioClip clip, Vector3 worldPos)  // 出招音效（AttackState 按
 ### 回生 / 胜利 / 真死提示
 
 - 挂在 `CombatCanvas` 的 View 上，事件驱动，不每帧轮询。
-- 外观跟暂停设置页同一套：全屏压暗 + 居中暗金面板 + 金字标题 + 浅字提示 + 细金线。不要粉红大字、不要太空紫。
+- 回生面板（`RespawnPanel`）按只狼倒地屏。**层级固定写在 `GameScene`**，运行时禁止 `Instantiate` / `Destroy` 子物体，只改 CanvasGroup、颜色、按键文案。改外观、字号、字体在场景里改。
+- 流程：`OnReviveAvailable` 只开始暗红压暗（约 1.2 秒），此时不显示「死」和选项、不收攻击/防御。`OnReviveChoiceReady`（倒地结束且变暗完成）才出中央「死」/ `DEATH` + 底栏「就此死去」/「起死回生」。不要暗金方框、不要叉号。不超时，等玩家选。
+- 底栏左边「起死回生」（攻击 / 左键），右边「就此死去」（防御 / 右键）。前缀读玩家键位，不要写死「攻击」「防御」。跟暂停改键同一份 `PlayerInput.actions` + `InputRebindService` override。键鼠默认 `LMB` 在左、`RMB` 在右；手柄默认 `RT` 在左、`LT` 在右。换设备走 `PlayerInput.onControlsChanged`，不每帧轮询。改键后下次倒地要用新键。
+- 场景层级（`CombatCanvas/RespawnPanel`）：
+
+```
+RespawnPanel          CanvasGroup + RevivePromptView
+  Vignette            全屏暗红压暗
+  DeathContent        CanvasGroup（「死」和选项）
+    DeathKanji        「死」
+    DeathSub          DEATH
+    Choices
+      ReviveChoice/Label  左边：起死回生（攻击 / 左键）
+      GiveUp/Label        右边：就此死去（防御 / 右键）
+```
+
+- 编辑器预览：勾选 `RespawnPanel` 即可看见完整倒地屏。缺层级时用一次 `Tools/战斗/同步回生倒地屏到场景`，之后不要再靠 Play 生成。`Tools/战斗/预览全部 UI` 只激活已有物体，不再改回生屏结构。
+- 真死 / 胜利仍用暗金面板。
 - 中文 TMP：`TmpChineseFont` 只在进场景前给 SIMYOU / STFANGSO 打开多图集、互为回退，并预热战斗/暂停/台词用字。**不要在运行时改 `tmp.font`**，字体在 `GameScene` 的面板上调。缺字走回退，不要变成空格。
 - 胜利页：「再来一局」重载当前场景；「退出游戏」打包后退出程序，**编辑器里不停 Play**（只关掉结算面板）。右上角叉号同样。不要冻 `timeScale`。
 - 胜利期间 `CombatInputGate` 挡住玩家移动和出招；`PlayerInput.DeactivateInput` 把设备让给 UI，避免手柄点不了按钮。
-- 暂停 / 设置 / 键位 / 回生 / 真死 / 胜利面板右上角都有叉号。暂停页叉号关闭菜单，设置/键位叉号返回上一页；胜利与真死叉号退出游戏；回生叉号只关提示（仍可按攻击键复活）。
-- 玩家回生节点：活点用 `ReviveDot`，用掉后换成同位置的 `EndDot`，不要把图标直接关掉。两次回生对应两对点。
+- 暂停 / 设置 / 键位 / 真死 / 胜利面板右上角都有叉号。暂停页叉号关闭菜单，设置/键位叉号返回上一页；胜利与真死叉号退出游戏。回生面板没有叉号。
+- 玩家回生节点：活点用 `ReviveDot`，用掉后换成同位置的 `EndDot`，不要把图标直接关掉。两次回生对应两对点，**从左到右**依次熄灭。
 
 ### CombatCanvas 面板
 
@@ -131,12 +155,12 @@ OnAttackSfx(AudioClip clip, Vector3 worldPos)  // 出招音效（AttackState 按
 | `EndPanel` | 胜利：「再来一局」/「退出游戏」 |
 | `RespawnPanel` | 回生提示 |
 
-整理菜单：`Tools/战斗/整理 CombatCanvas 面板`。预览：`Tools/战斗/预览全部 UI`（把暂停三页、回生、真死、胜利铺到场景里，关掉压暗；Play 后会收回）。`PauseMenuController` 仍挂在 Mgr 上，只引用场景里的 `SettingPanel`。
+整理菜单：`Tools/战斗/整理 CombatCanvas 面板`。回生屏同步：`Tools/战斗/同步回生倒地屏到场景`（只应跑一次，结果保存在 `GameScene`）。预览：勾选 `RespawnPanel`，或 `Tools/战斗/预览全部 UI`（暂停三页、回生、真死、胜利铺开；回生用场景里的倒地布局）。`PauseMenuController` 仍挂在 Mgr 上，只引用场景里的 `SettingPanel`。
 
 ### 弦一郎台词
 
 - `BossVoiceDirector` 订阅事件，从 `Resources/Voices` 按编号加载 wav，台词钉在底栏正中 `PlayerPosture` 上方（不要贴左下血条）。响度 = 检视器 `volume` × 音效滑条。不要用 Mixer。
-- 台词条放在 `GamePanel/VoiceLine`。没有组件时 `CombatUIController.Awake` 会补 `BossVoiceDirector`，没有 View 才运行时生成。
+- 台词条放在 `GamePanel/VoiceLine`，**不要背景框**（关掉 Image）。没有组件时 `CombatUIController.Awake` 会补 `BossVoiceDirector`，没有 View 才运行时生成。淡入淡出必须 `SetLink` 并在 `OnDisable` 里 `DOKill`，避免 CanvasGroup 销毁后 tween 还在改 alpha。
 - 时机与文本：
 
 | 时机 | 文件 | 台词 |

@@ -5,6 +5,10 @@ using UnityEngine;
 // 弦一郎语音 + 台词。时机走事件总线，不轮询战斗数值。
 public class BossVoiceDirector : MonoBehaviour
 {
+    public static BossVoiceDirector Instance { get; private set; }
+
+    public bool IsOpeningHold { get; private set; } = true;
+
     private const string VoiceFolder = "Voices";
     private const float MissingClipFallback = 2.4f;
     private const float LingerAfterClip = 0.35f;
@@ -45,6 +49,8 @@ public class BossVoiceDirector : MonoBehaviour
 
     private void Awake()
     {
+        Instance = this;
+        IsOpeningHold = true;
         source = GetComponent<AudioSource>();
         if (source == null)
             source = gameObject.AddComponent<AudioSource>();
@@ -67,6 +73,9 @@ public class BossVoiceDirector : MonoBehaviour
 
     private void OnDisable()
     {
+        if (Instance == this)
+            Instance = null;
+        IsOpeningHold = false;
         AudioVolumeSettings.OnChanged -= ApplyVolume;
         CombatEventBus.OnReviveAvailable -= HandleReviveAvailable;
         CombatEventBus.OnDeath -= HandleDeath;
@@ -161,6 +170,7 @@ public class BossVoiceDirector : MonoBehaviour
         yield return new WaitForSecondsRealtime(LingerAfterClip);
         view?.HideLine();
         playing = null;
+        IsOpeningHold = false;
     }
 
     private AudioClip LoadClip(string id)

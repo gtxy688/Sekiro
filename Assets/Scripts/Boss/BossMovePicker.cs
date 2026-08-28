@@ -76,6 +76,11 @@ public static class BossMovePicker
                 if (self.CurrentPosture < postureLow)
                     return 0f;
                 break;
+            case BossMoveExtra.ConsecutiveParry2:
+                // 贴身交锋过多才跳：连续被玩家完美弹开未满 2 次，权重为 0。
+                if (self.ConsecutiveTimesParried < 2)
+                    return 0f;
+                break;
         }
 
         return e.weight;
@@ -104,6 +109,19 @@ public static class BossMovePicker
 
     public static BossAnimSequence ChooseSequence(BossMoveEntry e, Animator animator)
     {
+        return ChooseSequence(e, animator, null, null);
+    }
+
+    public static BossAnimSequence ChooseSequence(
+        BossMoveEntry e, Animator animator, CharacterBody self, BossMoveTable table)
+    {
+        if (e != null && e.id == "JumpThrust")
+            return ChooseJumpThrustSequence(e, animator, self, table);
+        return ChooseUniformSequence(e, animator);
+    }
+
+    static BossAnimSequence ChooseUniformSequence(BossMoveEntry e, Animator animator)
+    {
         if (e == null || e.sequences == null) return null;
         int playable = 0;
         for (int i = 0; i < e.sequences.Length; i++)
@@ -124,11 +142,86 @@ public static class BossMovePicker
         return null;
     }
 
+    // 第一条命只突刺；第二条命横扫:突刺 = 表上权重（默认 7:3）。
+    static BossAnimSequence ChooseJumpThrustSequence(
+        BossMoveEntry e, Animator animator, CharacterBody self, BossMoveTable table)
+    {
+        if (e == null || e.sequences == null) return null;
+
+        bool firstLife = self == null || self.Config == null
+            || (self.Config.LifeCount - self.LivesRemaining) <= 0;
+        float sweepW = 0f;
+        float thrustW = 1f;
+        if (!firstLife)
+        {
+            sweepW = table != null ? table.jumpThrustLife2SweepWeight : 7f;
+            thrustW = table != null ? table.jumpThrustLife2ThrustWeight : 3f;
+            if (sweepW < 0f) sweepW = 0f;
+            if (thrustW < 0f) thrustW = 0f;
+        }
+
+        float sweepTotal = 0f;
+        float thrustTotal = 0f;
+        int sweepCount = 0;
+        int thrustCount = 0;
+        for (int i = 0; i < e.sequences.Length; i++)
+        {
+            if (!SequencePlayable(e.sequences[i], animator)) continue;
+            if (IsSweepLanding(e.sequences[i]))
+            {
+                sweepCount++;
+                sweepTotal = sweepW;
+            }
+            else
+            {
+                thrustCount++;
+                thrustTotal = thrustW;
+            }
+        }
+
+        float total = 0f;
+        if (sweepCount > 0) total += sweepTotal;
+        if (thrustCount > 0) total += thrustTotal;
+        if (total <= 0f)
+            return ChooseUniformSequence(e, animator);
+
+        bool pickSweep = sweepCount > 0 && Random.Range(0f, total) < sweepTotal;
+        int remain = pickSweep ? Random.Range(0, sweepCount) : Random.Range(0, thrustCount);
+        for (int i = 0; i < e.sequences.Length; i++)
+        {
+            if (!SequencePlayable(e.sequences[i], animator)) continue;
+            bool sweep = IsSweepLanding(e.sequences[i]);
+            if (sweep != pickSweep) continue;
+            if (remain == 0) return e.sequences[i];
+            remain--;
+        }
+
+        return ChooseUniformSequence(e, animator);
+    }
+
+    static bool IsSweepLanding(BossAnimSequence seq)
+    {
+        if (seq == null || seq.states == null || seq.states.Length == 0) return false;
+        string last = seq.states[seq.states.Length - 1];
+        return last == "Sweep";
+    }
+
     public static BossMoveWindow WindowFor(BossMoveEntry e, int segmentIndex)
     {
+        return WindowFor(e, segmentIndex, null);
+    }
+
+    public static BossMoveWindow WindowFor(BossMoveEntry e, int segmentIndex, BossAnimSequence seq)
+    {
+        if (seq != null && seq.windows != null && seq.windows.Length > 0)
+        {
+            int i = Mathf.Clamp(segmentIndex, 0, seq.windows.Length - 1);
+            return seq.windows[i];
+        }
+
         if (e == null || e.windows == null || e.windows.Length == 0)
             return new BossMoveWindow();
-        int i = Mathf.Clamp(segmentIndex, 0, e.windows.Length - 1);
-        return e.windows[i];
+        int iEntry = Mathf.Clamp(segmentIndex, 0, e.windows.Length - 1);
+        return e.windows[iEntry];
     }
 }

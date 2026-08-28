@@ -33,15 +33,17 @@ BoxCast 用"上一帧位置 → 当前帧位置"扫一段，防止高速挥砍�
 
 代码侧：到 `HitStartTime` 才开判定，到 `RecoveryWindowStart` 关判定（时钟是本招动画时间 `t`，可取消 = 判定段结束；退出再兜底关）。开判定时已重叠的目标先不算，等刀离开再扫进（连招防秒中）；每帧 SphereCast + OverlapSphere。
 
-Boss **一条 Clip 多段出伤**：`hitPulses` 非空时，`AttackState` 按每段 `[start,end)` 脉冲开关刀。每次 `Enable` 清空 `hitTargets`，所以每段对同一目标只结算一次。空数组仍走上面的一对开关。玩家通常长度为 1（一刀）；用 `ARPG/攻击时间轴` 对着动画拖。
+Boss **一条 Clip 多段出伤**：`hitPulses` 非空时，`AttackState` 按每段 `[start,end)` 脉冲开关刀。每次 `Enable` 清空 `hitTargets`，所以每段对同一目标只结算一次。空数组仍走上面的一对开关。玩家通常长度为 1（一刀）；用 `ARPG/攻击时间轴` 对着动画拖。多段连刀（飞舟 `Boat1` 等）在最后一刀结束前都会转向玩家，避免默认 `rotateEnd=0.35s` 导致后面几刀打空。
 
-**段/刀伤害：** 默认用招式行 `baseDamage` / `postureDamage` / `knockback`。`BossMoveWindow.overrideCombat` 覆盖整段；`HitPulse.overrideCombat` 覆盖这一刀（优先于段）。解析顺序：刀 → 段 → 招。弓段无近战红条，但仍走段覆盖（编辑器标「·箭」），烘焙进该段临时 `AttackConfig`。垫步/短位移段不配伤害。编辑器 `ARPG/招式伤害` 用「重击」勾选写入 `knockback`（>0 走 Heavy / GuardHeavy 受击）。开某一刀时再套该脉冲覆盖。相邻两刀无空隙时 `pulseIndex` 变化会重开判定并换伤害。
+**段/刀/箭伤害：** 默认用招式行 `baseDamage` / `postureDamage` / `knockback` / `hitGrade`。`BossMoveWindow.overrideCombat` 覆盖整段；`HitPulse.overrideCombat` 覆盖这一刀；`ArrowSpawnCue.overrideCombat` 覆盖这一箭（优先于段）。解析顺序：刀或箭 → 段 → 招。弓段无近战红条，`ARPG/招式伤害` 下列出每支出箭。垫步/短位移段不配伤害。等级枚举 Light / Mid / Heavy 决定打到玩家时的受击/格挡/弹反。默认数字：箭 Light 10/10、Mid 15/15、Heavy 20/20；刀 Light 10/10、Mid 15/15、Heavy 25/25。`knockback` 仍给 Boss 被打用。`Bow_Air5` / `Kengeki_Air5` 前四箭 Light，最后一箭 Mid。
+
+`ReportHit` 传入 `AttackConfig.HitGrade` 且 `isProjectile=false`；`ReportProjectileHit` 传入解析出的等级且 `isProjectile=true`。玩家受击读等级；Boss 受击仍读 knockback。
 
 **无近战判定（弓段 / 垫步）：** 写成 `hitStartTime == recoverStart == comboWindowEnd == stateDuration`，`hitPulses` 空。`AttackState` / `EnableWeaponHit` 全程不开刀。**不要把红条缩成 0～0.01s**：进招第 0 帧 `animTime=0`，`0 >= 0 && 0 < 0.01` 仍会亮刀一帧。时间轴点「关闭近战判定」再保存。弓 Clip 上不要加 `EnableWeaponHit` 动画事件；箭走投射物。
 
 ### 射箭（投射物）
 
-箭 Prefab 挂 `ArrowProjectile`（匀速直线 + 上一帧→当前帧 SphereCast）。**不要** `Hitbox`、**不要** Collider。出箭走招式表 `arrowCues`（相对本段动画 0 点），`BossAttackBaker` 烤进临时 `AttackConfig`，`AttackState` 读动画时间 `t` 到点调一次 `CharacterBody.SpawnArrow`。和 ♪ 音效同一套时间轴，**不要**在 Clip 上加 `SpawnArrow` 动画事件。方向锁开火瞬间指向玩家 `projectileAimPoint`（空则 Hurtbox 中心），不追踪。伤害用招式表：`AttackCombatResolve.Resolve(entry, window)`（招默认，段 `overrideCombat` 可盖），**不**用弓段烘焙的 NoHit `AttackConfig`。命中 `CombatManager.ReportProjectileHit` → `ReceiveHit`（可弹反/格挡，垫步可躲，非危字）。
+箭 Prefab 挂 `ArrowProjectile`（匀速直线 + 上一帧→当前帧 SphereCast）。**不要** `Hitbox`、**不要** Collider。出箭走招式表 `arrowCues`（相对本段动画 0 点），`BossAttackBaker` 烤进临时 `AttackConfig`，`AttackState` 读动画时间 `t` 到点调一次 `CharacterBody.SpawnArrow`。和 ♪ 音效同一套时间轴，**不要**在 Clip 上加 `SpawnArrow` 动画事件。方向锁开火瞬间指向玩家 `projectileAimPoint`（空则 Hurtbox 中心），不追踪。伤害用招式表：`AttackCombatResolve.Resolve(entry, window, cue)`（招默认，段覆盖，该支出箭 `overrideCombat` 可盖），**不**用弓段烘焙的 NoHit `AttackConfig`。命中 `CombatManager.ReportProjectileHit` → `ReceiveHit`（可弹反/格挡，垫步可躲，非危字）。**弹反箭不涨 Boss 架势、不把 Boss 弹进硬直。**
 
 Boss 拖：`arrowSpawn`、`arrowPrefab`、`arrowSpeed`（约 32）、`arrowCastRadius`（约 0.08）、`arrowLifetime`（约 2）、`arrowTargetLayers`（与刀相同）。时间轴对弓段点「加出箭」；`Bow_Air5` 插 5 个点。「关闭近战判定」不会清出箭点。
 
@@ -119,17 +121,19 @@ public class CombatManager : MonoBehaviour
 
 ## 四、M17 危字攻击
 
-- `AttackConfig.Perilous`（PerilousType：None/Thrust/Sweep/Grab/JumpThrust）：招式带危字标记
+- `AttackConfig.Perilous`（PerilousType：None/Thrust/Sweep/Grab；`JumpThrust` 枚举保留但招式表不再标）
 - Boss AI 选到危字招式 → 发事件 `CombatEventBus.TriggerPerilousAttack(type)` → UI 弹"危" + 警示音
 - 危字标记随 `HitData.isPerilous/perilousType` 传递（CombatManager 从 AttackConfig 读出传入 ReceiveHit）
 - **段级危字**：`BossMoveWindow.perilous` 优先于招式的 `entry.perilous`，支持一招多段中仅某段危字
   （如 `Slash_SpinElbow` 的 `Elbow` 段 = Grab；烘焙时 `BossAttackBaker` 按 段级→招式级 回退）
-- **危字应对配对（按类型，勿让 杠 z字类型串线）**：
-  - `Thrust` 突刺 → 识破（Mikiri）或 弹反（弹反窗口内弹开 / 窗口外格挡，防御系有效）
-  - `Sweep` 横扫 → 起跳踩头（空中被 Sweep 命中自动反制）或 垫步无敌帧躲避；**不可防御、不可识破**
-  - `Grab` 抓取 → 弹反或垫步躲避；不可识破
-  - `JumpThrust` 跳跃突刺 → 弹反或垫步躲避；**不可识破**（与地面突刺区分，独立枚举值）
-  - `DeflectState` 仅对 Sweep 失效，Thrust/JumpThrust/Grab 正常走弹反/格挡
+- **NoHit 段不弹危**：`canHit == false` 时烤成 `Perilous = None`，即使招式级标了危字
+- **危字应对配对（按类型，勿让危字类型串线）**：
+  - `Thrust` 突刺 → 识破（Mikiri）或 **弹反窗口内弹开**；**普通格挡等于没防**（全伤 + 受击）
+  - `Sweep` 横扫 → 先跳，空中再 Jump2 踩在 Boss 身上（上升 + 轻砍第一刀伤害，Boss 不播受击，本招判定关闭但动画继续）或垫步无敌躲避；不可防御、不可弹反、不可 Mikiri；只跳一次空中挨扫 = 没防
+  - `Grab` 抓取（Elbow 投技）→ **弹反窗口内弹开** 或 垫步躲避；不可识破；**普通格挡等于没防**。打中玩家后双方播 `Elbow_Danger`（成对投技，不瞬移，水平对视），播完回 Idle。扣血仍走招式表。
+  - `JumpThrust`（招式 ID，不是危字类型）：起跳段 NoHit、无危字；**起跳瞬间**按命数锁死落地。第一条命只出 `Kengeki_Thrust`；第二条命横扫:突刺 = 7:3（表字段 `jumpThrustLife2SweepWeight` / `jumpThrustLife2ThrustWeight`）。危字只在落地那一段 `AttackState.OnEnter` 弹出。落地突刺按 `Thrust` 应对（可识破）；落地横扫按 `Sweep` 应对（Jump2 踩头）
+  - `DeflectState`：危字先看弹反窗口；窗外（及 Sweep 全程）`OnHitReceived` 返回 false，走裸受击
+- **Boss 危字 / 飞舟 / JumpThrust 全段不会被抓前摇打断**：挨打仍结算，招继续（见 `01-states.md` AttackState 霸体）
 - **识破（Mikiri）**：仅 `Thrust` + **无方向键垫步** → `DodgeState.OnHitReceived` 拦截 → 切 `MikiriCounterState`
   （播踩刀动画、涨攻击者架势 `Config.MikiriPostureGain`、Perfect 打铁事件）→ 回 Idle。
   带方向垫步（后/左/右/前）即使踩中突刺也只走无敌帧，不识破。
@@ -151,4 +155,6 @@ public class CombatManager : MonoBehaviour
 - 修改：`Assets/Editor/AttackTimelineWindow.cs`（出箭轨道）
 - 修改：`Assets/Editor/BossMoveDamageWindow.cs`（招式伤害表）
 - 修改：`Assets/Scripts/FrameWork/States/Command.cs`（HitData 危字字段）
-- 修改：`Assets/Scripts/FrameWork/States/Ground/DodgeState.cs`（识破触发）
+- 新建：`Assets/Scripts/FrameWork/States/Ground/GrabThrowState.cs`（Elbow 投技成对 `Elbow_Danger`）
+- 修改：`Assets/Scripts/Combat/CombatManager.cs`（`TryStartGrabThrow`）
+- 修改：`Assets/Scripts/FrameWork/States/StunnedState.cs`（受击中再吃 Grab 进投技）

@@ -1,32 +1,83 @@
 using UnityEngine;
 
-// 受击状态（顶层父状态）：被打时强制打断一切行为，
-// 受击动画由 HurtContext 决定（受击表现接口，动画名映射在 CharacterConfig）
+// 受击状态（顶层父状态）：被打时强制打断一切行为。
+// 玩家走 HitGrade；Boss 仍走 HurtContext + knockback。
 public class StunnedState : HierarchicalState
 {
     private readonly HurtContext context;
+    private readonly HitGrade grade;
+    private readonly bool useHitGrade;
 
     public StunnedState(CharacterBody body, HurtContext context = HurtContext.Normal) : base(body)
     {
         this.context = context;
+        useHitGrade = false;
+    }
+
+    public StunnedState(CharacterBody body, HitGrade grade) : base(body)
+    {
+        this.grade = grade;
+        useHitGrade = true;
+        context = grade == HitGrade.Light ? HurtContext.Normal : HurtContext.Heavy;
     }
 
     protected override BaseState GetInitialSubState()
     {
-        // 空中受击状态已移除（无 Hurt_Air 动画），受击统一播地面受击
-        // 空中被打：硬直结束后由 GroundStunnedState 切回地面（可能轻微穿地，接受）
-        return new GroundStunnedState(body, this, context);
+        return new GroundStunnedState(body, this, context, useHitGrade, grade);
     }
 
-    // 受击期间吞掉所有命令，防止硬直里还能还手/跑动
     protected override bool OnParentHandleCommand(ICommand cmd)
     {
+        GroundStunnedState ground = SubStateMachine.CurrentState as GroundStunnedState;
+        if (useHitGrade && cmd is DodgeCommand)
+        {
+            if (ground != null && ground.CanDodgeCancel)
+            {
+                body.MainStateMachine.ChangeState(
+                    new GroundedState(body, new DodgeState(body, null)));
+                return true;
+            }
+            return true;
+        }
+        if (useHitGrade && cmd is DeflectCommand)
+        {
+            if (ground != null && ground.CanMidToGuard)
+            {
+                body.MainStateMachine.ChangeState(
+                    new GroundedState(body, new MidToGuardState(body)));
+                return true;
+            }
+            if (ground != null && ground.CanLightGuardCancel)
+            {
+                body.MainStateMachine.ChangeState(
+                    new GroundedState(body, new DeflectState(body, null)));
+                return true;
+            }
+        }
         return true;
     }
 
-    // 受击期间二次受击：全部拦截，防止硬直被刷新（M1）
     protected override bool OnParentHandleHit(HitData hit)
     {
+        if (!useHitGrade)
+            return true;
+
+        if (hit.perilousType == PerilousType.Grab)
+        {
+            body.TakeDamage(hit.healthDmg, hit.postureDmg);
+            if (body.CurrentHP <= 0) return true;
+            if (CombatManager.Instance != null)
+                CombatManager.Instance.TryStartGrabThrow(hit.attacker, body);
+            return true;
+        }
+
+        body.TakeDamage(hit.healthDmg, hit.postureDmg);
+        if (body.CurrentHP <= 0 || body.IsPostureBroken)
+            return true;
+
+        GroundStunnedState ground = SubStateMachine.CurrentState as GroundStunnedState;
+        if (ground != null)
+            ground.ReceiveFollowUpHit(hit);
         return true;
     }
 }

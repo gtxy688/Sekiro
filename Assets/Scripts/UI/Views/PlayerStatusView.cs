@@ -34,7 +34,8 @@ public class PlayerStatusView : UIView
 
         for (int i = 0; i < total; i++)
         {
-            bool used = i >= remaining;
+            // 从左到右用掉：剩 1 次时左边已换成 EndDot，右边还亮
+            bool used = i < total - remaining;
             Image live = reviveDots != null && i < reviveDots.Length ? reviveDots[i] : null;
             Image spent = endDots != null && i < endDots.Length ? endDots[i] : null;
             if (live != null)

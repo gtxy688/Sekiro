@@ -46,9 +46,7 @@ public class MikiriCounterState : BaseState
             }
         }
 
-        CombatEventBus.TriggerWeaponDeflected(
-            CombatFxPoint.BetweenWeapons(attacker, body, body.transform.position + Vector3.up * 1.2f),
-            DeflectType.Perfect);
+        // 识破是踩刀，不走格挡/弹反的打铁音效与火花（OnWeaponDeflected）。
     }
 
     public override void OnUpdate()

@@ -40,13 +40,17 @@ public class BT_ExecuteMove : Node, ISelectorLock
     {
         ResetMove();
         if (move == null) return NodeState.Failure;
-        sequence = BossMovePicker.ChooseSequence(move, body.Animator);
+        sequence = BossMovePicker.ChooseSequence(move, body.Animator, body, table);
         if (sequence == null) return NodeState.Failure;
         entry = move;
         started = true;
         segment = 0;
         allowInterrupt = interruptCurrent;
-        return FireCurrentSegment();
+        NodeState fired = FireCurrentSegment();
+        // 起跳成功才清连弹计数，避免 Begin 失败后永远抽不到。
+        if (fired != NodeState.Failure && move.extra == BossMoveExtra.ConsecutiveParry2)
+            body.ResetConsecutiveTimesParried();
+        return fired;
     }
 
     public override NodeState Evaluate()
@@ -91,17 +95,19 @@ public class BT_ExecuteMove : Node, ISelectorLock
 
         blackboard?.SetCooldown(entry.id);
         entry = heavy;
-        sequence = BossMovePicker.ChooseSequence(heavy, body.Animator);
+        sequence = BossMovePicker.ChooseSequence(heavy, body.Animator, body, table);
         segment = 0;
     }
 
     private NodeState FireCurrentSegment()
     {
         string anim = sequence.states[segment];
-        BossMoveWindow w = BossMovePicker.WindowFor(entry, segment);
+        BossMoveWindow w = BossMovePicker.WindowFor(entry, segment, sequence);
         body.CurrentMoveEntry = entry;
         body.CurrentMoveWindow = w;
         AttackConfig baked = BossAttackBaker.Bake(entry, anim, w);
+        if (body.Config != null)
+            baked.RotationSpeed = body.Config.RotationSpeed;
         body.ActiveAttack = baked;
         if (!body.StartAttack(baked, allowInterrupt))
         {

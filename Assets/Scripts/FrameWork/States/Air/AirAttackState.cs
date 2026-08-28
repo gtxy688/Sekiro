@@ -1,10 +1,12 @@
 using UnityEngine;
-public class AttackState : BaseState
+
+public class AirAttackState : BaseState
 {
     private readonly HierarchicalState parent;
     private readonly AttackConfig config; // 当前动作的全部数值与窗口均来自 SO
 
     private float animTime;
+    private float enterTime;
     private bool weaponHitEnabled;
     private int activePulseIndex = -1;
     private int fallbackDamage;
@@ -15,21 +17,32 @@ public class AttackState : BaseState
     private bool[] arrowFired;
     private BossMoveEntry moveEntry;
     private BossMoveWindow moveWindow;
-    private bool jumpThrustCameraActive;
 
-    // 构造函数只接收一个光盘（配置）
-    public AttackState(CharacterBody body, HierarchicalState parent, AttackConfig config) : base(body)
+    public AirAttackState(CharacterBody body, HierarchicalState parent, AttackConfig config) : base(body)
     {
         this.parent = parent;
         this.config = config;
     }
 
+    // 空中刀落地立刻离空：刚进招给一帧宽限，上升中不当落地，避免贴地起跳误掐
+    public bool WantsImmediateLand
+    {
+        get
+        {
+            if (Time.time - enterTime < 0.08f) return false;
+            if (body.Rb != null && body.Rb.velocity.y > 0.1f) return false;
+            return body.IsGrounded;
+        }
+    }
+
     public override void OnEnter()
     {
-        // 空配置保护：没有 AttackConfig 的 AttackState 无意义，立刻退回 Idle
+        enterTime = Time.time;
+
+        // 空配置保护：没有 AttackConfig 立刻退回空中待机，禁止切地面 Idle
         if (config == null)
         {
-            parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+            parent.SubStateMachine.ChangeState(new AirIdleState(body, parent, resumeAirborne: true));
             return;
         }
 
@@ -53,7 +66,7 @@ public class AttackState : BaseState
 
         if (!ValidateWindows())
         {
-            parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+            parent.SubStateMachine.ChangeState(new AirIdleState(body, parent, resumeAirborne: true));
             return;
         }
 
@@ -86,15 +99,13 @@ public class AttackState : BaseState
         {
             CombatEventBus.TriggerPerilousAttack(config.Perilous);
         }
-
-        jumpThrustCameraActive = moveEntry != null && moveEntry.id == "JumpThrust"
-            && config.AnimName == "JumpThrust";
-        if (jumpThrustCameraActive)
-            CombatEventBus.TriggerJumpThrustCamera(true);
     }
 
     public override void OnUpdate()
     {
+        // 落地由 AirState.LeaveAir 切回地面；这里不能继续把空中刀挥完
+        if (WantsImmediateLand) return;
+
         if (config == null) return;
 
         animTime = AttackAnimClock.ReadSeconds(body.Animator, config.AnimName);
@@ -113,18 +124,14 @@ public class AttackState : BaseState
         // 代码只负责状态时长与连招窗口判定
 
         // 动作彻底结束：stateDuration 到点，或（无连招的招）动画实际播完且判定段已全部关闭。
-        // 后一条专治"stateDuration 大于实际 clip 长度"的末帧冻结罚站。
-        bool animPlayedOut = !config.WaitAnimEnd && config.NextCombo == null
+        // 后一条专治"stateDuration 大于实际 clip 长度"的末帧冻结罚站——射箭/收弓段最容易踩：
+        // 动画播完停在最后一帧，animTime 却永远达不到 stateDuration，角色僵在原地等时长。
+        bool animPlayedOut = config.NextCombo == null
             && animTime >= LastHitWindowEnd()
             && IsAnimFinished(config.AnimName);
-        if (config.WaitAnimEnd)
+        if (animTime >= config.StateDuration || animPlayedOut)
         {
-            if (IsAnimFinished(config.AnimName))
-                parent.SubStateMachine.ChangeState(new IdleState(body, parent));
-        }
-        else if (animTime >= config.StateDuration || animPlayedOut)
-        {
-            parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+            parent.SubStateMachine.ChangeState(new AirIdleState(body, parent, resumeAirborne: true));
         }
     }
 
@@ -156,13 +163,11 @@ public class AttackState : BaseState
 
     public override void OnExit()
     {
-        if (jumpThrustCameraActive)
-            CombatEventBus.TriggerJumpThrustCamera(false);
+        // 只关本刀判定；SuppressAttackHitbox 是 Boss 横扫被踩后的旗，只在地面 AttackState.OnExit 清
         body.DisableWeaponHit();
         body.IsAttacking = false;
         body.IsAttackRecoveryOpen = false;
         body.AttackUninterruptible = false;
-        body.SuppressAttackHitbox = false;
         body.SetSuppressRootYaw(false);
     }
 
@@ -170,29 +175,9 @@ public class AttackState : BaseState
     {
         if (config == null) return false;
 
-        // 前摇可以主动取消；命中段锁定；进入后摇后重新开放所有非攻击行为。
+        // 前摇可以主动取消；命中段锁定；进入后摇后重新开放取消。
         bool canCancel = animTime < config.HitStartTime ||
                          animTime >= config.RecoveryWindowStart;
-
-        if (cmd is DeflectCommand)
-        {
-            if (canCancel)
-            {
-                parent.SubStateMachine.ChangeState(new DeflectState(body, parent));
-                return true;
-            }
-            return false;
-        }
-
-        if (cmd is DodgeCommand)
-        {
-            if (canCancel)
-            {
-                parent.SubStateMachine.ChangeState(new DodgeState(body, parent));
-                return true;
-            }
-            return false;
-        }
 
         if (cmd is AttackCommand)
         {
@@ -216,7 +201,21 @@ public class AttackState : BaseState
                 animTime <= config.ComboWindowEnd)
             {
                 parent.SubStateMachine.ChangeState(
-                    new AttackState(body, parent, config.NextCombo));
+                    new AirAttackState(body, parent, config.NextCombo));
+                return true;
+            }
+            return false;
+        }
+
+        if (cmd is JumpCommand)
+        {
+            if (canCancel)
+            {
+                // 必须先 Jump2 再切状态：先 ChangeState 会走 AirIdle OnEnter 播 Jump
+                // 已用过 Jump2：吃掉命令、连段继续，不要切走 AirAttack
+                body.TryAirJump2(out bool played);
+                if (played)
+                    parent.SubStateMachine.ChangeState(new AirIdleState(body, parent, startInJump2: true));
                 return true;
             }
             return false;
@@ -225,15 +224,6 @@ public class AttackState : BaseState
         if (cmd is MoveCommand moveCmd)
         {
             body.MoveDirection = moveCmd.Direction;
-            if (animTime >= config.RecoveryWindowStart &&
-                moveCmd.Direction.sqrMagnitude >= 0.01f)
-            {
-                // 锁定攻击接移动时直接进入四向循环。
-                // 若走默认 IdleToWalk，其前向根运动会让角色额外朝目标冲出一段。
-                string enterAnim = HasCombatTarget() ? null : "IdleToWalk";
-                parent.SubStateMachine.ChangeState(
-                    new MoveState(body, parent, enterAnim));
-            }
             return true;
         }
 
@@ -470,11 +460,6 @@ public class AttackState : BaseState
         }
 
         return body.InputToWorldDir(body.MoveDirection);
-    }
-
-    private bool HasCombatTarget()
-    {
-        return ResolveCombatTarget() != null;
     }
 
     private Transform ResolveCombatTarget()

@@ -13,6 +13,12 @@ public class BossMoveTable : ScriptableObject
     [Range(0f, 1f)]
     public float air5HeavyInterruptChance = 0.5f;
 
+    [Tooltip("JumpThrust 第二条命落地横扫权重（与突刺比，默认 7:3）")]
+    public float jumpThrustLife2SweepWeight = 7f;
+
+    [Tooltip("JumpThrust 第二条命落地突刺权重")]
+    public float jumpThrustLife2ThrustWeight = 3f;
+
     public BossMoveEntry[] moves;
 
     // 运行时调试白名单（不序列化进资产）：非空时抽招只允许名单内的招式 id。

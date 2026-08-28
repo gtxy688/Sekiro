@@ -21,7 +21,9 @@ public class CharacterConfig : ScriptableObject
     public float postureDecayDelay;    // 停止受击多少秒后开始回复
 
     [Header("受击")]
-    public float stunDuration;         // 硬直时长
+    public float stunDuration;              // Light：这么久后可垫步
+    public float knockdownStunDuration;     // Mid：这么久后可垫步；0 = 倒地不能垫
+    public float heavyStunDuration;         // Heavy：这么久后可垫步；0 = 倒地不能垫
 
     [Header("移动")]
     public float moveSpeed;
@@ -92,7 +94,7 @@ public bool AccumulatePosture(
 
 **规则（只狼）：**
 - 受到伤害 → 架势 + 伤害量（防御也涨架势）
-- 弹反成功 → 架势 + 少量（好的弹反不加）
+- 近战弹反成功 → 攻击者架势 + `DeflectPostureGain`；弹反箭不加攻击者架势
 - 架势满 → 按 Attack / Deflect / Mikiri 来源进入对应崩解硬直与处决窗口
 - 处决 → 清一条命 + 架势归零
 - 一段时间不受击 → 架势缓慢回复
@@ -132,8 +134,7 @@ void HandleDeath()
     if (ReviveRemaining > 0)
     {
         ReviveRemaining--;
-        // 弹复活提示（M13），按 R 回满血复活
-        // 等待 reviveConfirm 输入，或超时死亡
+        // OnReviveAvailable：画面变暗。倒完再 OnReviveChoiceReady 出选项。起死回生回满血；就此死去进真死。不超时。
     }
     else
     {
@@ -165,7 +166,8 @@ CombatEventBus:
   static event Action<CharacterBody, bool> OnFinisherOpportunityChanged
   static event Action<CharacterBody, int> OnGourdUsed           // (角色, 剩余次数)
   static event Action<CharacterBody> OnDeath
-  static event Action<CharacterBody> OnReviveAvailable
+  static event Action<CharacterBody> OnReviveAvailable      // 倒地开始，画面变暗
+  static event Action<CharacterBody> OnReviveChoiceReady    // 倒地结束，弹出选项
 ```
 
 ## 涉及文件

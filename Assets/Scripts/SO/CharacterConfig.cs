@@ -15,15 +15,30 @@ public class CharacterConfig : ScriptableObject
     public float PostureDecayDelay = 2f;  // 停止受击多少秒后开始回复
 
     [Header("受击")]
-    public float StunDuration = 0.5f; // 硬直时长
+    [Tooltip("Boss 非重击：硬直结束秒数。玩家 Light：受击后摇，这么久后可垫步取消；不垫则动画仍播完再回 Idle。")]
+    public float StunDuration = 0.5f;
+
+    [Tooltip("玩家 Mid 受击后摇：这么久后可垫步取消。不垫则倒地播完再 Standing。0 = 倒地期间不能垫步。")]
+    public float KnockdownStunDuration = 1.2f;
+
+    [Tooltip("玩家 Heavy 受击后摇：这么久后可垫步取消。不垫则倒地播完再 Standing。0 = 倒地期间不能垫步。")]
+    public float HeavyStunDuration = 1.2f;
 
     [Header("受击动画（接口预留，留空 = 回退到普通受击动画）")]
-    public string HurtAnim_Normal = "Hurt_Ground";     // 裸吃普通攻击
+    public string HurtAnim_Normal = "Hurt_Light";      // 玩家裸吃 Light（旧名 Hurt_Ground）
+    public string HurtAnim_Light2 = "Hurt_Light2";     // Light 连续受击
+    public string HurtAnim_Mid = "Hurt_Mid";
     public string HurtAnim_Heavy = "Hurt_Heavy";       // 强力招式（击飞/倒地），空则用 HurtAnim_Normal
+    public string HurtAnim_HeavyRepeat = "Hurt_HeavyRepeat";
+    public string HurtAnim_Standing = "Standing";      // Mid/Heavy 倒地后起身
+    public string HurtAnim_MidToGuard = "MidToGuard";
     public string HurtAnim_Guard = "Hurt_Guard";       // 格挡轻攻击，空则用 HurtAnim_Normal
     public string HurtAnim_GuardHeavy = "Hurt_GuardHeavy"; // 格挡重攻击（Knockback>0），空则用 HurtAnim_Guard
     public string HurtAnim_Deflected = "Deflected";    // 被完美弹反后的硬直，空则用 HurtAnim_Normal
-    public string HurtAnim_Broken = "Stagger_Broken";  // 架势崩解倒地（占位名）
+    public string HurtAnim_Broken = "Stagger_Broken";  // 架势崩解倒地（占位名）；箭 Heavy 普通格挡也播这段
+
+    [Tooltip("相对 Hurt_Mid 动画 0 点，秒。超过则不能 MidToGuard，进入躺地。")]
+    public float HurtMidFallEndTime = 0.4f;
 
     [Header("防御/弹反（M4）")]
     public float DeflectWindow = 0.3f;             // 完美弹反窗口（秒）
@@ -39,6 +54,12 @@ public class CharacterConfig : ScriptableObject
 
     [Header("架势（M9）")]
     public bool PostureDecayInverse = false;   // true=非线性（架势越高回越慢，Boss 用）；false=线性
+
+    [Tooltip("Stagger_Broken 动画开始后多久允许提前取消硬直：可切入 DeflectState（格挡/抬刀）或 DodgeState（垫步）。0 = 动画播完才能行动。")]
+    public float BrokenDeflectDodgeOpenTime = 0f;
+
+    [Tooltip("箭 Heavy 格挡（Stagger_Broken）或完美弹反（Deflect_HeavyArrow）动画开始后，多久允许格挡/垫步提前结束。0 = 必须播完。")]
+    public float ArrowHeavyDeflectDodgeOpenTime = 0f;
 
     [Header("命数（Boss 用，一阶段 2 条命）")]
     public int LifeCount = 1;      // 总命数（玩家填 1，Boss 填 2）
@@ -61,6 +82,13 @@ public class CharacterConfig : ScriptableObject
 
     // 只狼跳跃高度写在 TAE 里，hkx 的 Root Y 几乎不离地，所以用初速度补高度
     public float JumpSpeed = 6f;
+
+    [Header("横扫踩头")]
+    [Tooltip("脚底水平检测半径。踩中还要求 Boss 正在放 Sweep")]
+    public float SweepStompRadius = 0.6f;
+
+    [Tooltip("脚底相对 Boss 根向上的最大高度差")]
+    public float SweepStompHeight = 1.2f;
 
     [Header("跳跃动画时机（代码切 Jump / Jumping / Fall）")]
     [Tooltip("Jump 播到这个归一化时间就切 Jumping。起跳还在播人已经在空中 → 调小（0.4~0.7）")]
@@ -85,4 +113,8 @@ public class CharacterConfig : ScriptableObject
     [Header("葫芦/复活（玩家专属，Boss 用不到）")]
     public int GourdCount = 10;       // 初始葫芦次数
     public int ReviveCount = 1;       // 复活次数
+
+    [Header("喝药惩罚（Boss）")]
+    [Tooltip("检测到玩家喝药后，延迟这么久才开始播 Bow_Heavy。Boss 正在放招时等招打完再射，不打断。箭大约再过招式表出箭点（约 1.5s）飞出。调大可让葫芦播完后仍来得及弹反。0 = 空闲时立刻出招。")]
+    public float HealPunishDelay = 0.5f;
 }

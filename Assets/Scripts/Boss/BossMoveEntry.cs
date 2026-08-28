@@ -11,6 +11,7 @@ public class BossMoveEntry
     public int baseDamage = 10;
     public float postureDamage = 15f;
     public float knockback = 0f;
+    public HitGrade hitGrade = HitGrade.Light;
     public PerilousType perilous = PerilousType.None;
     public float minRange = 0f;
     public float maxRange = 99f;

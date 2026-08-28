@@ -18,6 +18,7 @@ public class CombatUIController : MonoBehaviour
     [SerializeField] private LockOnIndicatorView lockOnIndicatorView; // 屏幕锁定点，跟随 Boss Spine1
     [SerializeField] private PerilousWarningView perilousWarningView; // "危"字
     [SerializeField] private HealKanjiView healKanjiView;           // "治"字
+    [SerializeField] private ReviveKanjiView reviveKanjiView;       // "回生"字
     [SerializeField] private RevivePromptView revivePromptView;     // 回生提示（M14）
     [SerializeField] private GameOverView gameOverView;             // 死亡提示（M14）
     [SerializeField] private VictoryView victoryView;               // 胜利提示（M10）
@@ -38,6 +39,7 @@ public class CombatUIController : MonoBehaviour
         CombatEventBus.OnFinisherOpportunityChanged += HandleFinisherOpportunityChanged;
         CombatEventBus.OnGourdUsed += HandleGourdUsed;
         CombatEventBus.OnReviveAvailable += HandleReviveAvailable;
+        CombatEventBus.OnReviveChoiceReady += HandleReviveChoiceReady;
         CombatEventBus.OnRevived += HandleRevived;
         CombatEventBus.OnDeath += HandleDeath;
         CombatEventBus.OnVictory += HandleVictory;
@@ -54,6 +56,7 @@ public class CombatUIController : MonoBehaviour
         CombatEventBus.OnFinisherOpportunityChanged -= HandleFinisherOpportunityChanged;
         CombatEventBus.OnGourdUsed -= HandleGourdUsed;
         CombatEventBus.OnReviveAvailable -= HandleReviveAvailable;
+        CombatEventBus.OnReviveChoiceReady -= HandleReviveChoiceReady;
         CombatEventBus.OnRevived -= HandleRevived;
         CombatEventBus.OnDeath -= HandleDeath;
         CombatEventBus.OnVictory -= HandleVictory;
@@ -73,6 +76,7 @@ public class CombatUIController : MonoBehaviour
         BindLockOnView();
         BindPerilousView();
         BindHealKanjiView();
+        BindReviveKanjiView();
         revivePromptView?.OnViewInit();
         gameOverView?.OnViewInit();
         victoryView?.OnViewInit();
@@ -180,7 +184,17 @@ public class CombatUIController : MonoBehaviour
         {
             // 这次死亡会用掉一次回生：立刻把对应活点换成 EndDot
             playerStatusView?.SetReviveDots(Mathf.Max(0, playerBody.ReviveRemaining - 1));
-            revivePromptView?.ShowPrompt();
+            revivePromptView?.BeginDeathFade(playerBody != null ? playerBody.GetComponent<PlayerInput>() : null);
+        }
+    }
+
+    private void HandleReviveChoiceReady(CharacterBody c)
+    {
+        if (c == playerBody)
+        {
+            revivePromptView?.ShowChoices(
+                () => playerBody.TryExecuteCommand(new DeflectCommand()),
+                () => playerBody.TryExecuteCommand(new AttackCommand()));
         }
     }
 
@@ -190,6 +204,10 @@ public class CombatUIController : MonoBehaviour
         {
             revivePromptView?.HidePrompt();
             playerStatusView?.SetReviveDots(playerBody.ReviveRemaining);
+            if (reviveKanjiView == null)
+                BindReviveKanjiView();
+            reviveKanjiView?.BindFollowTarget(playerBody);
+            reviveKanjiView?.ShowRevive();
         }
     }
 
@@ -245,7 +263,7 @@ public class CombatUIController : MonoBehaviour
     {
         if (perilousWarningView == null)
             BindPerilousView();
-        perilousWarningView?.BindFollowTarget(bossBody);
+        perilousWarningView?.BindFollowTarget(playerBody);
         perilousWarningView?.ShowWarning(type);
     }
 
@@ -310,7 +328,7 @@ public class CombatUIController : MonoBehaviour
 
         if (perilousWarningView == null) return;
         perilousWarningView.enabled = true;
-        perilousWarningView.BindFollowTarget(bossBody);
+        perilousWarningView.BindFollowTarget(playerBody);
         perilousWarningView.OnViewInit();
     }
 
@@ -340,5 +358,33 @@ public class CombatUIController : MonoBehaviour
         healKanjiView.enabled = true;
         healKanjiView.BindFollowTarget(playerBody);
         healKanjiView.OnViewInit();
+    }
+
+    private void BindReviveKanjiView()
+    {
+        if (reviveKanjiView == null)
+        {
+            GameObject named = GameObject.Find("ReviveKanji");
+            if (named != null)
+                reviveKanjiView = named.GetComponent<ReviveKanjiView>();
+        }
+
+        if (reviveKanjiView == null)
+        {
+            ReviveKanjiView[] views = FindObjectsOfType<ReviveKanjiView>(true);
+            for (int i = 0; i < views.Length; i++)
+            {
+                if (views[i] != null && views[i].gameObject.scene.IsValid())
+                {
+                    reviveKanjiView = views[i];
+                    break;
+                }
+            }
+        }
+
+        if (reviveKanjiView == null) return;
+        reviveKanjiView.enabled = true;
+        reviveKanjiView.BindFollowTarget(playerBody);
+        reviveKanjiView.OnViewInit();
     }
 }

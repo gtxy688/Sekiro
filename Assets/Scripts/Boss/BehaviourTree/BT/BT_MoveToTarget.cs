@@ -36,12 +36,16 @@ public class BT_MoveToTarget : Node
         }
 
         float distance = Vector3.Distance(body.transform.position, target.position);
+        bool playerDowned = IsTargetDowned();
 
         if (distance <= stopDistance)
         {
-            return RoamAroundTarget();
+            body.PreferFastWalk = false;
+            return RoamAroundTarget(playerDowned ? 0f : roamApproachStrength);
         }
 
+        // 过远用 Walk 快跑拉近，不要用 Walk_Strafe 慢挪。
+        body.PreferFastWalk = true;
         Vector3 dir3D = (target.position - body.transform.position).normalized;
         Vector2 moveDir = new Vector2(dir3D.x, dir3D.z);
         body.MoveUsesWorldDir = true;
@@ -52,7 +56,8 @@ public class BT_MoveToTarget : Node
 
     // 近距离走位：始终看着玩家，脚步绕他侧向画圈（周期换边），并带一点前压。
     // 这样选招等待不再是"罚站"，玩家也能明显感到 Boss 一直在试探性地压迫。
-    private NodeState RoamAroundTarget()
+    // 玩家倒地时 approach=0，只绕尸不踩上去。
+    private NodeState RoamAroundTarget(float approach)
     {
         Vector3 toTarget = target.position - body.transform.position;
         toTarget.y = 0f;
@@ -77,12 +82,20 @@ public class BT_MoveToTarget : Node
             : body.transform.right;
 
         Vector3 roamDir = right * (roamSign * roamStrafeStrength)
-            + toTarget.normalized * roamApproachStrength;
+            + toTarget.normalized * approach;
         Vector2 moveDir = new Vector2(roamDir.x, roamDir.z);
 
         body.MoveUsesWorldDir = true;
         body.TryExecuteCommand(new MoveCommand(moveDir));
 
         return NodeState.Running;
+    }
+
+    private bool IsTargetDowned()
+    {
+        if (target == null) return false;
+        CharacterBody player = target.GetComponent<CharacterBody>();
+        if (player == null) player = target.GetComponentInParent<CharacterBody>();
+        return player != null && player.IsDowned;
     }
 }

@@ -63,7 +63,7 @@ public static class CombatHUDBuilder
         HealKanjiView healKanji = Object.FindObjectOfType<HealKanjiView>(true);
         if (healKanji == null)
             Debug.LogWarning("[CombatHUD] 场景里没有治愈 Billboard。先跑 Tools/战斗/生成治愈特效。");
-        RevivePromptView revive = BuildPrompt(canvas.transform, "RespawnPanel", "回生", "按攻击键复活");
+        RevivePromptView revive = BuildRespawnPanel(canvas.transform);
         GameOverView gameOver = BuildPromptAsGameOver(hud.transform);
         VictoryView victory = BuildVictory(canvas.transform);
 
@@ -175,7 +175,7 @@ public static class CombatHUDBuilder
         if (pause != null)
             pause.EditorPreviewAllPages();
 
-        BakeCombatOverlay(canvasTf.Find("RespawnPanel"), false, new Vector2(-560f, -240f));
+        ActivateRespawnPreview(canvasTf.Find("RespawnPanel"));
         BakeCombatOverlay(hud != null ? hud.Find("GameOver") : null, false, new Vector2(0f, -240f));
         BakeCombatOverlay(canvasTf.Find("GameOver"), false, new Vector2(0f, -240f));
         BakeCombatOverlay(canvasTf.Find("EndPanel"), true, new Vector2(560f, -240f));
@@ -191,7 +191,7 @@ public static class CombatHUDBuilder
 
         EditorSceneManager.MarkSceneDirty(canvas.gameObject.scene);
         Selection.activeGameObject = canvas.gameObject;
-        Debug.Log("[CombatHUD] 已把暂停/回生/真死/胜利铺到 GameScene，关掉压暗方便对照预览。Play 后会自动收回。");
+        Debug.Log("[CombatHUD] 已把暂停/回生/真死/胜利铺到 GameScene。回生屏用场景里的倒地布局，不再生成。Play 后会收回。");
     }
 
     private static void BakeCombatOverlay(Transform root, bool withActions, Vector2 panelOffset)
@@ -212,6 +212,7 @@ public static class CombatHUDBuilder
         }
 
         Transform dimmer = root.Find("Dimmer");
+        if (dimmer == null) dimmer = root.Find("Vignette");
         if (dimmer != null)
             dimmer.gameObject.SetActive(false);
 
@@ -402,21 +403,173 @@ public static class CombatHUDBuilder
         return view;
     }
 
-    private static RevivePromptView BuildPrompt(Transform parent, string name, string title, string hint)
+    [MenuItem("Tools/战斗/同步回生倒地屏到场景")]
+    public static void BakeRespawnDeathUi()
     {
-        GameObject root = CreatePromptRoot(parent, name);
-        TextMeshProUGUI titleT = CreateText(root.transform, "Title", title, 42, TextAlignmentOptions.Center);
-        TextMeshProUGUI hintT = CreateText(root.transform, "Hint", hint, 26, TextAlignmentOptions.Center);
-        CombatPromptStyle.EnsureChrome(root.transform, titleT, hintT, new Vector2(500f, 280f));
-        root.SetActive(false);
+        Canvas canvas = FindCombatCanvas();
+        if (canvas == null)
+        {
+            EditorUtility.DisplayDialog("同步回生倒地屏", "场景里找不到 CombatCanvas。请先打开 GameScene。", "确定");
+            return;
+        }
 
+        Transform root = canvas.transform.Find("RespawnPanel");
+        if (root == null)
+            root = canvas.transform.Find("GamePanel/RespawnPanel");
+        if (root == null)
+        {
+            EditorUtility.DisplayDialog("同步回生倒地屏", "场景里找不到 RespawnPanel。", "确定");
+            return;
+        }
+
+        BakeDeathLayout(root);
+        root.gameObject.SetActive(true);
+        EditorSceneManager.MarkSceneDirty(root.gameObject.scene);
+        Selection.activeGameObject = root.gameObject;
+        Debug.Log("[CombatHUD] 已把倒地屏写进 GameScene/RespawnPanel。勾选该物体即可预览，Play 不会再生成子物体。");
+    }
+
+    private static RevivePromptView BuildRespawnPanel(Transform parent)
+    {
+        GameObject root = CreatePromptRoot(parent, "RespawnPanel");
         RevivePromptView view = root.AddComponent<RevivePromptView>();
-        SerializedObject so = new SerializedObject(view);
-        so.FindProperty("reviveText").objectReferenceValue = titleT;
-        so.FindProperty("hintText").objectReferenceValue = hintT;
-        so.FindProperty("canvasGroup").objectReferenceValue = root.GetComponent<CanvasGroup>();
-        so.ApplyModifiedProperties();
+        BakeDeathLayout(root.transform);
+        root.SetActive(true);
         return view;
+    }
+
+    // 把只狼倒地屏写进场景。运行时 RevivePromptView 只读这些引用，不再 Instantiate。
+    private static void BakeDeathLayout(Transform root)
+    {
+        if (root == null) return;
+        Undo.RegisterFullObjectHierarchyUndo(root.gameObject, "Bake Respawn Death UI");
+
+        while (root.childCount > 0)
+            Undo.DestroyObjectImmediate(root.GetChild(0).gameObject);
+
+        CanvasGroup rootGroup = root.GetComponent<CanvasGroup>();
+        if (rootGroup == null)
+            rootGroup = Undo.AddComponent<CanvasGroup>(root.gameObject);
+        rootGroup.alpha = 1f;
+        rootGroup.interactable = false;
+        rootGroup.blocksRaycasts = false;
+
+        RectStretch(root.GetComponent<RectTransform>());
+
+        Image vignette = CreateRawImage(root, "Vignette", RevivePromptView.VignetteColor);
+        vignette.raycastTarget = true;
+        RectStretch(vignette.rectTransform);
+        vignette.transform.SetAsFirstSibling();
+
+        GameObject contentGo = CreateUi("DeathContent", root);
+        CanvasGroup contentGroup = contentGo.AddComponent<CanvasGroup>();
+        contentGroup.alpha = 1f;
+        contentGroup.interactable = true;
+        contentGroup.blocksRaycasts = true;
+        RectStretch(contentGo.GetComponent<RectTransform>());
+
+        TextMeshProUGUI deathKanji = CreateText(contentGo.transform, "DeathKanji", "死", 168f, TextAlignmentOptions.Center);
+        deathKanji.color = RevivePromptView.DeathRed;
+        PlaceUi(deathKanji.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 36f), new Vector2(520f, 220f));
+
+        TextMeshProUGUI deathSub = CreateText(contentGo.transform, "DeathSub", "D E A T H", 22f, TextAlignmentOptions.Center);
+        deathSub.color = RevivePromptView.DeathRed;
+        deathSub.characterSpacing = 18f;
+        PlaceUi(deathSub.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -78f), new Vector2(400f, 40f));
+
+        GameObject choicesGo = CreateUi("Choices", contentGo.transform);
+        RectTransform choicesRect = choicesGo.GetComponent<RectTransform>();
+        choicesRect.anchorMin = new Vector2(0.5f, 0f);
+        choicesRect.anchorMax = new Vector2(0.5f, 0f);
+        choicesRect.pivot = new Vector2(0.5f, 0f);
+        choicesRect.anchoredPosition = new Vector2(0f, 88f);
+        choicesRect.sizeDelta = new Vector2(900f, 48f);
+
+        Button revive = CreateChoice(choicesGo.transform, "ReviveChoice", new Vector2(-220f, 0f), "起死回生", out TextMeshProUGUI reviveLabel);
+        Button giveUp = CreateChoice(choicesGo.transform, "GiveUp", new Vector2(220f, 0f), "就此死去", out TextMeshProUGUI giveUpLabel);
+
+        TmpChineseFont.ApplyAll(root);
+
+        RevivePromptView view = root.GetComponent<RevivePromptView>();
+        if (view == null)
+            view = Undo.AddComponent<RevivePromptView>(root.gameObject);
+
+        SerializedObject so = new SerializedObject(view);
+        so.FindProperty("deathKanji").objectReferenceValue = deathKanji;
+        so.FindProperty("deathSub").objectReferenceValue = deathSub;
+        so.FindProperty("giveUpLabel").objectReferenceValue = giveUpLabel;
+        so.FindProperty("reviveLabel").objectReferenceValue = reviveLabel;
+        so.FindProperty("canvasGroup").objectReferenceValue = rootGroup;
+        so.FindProperty("contentGroup").objectReferenceValue = contentGroup;
+        so.FindProperty("vignette").objectReferenceValue = vignette;
+        so.FindProperty("giveUpButton").objectReferenceValue = giveUp;
+        so.FindProperty("reviveButton").objectReferenceValue = revive;
+        so.ApplyModifiedProperties();
+        EditorUtility.SetDirty(view);
+    }
+
+    private static void ActivateRespawnPreview(Transform root)
+    {
+        if (root == null) return;
+        if (root.Find("DeathContent") == null)
+            BakeDeathLayout(root);
+
+        root.gameObject.SetActive(true);
+        CanvasGroup group = root.GetComponent<CanvasGroup>();
+        if (group != null)
+        {
+            group.alpha = 1f;
+            group.interactable = false;
+            group.blocksRaycasts = false;
+        }
+
+        Transform content = root.Find("DeathContent");
+        if (content != null)
+        {
+            CanvasGroup contentGroup = content.GetComponent<CanvasGroup>();
+            if (contentGroup != null) contentGroup.alpha = 1f;
+        }
+    }
+
+    private static Image CreateRawImage(Transform parent, string name, Color color)
+    {
+        GameObject go = CreateUi(name, parent);
+        Image image = go.AddComponent<Image>();
+        image.color = color;
+        image.raycastTarget = false;
+        return image;
+    }
+
+    private static Button CreateChoice(Transform parent, string name, Vector2 position, string labelText, out TextMeshProUGUI label)
+    {
+        GameObject go = CreateUi(name, parent);
+        Image hit = go.AddComponent<Image>();
+        hit.color = new Color(1f, 1f, 1f, 0f);
+        hit.raycastTarget = true;
+
+        RectTransform rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = new Vector2(360f, 44f);
+
+        Button button = go.AddComponent<Button>();
+        button.transition = Selectable.Transition.None;
+        button.navigation = new Navigation { mode = Navigation.Mode.None };
+        button.targetGraphic = hit;
+
+        label = CreateText(go.transform, "Label", labelText, 26f, TextAlignmentOptions.Center);
+        label.color = RevivePromptView.ChoiceIdle;
+        RectStretch(label.rectTransform);
+        return button;
+    }
+
+    private static void PlaceUi(RectTransform rect, Vector2 anchor, Vector2 pos, Vector2 size)
+    {
+        rect.anchorMin = anchor;
+        rect.anchorMax = anchor;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = pos;
+        rect.sizeDelta = size;
     }
 
     private static GameOverView BuildPromptAsGameOver(Transform parent)

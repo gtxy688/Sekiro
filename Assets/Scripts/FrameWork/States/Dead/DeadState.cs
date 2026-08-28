@@ -1,5 +1,5 @@
 // 死亡父状态（M14，顶层 HierarchicalState）：
-// canRevive=true → 回生待机子状态（按攻击键复活 / 超时真死）
+// canRevive=true → 回生待机子状态（起死回生 / 就此死去）
 // canRevive=false → 游戏结束子状态（按攻击键重开场景）
 public class DeadState : HierarchicalState
 {

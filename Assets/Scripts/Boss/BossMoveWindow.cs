@@ -28,9 +28,13 @@ public class BossMoveWindow
     [Tooltip("相对本段动画 0 点出箭。空 = 本段不出箭。五连射插 5 条")]
     public ArrowSpawnCue[] arrowCues;
 
-    [Tooltip("勾选后本段用下面三个数；不勾则用招默认值。段内某刀还可再覆盖")]
+    [Tooltip("勾选后本段用下面的伤害和等级；不勾则用招默认值。段内某刀还可再覆盖")]
     public bool overrideCombat;
     public int baseDamage;
     public float postureDamage;
     public float knockback;
+    public HitGrade hitGrade;
+
+    [Tooltip("本段必须等 Animator 播完才结束（JumpThrust 起跳段）。StateDuration 仅作兜底上限。")]
+    public bool waitAnimEnd;
 }

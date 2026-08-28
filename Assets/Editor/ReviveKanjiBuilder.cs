@@ -2,22 +2,22 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-// 危.png 直接当图片画：亮度当透明，与治/回生同一套 HealSprite。
-public static class PerilousKanjiBuilder
+// 回生.png 直接当图片画：亮度当透明，位置与治字相同。
+public static class ReviveKanjiBuilder
 {
-    const string TexFolder = "Assets/Art/FX";
-    const string PrefabFolder = "Assets/Prefabs/FX/Perilous";
-    const string CoreMatPath = PrefabFolder + "/PerilousKanji_Core.mat";
-    const string PrefabPath = PrefabFolder + "/PerilousKanji.prefab";
+    const string TexPath = "Assets/Prefabs/FX/Respawn/回生.png";
+    const string PrefabFolder = "Assets/Prefabs/FX/Respawn";
+    const string CoreMatPath = PrefabFolder + "/ReviveKanji_Core.mat";
+    const string PrefabPath = PrefabFolder + "/ReviveKanji.prefab";
 
-    const float CoreWidth = 0.60f;
+    const float CoreWidth = 0.42f;
 
-    [MenuItem("Tools/战斗/生成危字特效")]
+    [MenuItem("Tools/战斗/生成回生特效")]
     public static void Build()
     {
         string message;
         bool ok = TryBuild(out message);
-        EditorUtility.DisplayDialog("生成危字特效", message, "确定");
+        EditorUtility.DisplayDialog("生成回生特效", message, "确定");
         if (ok)
         {
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
@@ -31,31 +31,15 @@ public static class PerilousKanjiBuilder
 
     public static bool TryBuild(out string message)
     {
-        EnsureFolder("Assets/Art", "FX");
-        EnsureFolder("Assets/Prefabs", "FX");
-        EnsureFolder("Assets/Prefabs/FX", "Perilous");
-
-        Texture2D tex = FindKanjiTex();
+        Texture2D tex = AssetDatabase.LoadAssetAtPath<Texture2D>(TexPath);
         if (tex == null)
         {
-            Texture2D selected = Selection.activeObject as Texture2D;
-            if (selected != null)
-            {
-                string selPath = AssetDatabase.GetAssetPath(selected);
-                string selName = System.IO.Path.GetFileNameWithoutExtension(selPath);
-                if (selName.Contains("危"))
-                    tex = selected;
-            }
-        }
-
-        if (tex == null)
-        {
-            message = "找不到「危.png」。请放到 Assets/Art/FX（或在 Project 里选中它）。";
+            message = "找不到「回生.png」。请放到 Assets/Prefabs/FX/Respawn。";
             return false;
         }
 
         PrepareTexture(tex);
-        tex = AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GetAssetPath(tex));
+        tex = AssetDatabase.LoadAssetAtPath<Texture2D>(TexPath);
 
         Shader shader = Shader.Find("ARPG/FX/HealSprite");
         if (shader == null)
@@ -64,12 +48,15 @@ public static class PerilousKanjiBuilder
             return false;
         }
 
-        Color tint = new Color(0.95f, 0.16f, 0.12f, 1f);
+        Color tint = new Color(0.96f, 0.88f, 0.62f, 1f);
         Material coreMat = CreateMat(CoreMatPath, shader, tex, tint);
 
-        GameObject root = new GameObject("PerilousWarning");
-        PerilousWarningView view = root.AddComponent<PerilousWarningView>();
-        MeshRenderer core = CreateQuad(root.transform, "Core", coreMat, CoreWidth);
+        GameObject root = new GameObject("ReviveKanji");
+        ReviveKanjiView view = root.AddComponent<ReviveKanjiView>();
+        float height = CoreWidth;
+        if (tex != null && tex.width > 0)
+            height = CoreWidth * ((float)tex.height / tex.width);
+        MeshRenderer core = CreateQuad(root.transform, "Core", coreMat, CoreWidth, height);
 
         SerializedObject so = new SerializedObject(view);
         so.FindProperty("glyphRenderer").objectReferenceValue = core;
@@ -85,7 +72,7 @@ public static class PerilousKanjiBuilder
 
         if (prefab == null)
         {
-            message = "保存 PerilousKanji.prefab 失败。";
+            message = "保存 ReviveKanji.prefab 失败。";
             return false;
         }
 
@@ -94,32 +81,9 @@ public static class PerilousKanjiBuilder
         AssetDatabase.Refresh();
 
         message = assigned
-            ? "已用 危.png 生成 Billboard（与治/回生同一套画法），并挂到场景里。"
+            ? "已用 回生.png 生成 Billboard，并挂到场景里。"
             : "已生成预制体，但没找到 CombatUIController。";
         return assigned;
-    }
-
-    static Texture2D FindKanjiTex()
-    {
-        string preferred = TexFolder + "/危.png";
-        Texture2D tex = AssetDatabase.LoadAssetAtPath<Texture2D>(preferred);
-        if (tex != null) return tex;
-
-        string[] folders = { TexFolder, "Assets/Sekrio/FX", "Assets/Sekiro/FX", PrefabFolder };
-        for (int f = 0; f < folders.Length; f++)
-        {
-            if (!AssetDatabase.IsValidFolder(folders[f])) continue;
-            string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { folders[f] });
-            for (int i = 0; i < guids.Length; i++)
-            {
-                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
-                string name = System.IO.Path.GetFileNameWithoutExtension(path);
-                if (!name.Contains("危")) continue;
-                return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-            }
-        }
-
-        return null;
     }
 
     static void PrepareTexture(Texture2D tex)
@@ -196,14 +160,14 @@ public static class PerilousKanjiBuilder
         return mat;
     }
 
-    static MeshRenderer CreateQuad(Transform parent, string name, Material mat, float width)
+    static MeshRenderer CreateQuad(Transform parent, string name, Material mat, float width, float height)
     {
         GameObject go = GameObject.CreatePrimitive(PrimitiveType.Quad);
         go.name = name;
         go.transform.SetParent(parent, false);
         go.transform.localPosition = Vector3.zero;
         go.transform.localRotation = Quaternion.identity;
-        go.transform.localScale = new Vector3(width, width, width);
+        go.transform.localScale = new Vector3(width, height, width);
 
         Collider col = go.GetComponent<Collider>();
         if (col != null) Object.DestroyImmediate(col);
@@ -219,35 +183,32 @@ public static class PerilousKanjiBuilder
 
     static bool PlaceInScene(GameObject prefab)
     {
-        PerilousWarningView[] views = Object.FindObjectsOfType<PerilousWarningView>(true);
+        ReviveKanjiView[] views = Object.FindObjectsOfType<ReviveKanjiView>(true);
         for (int i = 0; i < views.Length; i++)
         {
             if (views[i] == null) continue;
-            if (views[i].GetComponentInParent<Canvas>() != null)
-                views[i].gameObject.SetActive(false);
-            else
-                Undo.DestroyObjectImmediate(views[i].gameObject);
+            Undo.DestroyObjectImmediate(views[i].gameObject);
         }
 
         GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
-        instance.name = "PerilousWarning";
+        instance.name = "ReviveKanji";
         instance.SetActive(true);
-        Undo.RegisterCreatedObjectUndo(instance, "Place PerilousWarning");
+        Undo.RegisterCreatedObjectUndo(instance, "Place ReviveKanji");
 
         GameObject playerGo = GameObject.Find("Player");
         CharacterBody player = playerGo != null
             ? playerGo.GetComponent<CharacterBody>()
             : Object.FindObjectOfType<CharacterBody>(true);
-        PerilousWarningView view = instance.GetComponent<PerilousWarningView>();
+        ReviveKanjiView view = instance.GetComponent<ReviveKanjiView>();
         if (view != null && player != null)
             view.BindFollowTarget(player);
 
         CombatUIController controller = Object.FindObjectOfType<CombatUIController>(true);
         if (controller != null)
         {
-            Undo.RecordObject(controller, "Assign perilous warning");
+            Undo.RecordObject(controller, "Assign revive kanji");
             SerializedObject so = new SerializedObject(controller);
-            SerializedProperty prop = so.FindProperty("perilousWarningView");
+            SerializedProperty prop = so.FindProperty("reviveKanjiView");
             if (prop != null)
             {
                 prop.objectReferenceValue = view;
@@ -258,18 +219,5 @@ public static class PerilousKanjiBuilder
         }
 
         return false;
-    }
-
-    static void EnsureFolder(string parent, string name)
-    {
-        string path = parent + "/" + name;
-        if (!AssetDatabase.IsValidFolder(parent))
-        {
-            string[] parts = parent.Split('/');
-            if (parts.Length == 2)
-                AssetDatabase.CreateFolder(parts[0], parts[1]);
-        }
-        if (!AssetDatabase.IsValidFolder(path))
-            AssetDatabase.CreateFolder(parent, name);
     }
 }

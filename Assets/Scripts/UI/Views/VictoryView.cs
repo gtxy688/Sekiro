@@ -58,7 +58,7 @@ public class VictoryView : UIView
         if (victoryText != null) victoryText.transform.DOKill();
 
         canvasGroup.alpha = 0f;
-        canvasGroup.DOFade(1f, 0.35f).SetUpdate(true);
+        canvasGroup.DOFade(1f, 0.35f).SetUpdate(true).SetLink(gameObject);
         if (victoryText != null)
         {
             victoryText.color = CombatPromptStyle.Accent;

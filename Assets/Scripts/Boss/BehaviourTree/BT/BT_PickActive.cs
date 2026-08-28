@@ -7,13 +7,19 @@ public class BT_PickActive : Node, ISelectorLock
     private readonly BossMoveTable table;
     private readonly Transform target;
     private readonly BT_ExecuteMove executor;
+    private readonly float roamAfterAttack;
+    private readonly float roamAfterAttackJitter;
 
-    public BT_PickActive(CharacterBody body, BossMoveTable table, Transform target, BT_ExecuteMove executor)
+    public BT_PickActive(
+        CharacterBody body, BossMoveTable table, Transform target, BT_ExecuteMove executor,
+        float roamAfterAttack = 2.5f, float roamAfterAttackJitter = 1.2f)
     {
         this.body = body;
         this.table = table;
         this.target = target;
         this.executor = executor;
+        this.roamAfterAttack = roamAfterAttack;
+        this.roamAfterAttackJitter = roamAfterAttackJitter;
     }
 
     public override void SetBlackboard(Blackboard bb)
@@ -24,8 +30,7 @@ public class BT_PickActive : Node, ISelectorLock
 
     public override NodeState Evaluate()
     {
-        // 玩家喝药时让出树，给 BT_HealPunish 打断当前近战。
-        if (IsTargetHealing(target))
+        if (IsTargetDowned(target))
         {
             executor.ResetMove();
             return NodeState.Failure;
@@ -38,7 +43,17 @@ public class BT_PickActive : Node, ISelectorLock
             executor.ResetMove();
             return NodeState.Failure;
         }
-        if (executor.IsBusy) return executor.Evaluate();
+        if (executor.IsBusy)
+        {
+            NodeState busy = executor.Evaluate();
+            if (busy != NodeState.Running)
+                ArmRoamGap();
+            return busy;
+        }
+
+        if (IsRoamGapActive())
+            return NodeState.Failure;
+
         float dist = Vector3.Distance(body.transform.position, target.position);
         // 对齐参考文档：>7m 仍有远程招可抽（Bow_ThenSlash/Bow_Shot/Slash_Rush2，minRange 7/7/5），
         // 距离档完全由 BossMovePicker 的 minRange/maxRange 过滤；全冷却或缺状态抽不到才落回追击。
@@ -48,11 +63,27 @@ public class BT_PickActive : Node, ISelectorLock
         return executor.Begin(move);
     }
 
-    private static bool IsTargetHealing(Transform target)
+    private void ArmRoamGap()
+    {
+        if (blackboard == null) return;
+        float gap = roamAfterAttack + UnityEngine.Random.Range(0f, Mathf.Max(0f, roamAfterAttackJitter));
+        blackboard.Set("active_gap_dur", gap);
+        blackboard.SetCooldown("active_gap");
+    }
+
+    private bool IsRoamGapActive()
+    {
+        if (blackboard == null) return false;
+        float gap = blackboard.Get<float>("active_gap_dur");
+        if (gap <= 0.01f) gap = roamAfterAttack;
+        return blackboard.IsOnCooldown("active_gap", gap);
+    }
+
+    private static bool IsTargetDowned(Transform target)
     {
         if (target == null) return false;
         CharacterBody player = target.GetComponent<CharacterBody>();
         if (player == null) player = target.GetComponentInParent<CharacterBody>();
-        return player != null && player.IsHealing;
+        return player != null && player.IsDowned;
     }
 }

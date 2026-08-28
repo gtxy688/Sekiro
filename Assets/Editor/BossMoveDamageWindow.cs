@@ -7,8 +7,7 @@ public class BossMoveDamageWindow : EditorWindow
 {
     const string DefaultTablePath = "Assets/SO/Boss/GenichiroMoveTable.asset";
     const float NumWidth = 64f;
-    const float HeavyWidth = 36f;
-    const float HeavyKnockback = 1f;
+    const float GradeWidth = 72f;
 
     BossMoveTable table;
     Vector2 scroll;
@@ -46,7 +45,7 @@ public class BossMoveDamageWindow : EditorWindow
         }
 
         EditorGUILayout.HelpBox(
-            "招那一行是默认伤害。勾选段/刀/箭的「覆盖」后才能改那一行；不勾则跟招走。弓段不开刀，但可以单独改箭伤。垫步仍无伤害。勾「重击」后挨打走重受击（击退>0）。时间轴只管出伤帧。",
+            "招那一行是默认伤害和受击等级。勾选段/刀/箭的「覆盖」后才能改那一行；不勾则跟招走。弓段不开刀，但每支出箭可单独改伤和等级。垫步仍无伤害。等级 Light/Mid/Heavy 决定打到玩家时的受击/格挡/弹反。改等级会按默认表填数字：箭 Light 10/10、Mid 15/15、Heavy 20/20；刀 Light 10/10、Mid 15/15、Heavy 25/25。时间轴只管出伤帧。",
             MessageType.None);
 
         EditorGUILayout.BeginHorizontal();
@@ -81,7 +80,7 @@ public class BossMoveDamageWindow : EditorWindow
         GUILayout.Label("覆盖", EditorStyles.miniBoldLabel, GUILayout.Width(36));
         GUILayout.Label("血量", EditorStyles.miniBoldLabel, GUILayout.Width(NumWidth));
         GUILayout.Label("架势", EditorStyles.miniBoldLabel, GUILayout.Width(NumWidth));
-        GUILayout.Label("重击", EditorStyles.miniBoldLabel, GUILayout.Width(HeavyWidth));
+        GUILayout.Label("等级", EditorStyles.miniBoldLabel, GUILayout.Width(GradeWidth));
         EditorGUILayout.EndHorizontal();
     }
 
@@ -109,13 +108,21 @@ public class BossMoveDamageWindow : EditorWindow
         EditorGUI.BeginChangeCheck();
         int dmg = EditorGUILayout.IntField(entry.baseDamage, GUILayout.Width(NumWidth));
         float pos = EditorGUILayout.FloatField(entry.postureDamage, GUILayout.Width(NumWidth));
-        bool heavy = EditorGUILayout.Toggle(entry.knockback > 0f, GUILayout.Width(HeavyWidth));
+        HitGrade g = (HitGrade)EditorGUILayout.EnumPopup(entry.hitGrade, GUILayout.Width(GradeWidth));
         if (EditorGUI.EndChangeCheck())
         {
             Undo.RecordObject(table, "招默认伤害");
+            if (g != entry.hitGrade)
+            {
+                int snapDmg;
+                float snapPos;
+                AttackCombatResolve.DefaultCombat(g, AttackWindowSync.EntryUsesArrowNums(entry), out snapDmg, out snapPos);
+                dmg = snapDmg;
+                pos = snapPos;
+            }
             entry.baseDamage = dmg;
             entry.postureDamage = pos;
-            entry.knockback = heavy ? Mathf.Max(entry.knockback, HeavyKnockback) : 0f;
+            entry.hitGrade = g;
             EditorUtility.SetDirty(table);
         }
     }
@@ -143,7 +150,7 @@ public class BossMoveDamageWindow : EditorWindow
                 GUI.enabled = false;
                 EditorGUILayout.IntField(0, GUILayout.Width(NumWidth));
                 EditorGUILayout.FloatField(0f, GUILayout.Width(NumWidth));
-                EditorGUILayout.Toggle(false, GUILayout.Width(HeavyWidth));
+                EditorGUILayout.EnumPopup(HitGrade.Light, GUILayout.Width(GradeWidth));
                 GUI.enabled = true;
                 EditorGUILayout.EndHorizontal();
                 continue;
@@ -154,17 +161,24 @@ public class BossMoveDamageWindow : EditorWindow
                 ref w.baseDamage,
                 ref w.postureDamage,
                 ref w.knockback,
+                ref w.hitGrade,
                 entry.baseDamage,
                 entry.postureDamage,
-                entry.knockback);
+                entry.knockback,
+                entry.hitGrade,
+                arrow: ranged);
             EditorGUILayout.EndHorizontal();
-
-            if (ranged)
-                continue;
 
             int inheritDmg = w.overrideCombat ? w.baseDamage : entry.baseDamage;
             float inheritPos = w.overrideCombat ? w.postureDamage : entry.postureDamage;
             float inheritKb = w.overrideCombat ? w.knockback : entry.knockback;
+            HitGrade inheritGrade = w.overrideCombat ? w.hitGrade : entry.hitGrade;
+
+            if (ranged)
+            {
+                DrawArrowCues(w, inheritDmg, inheritPos, inheritKb, inheritGrade);
+                continue;
+            }
 
             if (w.hitPulses != null && w.hitPulses.Length > 0)
             {
@@ -183,9 +197,12 @@ public class BossMoveDamageWindow : EditorWindow
                         ref pulse.baseDamage,
                         ref pulse.postureDamage,
                         ref pulse.knockback,
+                        ref pulse.hitGrade,
                         inheritDmg,
                         inheritPos,
-                        inheritKb);
+                        inheritKb,
+                        inheritGrade,
+                        arrow: false);
                     EditorGUILayout.EndHorizontal();
                 }
             }
@@ -201,10 +218,51 @@ public class BossMoveDamageWindow : EditorWindow
                 GUI.enabled = false;
                 EditorGUILayout.IntField(inheritDmg, GUILayout.Width(NumWidth));
                 EditorGUILayout.FloatField(inheritPos, GUILayout.Width(NumWidth));
-                EditorGUILayout.Toggle(inheritKb > 0f, GUILayout.Width(HeavyWidth));
+                EditorGUILayout.EnumPopup(inheritGrade, GUILayout.Width(GradeWidth));
                 GUI.enabled = true;
                 EditorGUILayout.EndHorizontal();
             }
+        }
+    }
+
+    void DrawArrowCues(
+        BossMoveWindow w,
+        int inheritDmg,
+        float inheritPos,
+        float inheritKb,
+        HitGrade inheritGrade)
+    {
+        if (w.arrowCues == null || w.arrowCues.Length == 0)
+        {
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Space(32);
+            GUILayout.Label("箭  （时间轴未插出箭点）", GUILayout.ExpandWidth(true));
+            EditorGUILayout.EndHorizontal();
+            return;
+        }
+
+        for (int i = 0; i < w.arrowCues.Length; i++)
+        {
+            ArrowSpawnCue cue = w.arrowCues[i];
+            if (cue == null) continue;
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Space(32);
+            GUILayout.Label(
+                "箭 " + (i + 1) + "  " + cue.time.ToString("0.00") + "s",
+                GUILayout.ExpandWidth(true));
+            GUILayout.Label("", GUILayout.Width(48));
+            DrawOverrideCombat(
+                ref cue.overrideCombat,
+                ref cue.baseDamage,
+                ref cue.postureDamage,
+                ref cue.knockback,
+                ref cue.hitGrade,
+                inheritDmg,
+                inheritPos,
+                inheritKb,
+                inheritGrade,
+                arrow: true);
+            EditorGUILayout.EndHorizontal();
         }
     }
 
@@ -213,9 +271,12 @@ public class BossMoveDamageWindow : EditorWindow
         ref int dmg,
         ref float pos,
         ref float kb,
+        ref HitGrade grade,
         int inheritDmg,
         float inheritPos,
-        float inheritKb)
+        float inheritKb,
+        HitGrade inheritGrade,
+        bool arrow)
     {
         bool nextOv = EditorGUILayout.Toggle(ov, GUILayout.Width(36));
         if (nextOv != ov)
@@ -226,6 +287,7 @@ public class BossMoveDamageWindow : EditorWindow
                 dmg = inheritDmg;
                 pos = inheritPos;
                 kb = inheritKb;
+                grade = inheritGrade;
             }
             ov = nextOv;
             EditorUtility.SetDirty(table);
@@ -233,7 +295,6 @@ public class BossMoveDamageWindow : EditorWindow
 
         int showDmg = ov ? dmg : inheritDmg;
         float showPos = ov ? pos : inheritPos;
-        float showKb = ov ? kb : inheritKb;
         GUI.enabled = ov;
         EditorGUI.BeginChangeCheck();
         int nd = EditorGUILayout.IntField(showDmg, GUILayout.Width(NumWidth));
@@ -248,18 +309,22 @@ public class BossMoveDamageWindow : EditorWindow
             EditorUtility.SetDirty(table);
         }
 
-        bool shownHeavy = showKb > 0f;
-        bool nextHeavy = EditorGUILayout.Toggle(shownHeavy, GUILayout.Width(HeavyWidth));
-        if (nextHeavy != shownHeavy)
+        HitGrade showG = ov ? grade : inheritGrade;
+        HitGrade nextG = (HitGrade)EditorGUILayout.EnumPopup(showG, GUILayout.Width(GradeWidth));
+        if (nextG != showG)
         {
-            Undo.RecordObject(table, "重击");
+            Undo.RecordObject(table, "受击等级");
+            int snapDmg;
+            float snapPos;
+            AttackCombatResolve.DefaultCombat(nextG, arrow, out snapDmg, out snapPos);
             if (!ov)
             {
                 ov = true;
-                dmg = inheritDmg;
-                pos = inheritPos;
+                kb = inheritKb;
             }
-            kb = nextHeavy ? Mathf.Max(showKb, HeavyKnockback) : 0f;
+            grade = nextG;
+            dmg = snapDmg;
+            pos = snapPos;
             EditorUtility.SetDirty(table);
         }
     }

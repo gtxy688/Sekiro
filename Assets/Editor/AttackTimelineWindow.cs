@@ -606,6 +606,7 @@ public class AttackTimelineWindow : EditorWindow
             SaveMeleeWindow(playerConfig, clamped, forceNoHit);
             playerConfig.sfxCues = CloneSfx(workingSfx);
             playerConfig.arrowCues = CloneArrows(workingArrows);
+            AttackWindowSync.CoverDuration(playerConfig);
             EditorUtility.SetDirty(playerConfig);
             forceNoHit = false;
             workingPulses = ClonePulses(playerConfig.hitPulses, playerConfig.HitStartTime, playerConfig.RecoveryWindowStart);
@@ -618,6 +619,7 @@ public class AttackTimelineWindow : EditorWindow
         SaveMeleeWindow(w, clamped, forceNoHit);
         w.sfxCues = CloneSfx(workingSfx);
         w.arrowCues = CloneArrows(workingArrows);
+        AttackWindowSync.CoverDuration(w);
         EditorUtility.SetDirty(bossTable);
         forceNoHit = false;
         workingPulses = ClonePulses(w.hitPulses, w.hitStartTime, w.recoverStart);
@@ -801,9 +803,7 @@ public class AttackTimelineWindow : EditorWindow
         for (int i = 0; i < stored.Length; i++)
         {
             ArrowSpawnCue s = stored[i];
-            copy[i] = s == null
-                ? new ArrowSpawnCue()
-                : new ArrowSpawnCue { time = s.time };
+            copy[i] = s == null ? new ArrowSpawnCue() : s.Clone();
         }
         return copy;
     }
