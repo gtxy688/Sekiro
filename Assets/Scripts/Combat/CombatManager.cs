@@ -106,28 +106,6 @@ public class CombatManager : MonoBehaviour
         HitStop();
     }
 
-    // 横扫踩头：扣血涨架势但不走 ReceiveHit（Boss 不播受击、不切状态）。
-    public void ApplySweepStomp(CharacterBody player, CharacterBody boss)
-    {
-        if (player == null || boss == null || player == boss) return;
-
-        int hp = 10;
-        float posture = 15f;
-        if (player.LightAttack != null)
-        {
-            hp = player.LightAttack.BaseDamage;
-            posture = player.LightAttack.PostureDamage;
-        }
-
-        boss.SuppressAttackHitbox = true;
-        boss.DisableWeaponHit();
-        boss.TakeDamage(hp, posture, player);
-        CombatEventBus.TriggerWeaponDeflected(
-            CombatFxPoint.BetweenWeapons(player, boss, boss.transform.position + Vector3.up * 1.2f),
-            DeflectType.Perfect);
-        HitStop();
-    }
-
     // 箭扫到 Hurtbox。伤害由调用方从招式表解析，不读 Hitbox.Config。
     public void ReportProjectileHit(
         CharacterBody attacker,
@@ -310,7 +288,8 @@ public class CombatManager : MonoBehaviour
 
         CharacterBody victim = activeFinisherVictim;
         if (player != null) player.IsFinisherLocked = false;
-        if (victim != null) victim.IsFinisherLocked = false;
+        if (victim != null && victim.LivesRemaining > 0)
+            victim.IsFinisherLocked = false;
         activeFinisherPlayer = null;
         activeFinisherVictim = null;
         finisherResolved = false;

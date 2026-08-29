@@ -28,7 +28,7 @@
 | M8 接线 | `AttackState` 进出开关 `EnableWeaponHit/DisableWeaponHit` + 危字事件 |
 | M4 弹反/格挡 | `DeflectState` 重写：短按弹反/长按格挡/抖刀惩罚/危字放行；`ParriedState` 被弹开硬直 |
 | M9 架势 | 非线性回复（`PostureDecayInverse`）+ 格挡回复×5 + 崩解 `StaggerBrokenState`（玩家倒地/Boss 处决窗口） |
-| M17 横扫 | `AirIdleState` 跳踩反制（Sweep 危字）；`DodgeState` 无敌帧 0.3s |
+| M17 危字 | `MikiriCounterState`（突刺识破）+ `GrabThrowState`（肘击投技）；`DodgeState` 无敌帧 0.3s。横扫已删除（未实现跳踩反制） |
 | M10 处决 | `CombatManager.TryExecuteFinisher` + `FinisherState`（清命，2 命后胜利事件） |
 | M16 葫芦 | `HealState` 喝药动画 + 可被打断 |
 | M14 复活 | `DeadState`（回生待机/游戏结束）+ 按攻击键复活/重开场景 |
@@ -91,7 +91,7 @@
 | `FrameWork/States/Ground/MikiriCounterState.cs` | 识破（踩刀）状态：涨攻击者架势 |
 | `UI/Views/PerilousWarningView.cs` | "危"字提示 |
 
-> 注：早期文档曾写「已移除」，经确认**保留**（用户已解包对应动画）。横扫危字（跳踩反制）尚未实现，见待办。
+> 注：早期文档曾写「已移除」，经确认**保留**（用户已解包对应动画）。横扫已**删除**（未实现跳踩反制），见待办。
 
 ---
 
@@ -102,7 +102,7 @@
 | 1 | **M8 攻击接线** | `AttackState` 接 `EnableWeaponHit/DisableWeaponHit`（当前攻击打不出伤害，硬伤） | M3 |
 | 2 | **M4 弹反/格挡** | 方案 B 输入（短按弹反/长按格挡）+ 0.3s 窗口 + 抖刀惩罚 + 弹开硬直 + 独立弹反动画 | M1/M3 |
 | 3 | **M9 架势** | 非线性回复（格挡 ×5 / Boss 反函数）+ 击飞倒地 + 崩解窗口 | M1/M2 |
-| 4 | **M17 横扫** | 横扫危字 + 跳踩反制 | M1/M3 |
+| 4 | ~~M17 横扫~~ | ~~横扫危字 + 跳踩反制~~（已删除：未实现跳踩，Boss 无横扫招式） | M1/M3 |
 | 5 | **M10 处决** | 2 命处决 + 走近按键触发 + 5s 窗口 | M3/M9 |
 | 6 | **M16 葫芦** | 喝药动画 + 硬直（会被打断）+ 回满血 | M6 |
 | 7 | **M14 复活** | 回生动画 + 无敌帧 + 死亡重开 | M6/M13 |

@@ -121,8 +121,17 @@ public class BT_ExecuteMove : Node, ISelectorLock
         AttackConfig baked = BossAttackBaker.Bake(entry, anim, w);
         if (body.Config != null)
             baked.RotationSpeed = body.Config.RotationSpeed;
+        if (body.IsParried || body.IsPostureBroken || body.IsFinisherLocked)
+        {
+            ResetMove();
+            return NodeState.Failure;
+        }
         body.ActiveAttack = baked;
-        if (!body.StartAttack(baked, allowInterrupt))
+        // 第二段起直接切 AttackState，避免先进 Idle 再 CrossFade 导致跨子状态机读不到动画时间。
+        // 首段（segment == 0）与非地面态一律走 StartAttack 常规通道。
+        bool startedMove = segment > 0
+            && body.TryChangeGroundedSubState(g => new AttackState(body, g, baked));
+        if (!startedMove && !body.StartAttack(baked, allowInterrupt))
         {
             ResetMove();
             return NodeState.Failure;

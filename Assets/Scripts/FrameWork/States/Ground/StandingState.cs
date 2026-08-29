@@ -59,12 +59,8 @@ public class StandingState : BaseState
     void CancelStanding(bool toDeflect)
     {
         body.IsKnockedDown = false;
-        GroundedState ground = body.MainStateMachine.CurrentState as GroundedState;
-        if (ground == null) return;
-        if (toDeflect)
-            ground.SubStateMachine.ChangeState(new DeflectState(body, ground));
-        else
-            ground.SubStateMachine.ChangeState(new DodgeState(body, ground));
+        // 换格挡/垫步叶子（共用配方见 CharacterBody.TryChangeToDeflectOrDodge）
+        body.TryChangeToDeflectOrDodge(toDeflect);
     }
 
     // 已经算站起来：不要拦截，让 ReceiveHit 按新一击完整播。
@@ -75,10 +71,8 @@ public class StandingState : BaseState
 
     void GoIdle()
     {
-        GroundedState ground = body.MainStateMachine.CurrentState as GroundedState;
-        if (ground != null)
-            ground.SubStateMachine.ChangeState(new IdleState(body, ground));
-        else
+        // 地面上换 Idle 子状态；非地面态回退重建地面父状态
+        if (!body.TryChangeGroundedSubState(g => new IdleState(body, g)))
             body.MainStateMachine.ChangeState(new GroundedState(body));
     }
 }

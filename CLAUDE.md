@@ -56,7 +56,7 @@ AI 辅助开发，**用户负责测试与验收（按模块）**。AI 每完成�
 # 架构约束
 
 1. **HFSM 顶层只装 HierarchicalState**：GroundedState/AirState/StunnedState 是父状态。叶子状态（Idle/Move/Attack/Deflect/Dodge/Mikiri）永远在父状态 SubStateMachine 内。
-2. **禁止直接判顶层状态类型**：`MainStateMachine.CurrentState is DodgeState` 永远 false，禁止。查状态必须走 OnHitReceived/IsInState 层级查询。
+2. **禁止在业务代码直接判顶层状态类型**：`MainStateMachine.CurrentState is DodgeState` 永远 false，禁止。需要查询/切入顶层地面态时，一律走 `CharacterBody` 的封装 API（`IsGroundedTop` / `IsInGroundedSubState<T>` / `TryChangeGroundedSubState` / `ForceChangeGroundedSubState`），顶层类型判定只允许存在于 CharacterBody 内部。叶子状态查询走 OnHitReceived / 层级路由。
 3. **命中判定不用 OnTrigger**：用动画事件 + Physics.BoxCast/SphereCast（上一帧位置→当前帧位置扫描）。
 4. **伤害数据归属 AttackConfig（SO）**：不在 WeaponHitbox 等其他地方重复硬编码伤害值。
 5. **战斗数值全部走 SO**：不硬编码在 .cs 里。角色属性 → CharacterConfig，招式属性 → AttackConfig。

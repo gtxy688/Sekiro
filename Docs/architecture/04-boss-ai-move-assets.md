@@ -58,7 +58,7 @@
 | Slash_Spin        | 3037        | 3–5m 旋转横砍      | 是   | Slash_Spin         |      |
 | Elbow             | 3020        | 3–5m 肘击；常接在旋转后 | 是   | Elbow              |      |
 | Kick              | 3003 + 3045 | ≤3m 横砍后踢       | 是   | Attack_Slash+Kick | 两段动画 |
-| JumpThrust        | 3022        | 贴身跳跃，落地按命数分叉 | 是   | JumpThrust → Kengeki_Thrust / Sweep | 连续被玩家近战弹开 ≥2 且 ≤5m；起跳非危；第一条命只突刺，第二条命横扫:突刺 7:3；落地突刺用 3062 片；≠ 交锋抽招 |
+| JumpThrust        | 3022        | 贴身跳跃，落地突刺 | 是   | JumpThrust → Thrust | 连续被玩家近战弹开 ≥2 且 ≤5m；起跳非危；落地始终突刺（横扫已删除，不再按命数分叉）；落地突刺用 3062 片；≠ 交锋抽招 |
 | Slash_RushThenBow | 3007 + 3011 | >5m 冲近横砍再射箭    | 否   |    Kengeki_Heavy+3011                |      |
 
 
@@ -70,7 +70,6 @@
 | 招式 ID           | 原作编号                   | 用途    | 必须  | Animator 状态名 | 备注  |
 | --------------- | ---------------------- | ----- | --- | ------------ | --- |
 | Perilous_Thrust | 3062（交锋也用）             | 突刺，识破 | 是   | Thrust       |     |
-| Perilous_Sweep  | （文档未给独立主动 ID，片用 Sweep） | 横扫，跳踩 | 是   | Sweep        |     |
 
 
 ---

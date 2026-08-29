@@ -121,7 +121,7 @@ public class CombatManager : MonoBehaviour
 
 ## 四、M17 危字攻击
 
-- `AttackConfig.Perilous`（PerilousType：None/Thrust/Sweep/Grab；`JumpThrust` 枚举保留但招式表不再标）
+- `AttackConfig.Perilous`（PerilousType：None/Thrust/Grab；`Sweep` 枚举保留但已删除——未实现跳踩反制，`JumpThrust` 枚举保留但招式表不再标）
 - Boss AI 选到危字招式 → 发事件 `CombatEventBus.TriggerPerilousAttack(type)` → UI 弹"危" + 警示音
 - 危字标记随 `HitData.isPerilous/perilousType` 传递（CombatManager 从 AttackConfig 读出传入 ReceiveHit）
 - **段级危字**：`BossMoveWindow.perilous` 优先于招式的 `entry.perilous`，支持一招多段中仅某段危字
@@ -129,10 +129,9 @@ public class CombatManager : MonoBehaviour
 - **NoHit 段不弹危**：`canHit == false` 时烤成 `Perilous = None`，即使招式级标了危字
 - **危字应对配对（按类型，勿让危字类型串线）**：
   - `Thrust` 突刺 → 识破（Mikiri）或 **弹反窗口内弹开**；**普通格挡等于没防**（全伤 + 受击）
-  - `Sweep` 横扫 → 先跳，空中再 Jump2 踩在 Boss 身上（上升 + 轻砍第一刀伤害，Boss 不播受击，本招判定关闭但动画继续）或垫步无敌躲避；不可防御、不可弹反、不可 Mikiri；只跳一次空中挨扫 = 没防
   - `Grab` 抓取（Elbow 投技）→ **弹反窗口内弹开** 或 垫步躲避；不可识破；**普通格挡等于没防**。打中玩家后双方播 `Elbow_Danger`（成对投技，不瞬移，水平对视），播完回 Idle。扣血仍走招式表。
-  - `JumpThrust`（招式 ID，不是危字类型）：起跳段 NoHit、无危字；**起跳瞬间**按命数锁死落地。第一条命只出 `Kengeki_Thrust`；第二条命横扫:突刺 = 7:3（表字段 `jumpThrustLife2SweepWeight` / `jumpThrustLife2ThrustWeight`）。危字只在落地那一段 `AttackState.OnEnter` 弹出。落地突刺按 `Thrust` 应对（可识破）；落地横扫按 `Sweep` 应对（Jump2 踩头）
-  - `DeflectState`：危字先看弹反窗口；窗外（及 Sweep 全程）`OnHitReceived` 返回 false，走裸受击
+  - `JumpThrust`（招式 ID，不是危字类型）：起跳段 NoHit、无危字；**落地始终突刺**（横扫已删除，不再按命数分叉）。危字只在落地那一段 `AttackState.OnEnter` 弹出。落地突刺按 `Thrust` 应对（可识破）
+  - `DeflectState`：危字先看弹反窗口；窗外 `OnHitReceived` 返回 false，走裸受击
 - **Boss 危字 / 飞舟 / JumpThrust 全段不会被抓前摇打断**：挨打仍结算，招继续（见 `01-states.md` AttackState 霸体）
 - **识破（Mikiri）**：仅 `Thrust` + **无方向键垫步** → `DodgeState.OnHitReceived` 拦截 → 切 `MikiriCounterState`
   （播踩刀动画、涨攻击者架势 `Config.MikiriPostureGain`、Perfect 打铁事件）→ 回 Idle。

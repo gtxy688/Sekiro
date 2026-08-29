@@ -37,6 +37,8 @@ public class CharacterConfig : ScriptableObject
 
 CharacterBody 引用 `CharacterConfig config`，运行时从 config 读值初始化。
 
+Boss 被动防御参数（`PassiveDeflectThreshold` / `PassiveDeflectResetWindow`，M7 攻防转换）也在 CharacterConfig 中。横扫跳踩相关字段（`SweepStompRadius` / `SweepStompHeight`）已删除。
+
 ## 二、CharacterBody 战斗属性（M2）
 
 ```csharp

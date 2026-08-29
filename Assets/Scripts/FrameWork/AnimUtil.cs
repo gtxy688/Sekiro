@@ -67,6 +67,21 @@ public static class AnimUtil
         return true;
     }
 
+    // JumpThrust 两段都在 _Danger；仍用 Play 硬切，避免切招后 AttackAnimClock 读不到。
+    public static bool TryBeginAttackAnim(
+        Animator animator,
+        AttackConfig config,
+        BossMoveEntry moveEntry)
+    {
+        if (animator == null || config == null || string.IsNullOrEmpty(config.AnimName))
+            return false;
+
+        if (moveEntry != null && moveEntry.id == "JumpThrust")
+            return TryPlay(animator, config.AnimName);
+
+        return TryCrossFade(animator, config.AnimName, config.TransitionDuration);
+    }
+
     // 传入 Parent.State 时只取最后一段，与 Animator 短名哈希一致。
     private static int Hash(string name)
     {

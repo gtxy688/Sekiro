@@ -9,7 +9,7 @@ public class AirIdleState : BaseState
     {
         Takeoff,  // Jump：起跳
         Airborne, // Jumping：空中持续
-        Jump2,    // 空中二段（踩头 / 无踩只播片）
+        Jump2,    // 空中二段（无踩头，纯二段跳）
         Landing   // Fall：落地
     }
 
@@ -75,7 +75,6 @@ public class AirIdleState : BaseState
 
         if (phase == Phase.Jump2)
         {
-            body.TryApplySweepStomp();
             TryFinishJump2();
         }
 

@@ -38,7 +38,7 @@ public class BT_MoveToTarget : Node
         }
 
         float distance = Vector3.Distance(body.transform.position, target.position);
-        bool playerIncapacitated = IsTargetIncapacitated(target);
+        bool playerIncapacitated = BTUtil.IsTargetIncapacitated(target);
 
         if (distance <= stopDistance)
         {
@@ -107,13 +107,5 @@ public class BT_MoveToTarget : Node
         body.TryExecuteCommand(new MoveCommand(moveDir));
 
         return NodeState.Running;
-    }
-
-    private static bool IsTargetIncapacitated(Transform targetTransform)
-    {
-        if (targetTransform == null) return false;
-        CharacterBody player = targetTransform.GetComponent<CharacterBody>();
-        if (player == null) player = targetTransform.GetComponentInParent<CharacterBody>();
-        return player != null && player.IsIncapacitatedForBoss;
     }
 }

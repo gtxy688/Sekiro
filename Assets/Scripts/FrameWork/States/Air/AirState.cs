@@ -52,10 +52,4 @@ public class AirState : HierarchicalState
             body.MainStateMachine.ChangeState(new GroundedState(body));
         }
     }
-
-    // 没有其他要拦截的了，直接返回 false
-    protected override bool OnParentHandleCommand(ICommand cmd)
-    {
-        return false;
-    }
 }

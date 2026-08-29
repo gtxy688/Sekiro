@@ -78,6 +78,12 @@ public class CharacterConfig : ScriptableObject
     public float MikiriDuration = 0.8f;      // 踩刀动画时长
     public float MikiriPostureGain = 30f;    // 识破成功涨攻击者架势
 
+    [Header("Boss 被动防御（M7 攻防转换）")]
+    [Tooltip("Boss 被动格挡的连续计数阈值：连续格挡满该次数后，下一次受击升级为完美弹反。2 = 第 3 刀必弹反。0 = 每次被动防御都是完美弹反")]
+    public int PassiveDeflectThreshold = 2;
+    [Tooltip("放下防御 / 停止被压制这么久（秒）后，清零被动格挡连续计数")]
+    public float PassiveDeflectResetWindow = 2.5f;
+
     [Header("移动")]
     // 移动速度由动画 Root 曲线决定（全权根运动），这里只留转身速度
     public float RotationSpeed = 720f;
@@ -88,13 +94,6 @@ public class CharacterConfig : ScriptableObject
 
     // 只狼跳跃高度写在 TAE 里，hkx 的 Root Y 几乎不离地，所以用初速度补高度
     public float JumpSpeed = 6f;
-
-    [Header("横扫踩头")]
-    [Tooltip("脚底水平检测半径。踩中还要求 Boss 正在放 Sweep")]
-    public float SweepStompRadius = 0.85f;
-
-    [Tooltip("脚底相对 Boss 根节点向上的最大高度差。跳起二段踩头需覆盖起跳高度，默认 2.5")]
-    public float SweepStompHeight = 2.5f;
 
     [Header("跳跃动画时机（代码切 Jump / Jumping / Fall）")]
     [Tooltip("Jump 播到这个归一化时间就切 Jumping。起跳还在播人已经在空中 → 调小（0.4~0.7）")]

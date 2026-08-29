@@ -46,7 +46,6 @@ public void OnDrinkGourdAnimEvent() { /* 补血动作完成时回调 */ }
 | 玩家连段每段 | 同上 |
 | Boss 近战连段 | 同上（招式表 `hitPulses` / `sfxCues`） |
 | Boss 突刺 (Thrust) | 同上 |
-| Boss 横扫 (Sweep) | 同上 |
 | Boss 射箭 | 时间轴 `arrowCues`；Clip 不要 `SpawnArrow` / `EnableWeaponHit` |
 | 玩家 `Finsher_Ground` / `Finsher_Deflect` / `Finsher_Mikiri` | 无事件；动画结束由 `FinisherState` 清命 |
 | Boss 三组成对忍杀 | 无清命事件，只同步播放 |

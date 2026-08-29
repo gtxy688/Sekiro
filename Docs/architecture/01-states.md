@@ -30,10 +30,11 @@ MainStateMachine（顶层，只装 HierarchicalState）
 > 代码只负责朝向（RotateTowards）与状态切换，不再直接设置速度。
 > 切动画一律走 `AnimUtil.TryPlay` / `TryCrossFade`：用短名哈希在整层查找（状态名不重复），不要拼 `_Hurt.xxx`。两参数 `CrossFade` 会把 layer 当成 -1，必须走带 layer 的哈希重载。
 > **已移除的状态**：AirDeflectState / AirStunnedState / 独立 JumpState/FallState 仍不恢复。AirAttackState 已恢复。
-> **空中命令**：滞空可 `AttackCommand`（随时）与一次 `JumpCommand`（Jump2）。落地立刻离开 `AirAttackState`，不在地上把空中刀挥完。Jump2 没踩中不给垂直速度。踩中见 `03-hit-detection.md`。
+> **空中命令**：滞空可 `AttackCommand`（随时）与一次 `JumpCommand`（Jump2 空中二段）。落地立刻离开 `AirAttackState`，不在地上把空中刀挥完。Jump2 为纯二段跳（横扫跳踩已删除）。
 
 **红线**：顶层只装 HierarchicalState。叶子状态永远在父状态 SubStateMachine 内。
 **红线**：`MainStateMachine.CurrentState is DodgeState` 永远为 false，禁止这样查。
+**红线**：业务代码禁止直接判顶层状态类型（`CurrentState is GroundedState` / `as GroundedState`）。需要查询或切入顶层地面态时，一律走 `CharacterBody` 的封装 API：`IsGroundedTop` / `IsInGroundedSubState<T>` / `TryChangeGroundedSubState` / `ForceChangeGroundedSubState`（顶层类型判定只允许存在于 CharacterBody 内部）。
 
 ## 二、命令路由（已有）
 

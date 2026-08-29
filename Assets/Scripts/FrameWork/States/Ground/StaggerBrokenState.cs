@@ -104,9 +104,11 @@ public class StaggerBrokenState : BaseState
         if (cmd is DeflectCommand || cmd is DodgeCommand)
         {
             if (CanDeflectOrDodgeCancel &&
-                body.MainStateMachine.CurrentState is GroundedState grounded)
+                body.TryChangeToDeflectOrDodge(cmd is DeflectCommand))
             {
-                CancelBreakTo(grounded, cmd is DeflectCommand);
+                // 架势条同步清空（与 RecoverFromBreak 一致），留在同一个 GroundedState 里只换子状态，
+                // 不走 RecoverFromBreak 重建顶层（会掐断垫步/抬刀的进场）。
+                body.ClearPostureBreak();
                 return true;
             }
 
@@ -115,17 +117,6 @@ public class StaggerBrokenState : BaseState
         }
 
         return true;
-    }
-
-    void CancelBreakTo(GroundedState grounded, bool toDeflect)
-    {
-        // 架势条同步清空（与 RecoverFromBreak 一致），留在同一个 GroundedState 里只换子状态，
-        // 不走 RecoverFromBreak 重建顶层（会掐断垫步/抬刀的进场）。
-        body.ClearPostureBreak();
-        if (toDeflect)
-            grounded.SubStateMachine.ChangeState(new DeflectState(body, grounded));
-        else
-            grounded.SubStateMachine.ChangeState(new DodgeState(body, grounded));
     }
 
     private void FinishBreak()

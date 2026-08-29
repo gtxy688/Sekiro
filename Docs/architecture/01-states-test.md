@@ -43,7 +43,7 @@ Player（GameObject）
 | `MidToGuard` | Hurt_Mid 倒地结束前按防御 | MidToGuardState.cs |
 | `Jump` | 起跳（上升段） | AirIdleState.cs |
 | `Fall` | 下落（过最高点后切） | AirIdleState.cs |
-| `Jump2` | 空中再跳（踩头；没踩中不升高） | AirIdleState.cs |
+| `Jump2` | 空中二段跳 | AirIdleState.cs |
 | `AirAttack1` | 空中轻砍 1（伤害对齐地面 atk1） | AirAttackState.cs |
 | `AirAttack2` | 空中轻砍 2（伤害对齐地面 atk2） | AirAttackState.cs |
 | `AirAttack3` | 空中轻砍 3（伤害对齐地面 atk3） | AirAttackState.cs |

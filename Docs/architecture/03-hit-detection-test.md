@@ -55,14 +55,10 @@ Play `GameScene` 后用玩家普攻（点按）验收，不要再挂临时开闭
 | 8b | Boss 放突刺，玩家在**弹反窗口内**弹刀 | 仍弹开，Boss 硬直 |
 | 8c | Boss 放 `Elbow`（Grab），举盾挨打 | 同 8：没防；窗口内弹反仍有效 |
 | 8d | Boss 放 `JumpThrust` 起跳阶段 | **不弹危字**；起跳可被打但招不中断（霸体） |
-| 8e | 第一条命 `JumpThrust` 落地 | 一定是突刺；弹「危」；应对同 8/9（可识破） |
-| 8f | 第二条命 `JumpThrust` 落地横扫（`Sweep`） | 弹「危」；应对同 10b（Jump2 踩头），不可识破 |
+| 8e | `JumpThrust` 落地 | 一定是突刺；弹「危」；应对同 8/9（可识破） |
 | 9 | Boss 放突刺，玩家**不按方向**只按垫步 | 触发 MikiriCounterState，播踩刀动画，敌人架势大幅上涨；Boss 保持被打断时朝向，不反向、不追着玩家转 |
 | 9b | Boss 放突刺，玩家**按后/左/右**再垫步 | 不识破；无敌帧内躲开或硬直后挨打；Boss 不进 `Mikiri_Deflect` |
 | 10 | 普通攻击时玩家垫步 | 无敌帧判定（M4 细化） |
-| 10b | Boss 放 Sweep，跳起再 Jump2 踩中 | 玩家上升；Boss 掉与轻砍第一刀相同的血/架势、不播 Hurt；横扫继续但后续扫不中 |
-| 10c | Boss 放 Sweep，只跳一次空中挨扫 | 全额受伤，Boss 不被弹开 |
-| 10d | Sweep 时无方向垫步 | 不识破（仍只有突刺 Mikiri） |
 
 ## 肘击 Hitbox 槽（Slash_SpinElbow）
 

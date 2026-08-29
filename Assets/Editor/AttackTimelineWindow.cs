@@ -276,7 +276,7 @@ public class AttackTimelineWindow : EditorWindow
                 new GUIContent(
                     "切下一段时间 (秒)",
                     "从本段动画 0 点算起，到这一秒就切下一段。必须先取消「等本段播完再切」。JumpThrust 提前混突刺：招式选 JumpThrust，第几段选 1/2 JumpThrust，改这一项。"),
-                window.stateDuration);
+                cutAt);
         }
         if (EditorGUI.EndChangeCheck())
         {
@@ -288,6 +288,8 @@ public class AttackTimelineWindow : EditorWindow
             if (!waitEnd)
             {
                 window.stateDuration = Mathf.Clamp(cutAt, 0.01f, Mathf.Max(0.01f, clipLength));
+                if (window.comboWindowEnd > window.stateDuration)
+                    window.comboWindowEnd = window.stateDuration;
                 if (window.rotateEnd > window.stateDuration)
                     window.rotateEnd = window.stateDuration;
             }
@@ -298,7 +300,7 @@ public class AttackTimelineWindow : EditorWindow
             EditorGUILayout.HelpBox("现在等本段播完才混下一段。要提前衔接：取消勾选，再把「切下一段时间」改小。", MessageType.Info);
         else
             EditorGUILayout.HelpBox(
-                $"到 {window.stateDuration:0.00} 秒切下一段，混合时长看下一段的「切入混合」。不要点「用动画长度填写时长」（会填回整段 Clip）。",
+                $"到 {Mathf.Clamp(cutAt, 0.01f, Mathf.Max(0.01f, clipLength)):0.00} 秒切下一段，混合时长看下一段的「切入混合」。不要点「用动画长度填写时长」（会填回整段 Clip）。",
                 MessageType.None);
     }
 

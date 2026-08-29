@@ -98,21 +98,14 @@ public class MidToGuardState : BaseState
 
     void Finish()
     {
-        GroundedState ground = body.MainStateMachine.CurrentState as GroundedState;
-        if (ground == null) return;
-        if (released)
-            ground.SubStateMachine.ChangeState(new IdleState(body, ground));
-        else
-            ground.SubStateMachine.ChangeState(new DeflectState(body, ground));
+        body.TryChangeGroundedSubState(g => released
+            ? (BaseState)new IdleState(body, g)
+            : new DeflectState(body, g));
     }
 
     void CancelToDeflectOrDodge(bool toDeflect)
     {
-        GroundedState ground = body.MainStateMachine.CurrentState as GroundedState;
-        if (ground == null) return;
-        if (toDeflect)
-            ground.SubStateMachine.ChangeState(new DeflectState(body, ground));
-        else
-            ground.SubStateMachine.ChangeState(new DodgeState(body, ground));
+        // 换格挡/垫步叶子（共用配方见 CharacterBody.TryChangeToDeflectOrDodge）
+        body.TryChangeToDeflectOrDodge(toDeflect);
     }
 }

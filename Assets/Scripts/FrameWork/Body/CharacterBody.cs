@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 [RequireComponent(typeof(Animator), typeof(Rigidbody))]
@@ -128,6 +129,7 @@ public class CharacterBody : MonoBehaviour
 
     // 剩余命数（Boss 一阶段 2 条命；玩家 1 条）
     public int LivesRemaining { get; private set; }
+    public bool IsDefeated => LivesRemaining <= 0;
 
     // 是否正在格挡姿态（DeflectState 长按中）——架势回复 ×5 用
     public bool IsGuarding { get; set; }
@@ -171,15 +173,11 @@ public class CharacterBody : MonoBehaviour
 
     // 多段刀当前脉冲（弹反 Boat 最后一刀等）。AttackState 写入。
     public int ActiveHitPulseIndex { get; set; } = -1;
-    // 横扫被踩后关刀：招继续播，但不走 ReceiveHit、也不再开判定
-    public bool SuppressAttackHitbox { get; set; }
     public bool AirJump2Used { get; private set; }
-    public bool SweepStompApplied { get; private set; }
 
     public void ResetAirJump2()
     {
         AirJump2Used = false;
-        SweepStompApplied = false;
     }
     // 连续被对手近战完美弹开的次数。JumpThrust（3022）抽招读这个；出手或交锋中断后清零。
     public int ConsecutiveTimesParried { get; private set; }
@@ -365,79 +363,7 @@ public class CharacterBody : MonoBehaviour
         ApplyJumpVelocity(speed);
     }
 
-    public bool IsPerformingSweep()
-    {
-        if (!IsAttacking) return false;
-        if (CurrentMoveEntry != null && CurrentMoveEntry.id == "Perilous_Sweep")
-            return true;
-        if (Animator != null && AnimUtil.IsPlaying(Animator.GetCurrentAnimatorStateInfo(0), "Sweep"))
-            return true;
-        return false;
-    }
-
-    public bool IsWithinSweepStompRange(CharacterBody boss)
-    {
-        if (boss == null || Config == null) return false;
-        Vector3 feet = groundCheckPoint != null ? groundCheckPoint.position : transform.position;
-        if (!TryGetStompBounds(boss, out Bounds bounds))
-            return false;
-
-        Vector3 closest = bounds.ClosestPoint(feet);
-        float horiz = Vector2.Distance(
-            new Vector2(feet.x, feet.z),
-            new Vector2(closest.x, closest.z));
-        if (horiz > Config.SweepStompRadius)
-            return false;
-
-        float aboveRoot = feet.y - boss.transform.position.y;
-        if (aboveRoot < 0.15f) return false;
-        return aboveRoot <= Config.SweepStompHeight;
-    }
-
-    static bool TryGetStompBounds(CharacterBody boss, out Bounds bounds)
-    {
-        bounds = default;
-        if (boss == null) return false;
-
-        Hurtbox hurtbox = boss.GetComponentInChildren<Hurtbox>();
-        if (hurtbox != null)
-        {
-            Collider col = hurtbox.GetComponent<Collider>();
-            if (col == null)
-                col = hurtbox.GetComponentInChildren<Collider>();
-            if (col != null)
-            {
-                bounds = col.bounds;
-                return true;
-            }
-        }
-
-        Collider bodyCol = boss.GetComponent<Collider>();
-        if (bodyCol == null)
-            bodyCol = boss.GetComponentInChildren<Collider>();
-        if (bodyCol != null)
-        {
-            bounds = bodyCol.bounds;
-            return true;
-        }
-
-        bounds = new Bounds(boss.transform.position + Vector3.up * 1.1f, new Vector3(0.9f, 2.2f, 0.9f));
-        return true;
-    }
-
-    public bool TryApplySweepStomp()
-    {
-        if (SweepStompApplied || !IsAirborne) return false;
-
-        CharacterBody boss = CombatManager.Instance != null ? CombatManager.Instance.BossRef : null;
-        if (boss == null || !boss.IsPerformingSweep() || !IsWithinSweepStompRange(boss))
-            return false;
-
-        SweepStompApplied = true;
-        QueueJump();
-        CombatManager.Instance.ApplySweepStomp(this, boss);
-        return true;
-    }
+    // （横扫跳踩已删除：未实现对应踩头反制，Jump2 保留为空中二段）
 
     // 返回 true = 命令吃掉。playedNew = 本次新播了 Jump2（已用过则为 false）。
     public bool TryAirJump2(out bool playedNew)
@@ -454,7 +380,6 @@ public class CharacterBody : MonoBehaviour
 
         AnimUtil.TryCrossFade(Animator, "Jump2", Config != null ? Config.JumpAnimBlend : 0.08f);
         playedNew = true;
-        TryApplySweepStomp();
         return true;
     }
 
@@ -595,6 +520,49 @@ public class CharacterBody : MonoBehaviour
         return MainStateMachine.HandleCommand(cmd);
     }
 
+    // ===== 顶层地面态查询 / 切入（架构红线：业务代码禁止直接判顶层状态类型，
+    // 统一走这里的封装，叶子永远在父状态 SubStateMachine 内）=====
+
+    // 当前顶层是否为地面态（只读查询）
+    public bool IsGroundedTop => MainStateMachine?.CurrentState is GroundedState;
+
+    // 当前地面子状态是否为指定类型（语义查询，不暴露状态引用）
+    public bool IsInGroundedSubState<T>() where T : BaseState
+    {
+        return MainStateMachine?.CurrentState is GroundedState g
+            && g.SubStateMachine?.CurrentState is T;
+    }
+
+    // 地面上换子状态：只在顶层确为地面态时执行，否则返回 false（不改动）
+    public bool TryChangeGroundedSubState(Func<GroundedState, BaseState> factory)
+    {
+        if (MainStateMachine?.CurrentState is not GroundedState g) return false;
+        g.SubStateMachine.ChangeState(factory(g));
+        return true;
+    }
+
+    // 地面态换子状态；顶层非地面态（空中/受击/死亡）则重建地面父状态切入该叶子
+    public void ForceChangeGroundedSubState(Func<GroundedState, BaseState> factory)
+    {
+        EnsureRuntimeReady();
+        if (MainStateMachine?.CurrentState is GroundedState g)
+        {
+            g.SubStateMachine.ChangeState(factory(g));
+            return;
+        }
+        // 重建时叶子以 null 父级创建：与旧直接重建语义一致（见 BossReviveBackoffState）
+        MainStateMachine.ChangeState(new GroundedState(this, factory(null)));
+    }
+
+    // 换到"格挡 / 垫步"叶子：三个受击/起身状态（MidToGuard / Standing / StaggerBroken）
+    // 共用的取消配方，收敛成一处
+    public bool TryChangeToDeflectOrDodge(bool toDeflect)
+    {
+        return TryChangeGroundedSubState(g => toDeflect
+            ? (BaseState)new DeflectState(this, g)
+            : new DodgeState(this, g));
+    }
+
     // 喝药重箭等打断：命中段会拒收 AttackCommand，防御态会吞掉命令却不出招，必须强切。
     public bool StartAttack(AttackConfig config, bool interruptCurrent = false)
     {
@@ -608,11 +576,8 @@ public class CharacterBody : MonoBehaviour
             return TryExecuteCommand(new AttackCommand());
         }
 
-        if (MainStateMachine.CurrentState is GroundedState ground)
-        {
-            ground.SubStateMachine.ChangeState(new AttackState(this, ground, config));
+        if (TryChangeGroundedSubState(g => new AttackState(this, g, config)))
             return true;
-        }
 
         return TryExecuteCommand(new AttackCommand());
     }
@@ -998,37 +963,32 @@ public class CharacterBody : MonoBehaviour
     // 只狼模式：Boss 非攻击/非硬直时被玩家命中 → 强制格挡判定；连续格挡达阈值后
     // 升级为完美弹反（弹开玩家、抢回主动权）。由 BTBrain 启动时对 Boss 开启。
     public bool EnablePassiveDeflect;
-    public int passiveDeflectThreshold = 2;        // 连续格挡几次后升级完美弹反（2 = 第 3 刀必弹反）
-    public float passiveDeflectResetWindow = 2.5f; // 放下防御/停止被压制多久后清零连续计数
     private int passiveDeflectCount;
     private float lastPassiveDeflectTime;
 
     public bool TryPassiveDeflect(HitData hit)
     {
-        if (!EnablePassiveDeflect) return false;
+        if (!EnablePassiveDeflect || IsDefeated) return false;
         if (hit.isPerilous || hit.attacker == null) return false;
         // 攻击中（可被抓前摇）/ 被弹硬直 / 崩解中 → 不回防御，走常规受击
         if (IsAttacking || IsParried || IsPostureBroken) return false;
 
         float now = Time.time;
-        if (passiveDeflectCount > 0 && now - lastPassiveDeflectTime > passiveDeflectResetWindow)
+        int threshold = Config != null ? Config.PassiveDeflectThreshold : 2;   // 数值走 SO，缺失回退旧默认
+        float resetWindow = Config != null ? Config.PassiveDeflectResetWindow : 2.5f;
+        if (passiveDeflectCount > 0 && now - lastPassiveDeflectTime > resetWindow)
             passiveDeflectCount = 0;
         lastPassiveDeflectTime = now;
 
-        bool upgraded = passiveDeflectCount >= passiveDeflectThreshold;
+        bool upgraded = passiveDeflectCount >= threshold;
         passiveDeflectCount = upgraded ? 0 : passiveDeflectCount + 1;
 
         // 强制进格挡姿态并当场处理这次命中（PerfectParry 弹开攻击者 / PassiveGuard 普通格挡）。
         // 空中（AirState）等不可防御场景返回 false，交回常规受击链路。
-        if (MainStateMachine?.CurrentState is GroundedState ground)
-        {
-            ground.SubStateMachine.ChangeState(new DeflectState(this, ground,
-                remash: false,
-                mode: upgraded ? DeflectEntryMode.PerfectParry : DeflectEntryMode.PassiveGuard,
-                pendingHit: hit));
-            return true;
-        }
-        return false;
+        return TryChangeGroundedSubState(g => new DeflectState(this, g,
+            remash: false,
+            mode: upgraded ? DeflectEntryMode.PerfectParry : DeflectEntryMode.PassiveGuard,
+            pendingHit: hit));
     }
 
     // 架势崩解硬直入口（M9）：玩家 = 击飞倒地（不被处决）；Boss = 处决窗口（红点）。
@@ -1353,7 +1313,7 @@ public class CharacterBody : MonoBehaviour
     // 对手已倒地：打断当前攻击回 Idle，给 Boss 改走位用。不经过 Command。
     public void CancelAttackToIdle()
     {
-        if (IsFinisherLocked || IsPostureBroken) return;
+        if (IsFinisherLocked || IsPostureBroken || IsDefeated) return;
         IsAttacking = false;
         AttackUninterruptible = false;
         IsAttackRecoveryOpen = false;
@@ -1413,6 +1373,10 @@ public class CharacterBody : MonoBehaviour
 
         if (LivesRemaining <= 0)
         {
+            IsAttacking = false;
+            AttackUninterruptible = false;
+            DisableWeaponHit();
+            MoveDirection = Vector3.zero;
             CombatEventBus.TriggerVictory(this);
             return;
         }
@@ -1453,7 +1417,7 @@ public class CharacterBody : MonoBehaviour
                            bool isProjectile = false)
     {
         EnsureRuntimeReady();
-        if (IsFinisherLocked) return;
+        if (IsFinisherLocked || IsDefeated) return;
 
         // 打包成值类型，供状态机做层级查询（M1）
         HitData hit = new HitData

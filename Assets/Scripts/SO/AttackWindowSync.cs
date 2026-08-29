@@ -118,12 +118,18 @@ public static class AttackWindowSync
         if (w == null) return;
         if (w.comboWindowEnd < w.recoverStart)
             w.comboWindowEnd = w.recoverStart;
-        float need = NeededDuration(w.hitStartTime, w.recoverStart, w.comboWindowEnd, w.hitPulses);
+        // 提前切下一段时 combo 占位（如 99）不应把 stateDuration 撑回去。
+        float comboForNeed = w.comboWindowEnd;
+        if (!w.waitAnimEnd && w.stateDuration > 0.01f && w.comboWindowEnd > w.stateDuration)
+            comboForNeed = w.stateDuration;
+        float need = NeededDuration(w.hitStartTime, w.recoverStart, comboForNeed, w.hitPulses);
         need = MaxCueTime(need, w.sfxCues, w.arrowCues);
         if (w.stateDuration < need)
             w.stateDuration = need;
         if (w.rotateEnd > w.stateDuration)
             w.rotateEnd = w.stateDuration;
+        if (!w.waitAnimEnd && w.comboWindowEnd > w.stateDuration)
+            w.comboWindowEnd = w.stateDuration;
     }
 
     static float NeededDuration(float hitStart, float recover, float comboEnd, HitPulse[] pulses)

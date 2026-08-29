@@ -30,7 +30,7 @@ public class BT_PickActive : Node, ISelectorLock
 
     public override NodeState Evaluate()
     {
-        if (IsTargetIncapacitated(target))
+        if (BTUtil.IsTargetIncapacitated(target))
         {
             executor.ResetMove();
             return NodeState.Failure;
@@ -51,7 +51,8 @@ public class BT_PickActive : Node, ISelectorLock
             return busy;
         }
 
-        if (IsRoamGapActive())
+        bool isRoamGapActive = IsRoamGapActive();
+        if (isRoamGapActive)
             return NodeState.Failure;
 
         float dist = Vector3.Distance(body.transform.position, target.position);
@@ -77,13 +78,5 @@ public class BT_PickActive : Node, ISelectorLock
         float gap = blackboard.Get<float>("active_gap_dur");
         if (gap <= 0.01f) gap = roamAfterAttack;
         return blackboard.IsOnCooldown("active_gap", gap);
-    }
-
-    private static bool IsTargetIncapacitated(Transform target)
-    {
-        if (target == null) return false;
-        CharacterBody player = target.GetComponent<CharacterBody>();
-        if (player == null) player = target.GetComponentInParent<CharacterBody>();
-        return player != null && player.IsIncapacitatedForBoss;
     }
 }

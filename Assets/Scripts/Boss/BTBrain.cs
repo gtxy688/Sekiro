@@ -115,6 +115,14 @@ public class BTBrain : MonoBehaviour
     {
         if (PlayerTarget == null || behaviorTreeRoot == null) return;
 
+        if (body.IsDefeated)
+        {
+            ResetExecutors();
+            body.MoveDirection = Vector3.zero;
+            body.PreferFastWalk = false;
+            return;
+        }
+
         // 忍杀演出 / 被弹反或识破硬直：树不跑。否则出招节点一失败就会落到
         // BT_MoveToTarget，近身 Roam 每帧 RotateYaw 对准玩家（识破后猛转）。
         if (body.IsFinisherLocked || body.IsParried)
@@ -274,18 +282,15 @@ public class BTBrain : MonoBehaviour
 
     private void BeginReviveBackoff()
     {
-        GroundedState ground = body.MainStateMachine.CurrentState as GroundedState;
-        if (ground == null)
-            body.MainStateMachine.ChangeState(new GroundedState(body, new BossReviveBackoffState(body, null)));
-        else
-            ground.SubStateMachine.ChangeState(new BossReviveBackoffState(body, ground));
+        // 走 CharacterBody 统一 API：地面态换子状态，非地面态重建地面父状态（禁止直接判顶层类型）
+        body.ForceChangeGroundedSubState(g => new BossReviveBackoffState(body, g));
     }
 
     private bool IsInReviveBackoff()
     {
-        if (body.MainStateMachine.CurrentState is not GroundedState ground)
+        if (!body.IsGroundedTop)
             return postReviveTimer < 0.6f;
-        return ground.SubStateMachine.CurrentState is BossReviveBackoffState;
+        return body.IsInGroundedSubState<BossReviveBackoffState>();
     }
 
     private void ArmPostReviveRoamGap()

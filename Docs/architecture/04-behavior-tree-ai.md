@@ -95,8 +95,8 @@ Selector **只**对实现 `ISelectorLock` 的 Running 子节点记住索引。`B
 > 招架层已从"AI 短按防御键"（旧 `BT_DeflectIf`/`BT_Deflect`，1.5s 格挡 CD）改为 **`CharacterBody.TryPassiveDeflect` 被动防御**（M7 攻防转换）：
 > - Boss 非攻击/非硬直/非崩解时被玩家命中 → 命中瞬间强制转格挡判定（无 CD、无概率）；
 > - 普通格挡：`Hurt_Guard`/GuardLoop 姿态 + 架势上涨（`GuardPostureFactor` 削弱架势伤害），Boss 留在防御姿态（连续防御分支）；
-> - 连续格挡达 `passiveDeflectThreshold`（默认 2）次 → 下一次命中升级**强制完美弹反**：弹开玩家（`ForceParryStun`）+ 打铁火花/顿帧，抢回主动权；
-> - 危字攻击（`isPerilous`）与 Boss **攻击中**（可被抓前摇）不进入被动防御，走常规受击/识破/跳踩。
+> - 连续格挡达 `CharacterConfig.PassiveDeflectThreshold`（默认 2）次 → 下一次命中升级**强制完美弹反**：弹开玩家（`ForceParryStun`）+ 打铁火花/顿帧，抢回主动权；
+> - 危字攻击（`isPerilous`）与 Boss **攻击中**（可被抓前摇）不进入被动防御，走常规受击/识破/垫步（跳踩已删除）。
 
 ### 距离分段（主动计划）
 
@@ -110,7 +110,7 @@ Selector **只**对实现 `ISelectorLock` 的 Running 子节点记住索引。`B
 
 `JumpThrust`（主动层 3022）**不是**交锋突刺 `Kengeki_Thrust`（3062）。3062 仍只在交锋层，按连弹次数换还击池。
 
-3022 结构：`JumpThrust` 起跳（NoHit、无危字）→ 起跳瞬间按**当前命数**锁死落地。第一条命只出 `Kengeki_Thrust`（危字突刺，可识破）；第二条命横扫:突刺 = `jumpThrustLife2SweepWeight`:`jumpThrustLife2ThrustWeight`（默认 7:3）。危字只在落地段弹出。迷雾/镜头上抬另做。落地突刺用交锋突刺那条片：Animator 里 `Thrust` 与 `Sweep` 当前共用同一 clip，不能拿来做分叉。
+3022 结构：`JumpThrust` 起跳（NoHit、无危字）→ 落地**始终突刺**（危字突刺，可识破；横扫已删除，不再按命数分叉）。危字只在落地段弹出。迷雾/镜头上抬另做。落地突刺用交锋突刺那条片。
 
 > 当前实现已换成**完整薄树 + 招式表**。受击/崩解/忍杀结算不改。旧叶子 `BT_Combo` / `BT_HitOnce` / `BT_BowShot` / `BT_Attack` / `BT_Deflect` / `BT_DeflectIf` 已删除，树里不再挂。
 
@@ -133,7 +133,7 @@ Selector 只对实现 `ISelectorLock` 的 Running 子节点续跑，**不**记�
 
 一条 Clip 要砍多刀：在对应 `windows[i].hitPulses` 填多段 `[start,end)`（见 `03-hit-detection.md`）。`Boat` 的 `Boat1` 已按 5 段占位；其它招空数组 = 仍一刀。
 
-约定：`Slash_Spin`+`Elbow` 一行 `Slash_SpinElbow`；`Boat` ≠ `Boat_Full`；`Kengeki_Slash` 五片随机；`Kengeki_Bow` 先 3031 再二选一。缺 Animator 状态的招权重为 0。`JumpThrust` 的 `extra` 为 `ConsecutiveParry2`：未连弹满 2 次权重为 0；表上权重 100（对齐原作条件满足时的 100）。两套序列 `JumpThrust→Kengeki_Thrust` / `JumpThrust→Sweep`：第一条命只突刺；第二条命按表权重横扫:突刺（默认 7:3）。横扫那套自带窗口（不能和突刺共用判定）。普通格挡、挨实锤、出手 JumpThrust、玩家回生、Boss 被处决清命会清连弹计数。
+约定：`Slash_Spin`+`Elbow` 一行 `Slash_SpinElbow`；`Boat` ≠ `Boat_Full`；`Kengeki_Slash` 五片随机；`Kengeki_Bow` 先 3031 再二选一。缺 Animator 状态的招权重为 0。`JumpThrust` 的 `extra` 为 `ConsecutiveParry2`：未连弹满 2 次权重为 0；表上权重 100（对齐原作条件满足时的 100）。序列 `JumpThrust→Thrust`：落地始终突刺（横扫已删除）。普通格挡、挨实锤、出手 JumpThrust、玩家回生、Boss 被处决清命会清连弹计数。
 
 Inspector：必须拖 `PlayerTarget` / `PlayerBody` / `moveTable`。
 
@@ -157,7 +157,7 @@ Inspector：必须拖 `PlayerTarget` / `PlayerBody` / `moveTable`。
 
 - Boss 2 条命（忍杀 2 次）
 - 无脱衣/巴流阶段
-- 招式表：近战连段、突刺（危字/识破）、横扫（危字/跳踩）、射箭、飞渡符舟（完整动画）
+- 招式表：近战连段、突刺（危字/识破）、肘击投技 Grab、射箭、飞渡符舟（完整动画）
 
 ## 涉及文件
 
