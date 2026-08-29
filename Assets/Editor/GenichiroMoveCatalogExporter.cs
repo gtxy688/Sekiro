@@ -42,8 +42,6 @@ public static class GenichiroMoveCatalogExporter
         sb.AppendLine(AssignLine(table.kengekiMaxRange, "        t.kengekiMaxRange = {0};"));
         sb.AppendLine(AssignLine(table.postureLowThreshold, "        t.postureLowThreshold = {0};"));
         sb.AppendLine(AssignLine(table.air5HeavyInterruptChance, "        t.air5HeavyInterruptChance = {0};"));
-        sb.AppendLine(AssignLine(table.jumpThrustLife2SweepWeight, "        t.jumpThrustLife2SweepWeight = {0};"));
-        sb.AppendLine(AssignLine(table.jumpThrustLife2ThrustWeight, "        t.jumpThrustLife2ThrustWeight = {0};"));
         sb.AppendLine("        t.moves = new[]");
         sb.AppendLine("        {");
 
