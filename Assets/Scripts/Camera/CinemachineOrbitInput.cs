@@ -46,6 +46,7 @@ public class CinemachineOrbitInput : MonoBehaviour
     private void Update()
     {
         if (freeLook == null || GamePause.IsPaused) return;
+        if (Cursor.lockState != CursorLockMode.Locked) return;
         if (Time.unscaledTime < ignoreLookUntil) return;
 
         Vector2 mouseDelta = Mouse.current != null ? Mouse.current.delta.ReadValue() : Vector2.zero;

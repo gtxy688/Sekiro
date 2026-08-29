@@ -14,5 +14,6 @@ public static class CombatInputGate
     public static void SetBlocked(bool blocked)
     {
         Blocked = blocked;
+        CursorController.Refresh();
     }
 }

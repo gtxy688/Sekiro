@@ -7,7 +7,6 @@ public class StandingState : BaseState
 
     private string animName;
     private float timer;
-    private bool seenStart;
     private bool waitForAnim;
 
     public StandingState(CharacterBody body) : base(body) { }
@@ -15,7 +14,6 @@ public class StandingState : BaseState
     public override void OnEnter()
     {
         timer = 0f;
-        seenStart = false;
         animName = HitReactionUtil.StandingAnim(body);
         waitForAnim = AnimUtil.TryCrossFade(body.Animator, animName, 0.08f);
     }
@@ -28,7 +26,6 @@ public class StandingState : BaseState
             AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
             if (AnimUtil.IsPlaying(info, animName))
             {
-                seenStart = true;
                 if (info.normalizedTime >= 0.99f && !body.Animator.IsInTransition(0))
                 {
                     GoIdle();

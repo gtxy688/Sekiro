@@ -103,6 +103,7 @@ public class PauseMenuController : MonoBehaviour
             return;
         }
 
+        CursorController.BindPlayerInput(playerInput);
         InputRebindService.Load(actions);
         AudioVolumeSettings.Load();
         GameplaySettings.Load();
@@ -118,6 +119,13 @@ public class PauseMenuController : MonoBehaviour
         EnsureGameplayToggleButtons();
         WireNavigation();
         HideMenu();
+        CursorController.Refresh();
+    }
+
+    private void OnApplicationFocus(bool hasFocus)
+    {
+        if (hasFocus)
+            CursorController.Refresh();
     }
 
     private void OnDestroy()
@@ -125,6 +133,7 @@ public class PauseMenuController : MonoBehaviour
         CancelRebind();
         SetGameplayInput(true);
         if (GamePause.IsPaused) GamePause.SetPaused(false);
+        CursorController.Refresh();
         for (int i = 0; i < generatedTextures.Count; i++)
         {
             if (generatedTextures[i] != null)

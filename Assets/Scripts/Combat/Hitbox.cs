@@ -20,6 +20,8 @@ public class Hitbox : MonoBehaviour
 
     // 已命中记录：防止一次挥砍对同一目标多次结算
     private readonly HashSet<CharacterBody> hitTargets = new HashSet<CharacterBody>();
+    // 拼刀去重：同一判定窗内对同一 Hitbox 只结算一次；且只让 InstanceID 较小方上报，避免双方各报一次
+    private readonly HashSet<Hitbox> clashedPartners = new HashSet<Hitbox>();
     // 开判定时已经叠在刀上的目标：先不算，等离开再扫进来才算新的一刀（连招第二刀）
     private readonly HashSet<CharacterBody> blockedUntilExit = new HashSet<CharacterBody>();
     private readonly HashSet<CharacterBody> overlappingThisFrame = new HashSet<CharacterBody>();
@@ -58,6 +60,7 @@ public class Hitbox : MonoBehaviour
         lastCastPos = transform.position;
         hitTargets.Clear();
         blockedUntilExit.Clear();
+        clashedPartners.Clear();
         // 判定改到 HitStartTime 后才开，此时已经叠在刀上就是这一刀该中的，不再先屏蔽。
     }
 
@@ -67,6 +70,7 @@ public class Hitbox : MonoBehaviour
         config = null;
         hitTargets.Clear();
         blockedUntilExit.Clear();
+        clashedPartners.Clear();
     }
 
     // 动画在 Update 写骨头，受击胶囊在物理步进才同步。LateUpdate 里先 Sync 再扫。
@@ -153,9 +157,16 @@ public class Hitbox : MonoBehaviour
 
         Hitbox other = col.GetComponentInParent<Hitbox>();
         if (other != null && other != this && other.Owner != owner)
-        {
-            CombatManager.Instance?.ReportClash(this, other, hitPoint);
-        }
+            TryClash(other, hitPoint);
+    }
+
+    private void TryClash(Hitbox other, Vector3 hitPoint)
+    {
+        if (other == null || other.Owner == owner) return;
+        if (!clashedPartners.Add(other)) return;
+        // 双方 Hitbox 都会扫到对方；只让 InstanceID 较小的一方上报，避免一帧内架势双倍结算
+        if (GetInstanceID() > other.GetInstanceID()) return;
+        CombatManager.Instance?.ReportClash(this, other, hitPoint);
     }
 
     private void TryHit(CharacterBody target, Vector3 hitPoint)

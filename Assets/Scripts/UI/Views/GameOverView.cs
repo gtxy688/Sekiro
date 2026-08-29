@@ -22,6 +22,7 @@ public class GameOverView : UIView
 
     public void ShowGameOver()
     {
+        CursorController.PushUi();
         Show();
         OnViewInit();
 
@@ -40,6 +41,7 @@ public class GameOverView : UIView
 
     private void OnDisable()
     {
+        CursorController.PopUi();
         if (canvasGroup != null) canvasGroup.DOKill();
         if (deathText != null) deathText.transform.DOKill();
     }

@@ -54,6 +54,7 @@ public class PlayerBrain : BrainBase
 
         BindActions();
         GamePause.OnChanged += HandlePauseChanged;
+        CursorController.BindPlayerInput(playerInput);
     }
 
     private void OnDestroy()

@@ -94,6 +94,7 @@ public class RevivePromptView : UIView
 
     public void HidePrompt()
     {
+        CursorController.PopUi();
         fadeDone = false;
         choiceReady = false;
         choicesShown = false;
@@ -192,6 +193,8 @@ public class RevivePromptView : UIView
             canvasGroup.interactable = true;
             canvasGroup.blocksRaycasts = true;
         }
+
+        CursorController.PushUi();
     }
 
     private void SetContentVisible(bool visible)

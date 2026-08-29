@@ -28,6 +28,7 @@ public class CombatManager : MonoBehaviour
     private bool grabThrowResolved;
     private bool grabThrowAttackerDone;
     private bool grabThrowVictimDone;
+    private Coroutine hitStopRoutine;
 
     private void Awake()
     {
@@ -167,18 +168,24 @@ public class CombatManager : MonoBehaviour
         if (!enableHitStop || GamePause.IsPaused) return;
         if (duration < 0f) duration = hitStopDuration;
 
-        StopAllCoroutines();
-        StartCoroutine(HitStopRoutine(duration));
+        if (hitStopRoutine != null)
+            StopCoroutine(hitStopRoutine);
+        hitStopRoutine = StartCoroutine(HitStopRoutine(duration));
     }
 
     private IEnumerator HitStopRoutine(float duration)
     {
-        if (GamePause.IsPaused) yield break;
+        if (GamePause.IsPaused)
+        {
+            hitStopRoutine = null;
+            yield break;
+        }
 
         Time.timeScale = 0.05f;
         yield return new WaitForSecondsRealtime(duration);
         // 顿帧期间若打开暂停，结束时保持冻结，不要拨回 1
         Time.timeScale = GamePause.IsPaused ? 0f : 1f;
+        hitStopRoutine = null;
     }
 
     // ===== 成对忍杀（M10）=====

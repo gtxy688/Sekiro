@@ -16,5 +16,6 @@ public static class GamePause
         IsPaused = paused;
         Time.timeScale = paused ? 0f : 1f;
         OnChanged?.Invoke(paused);
+        CursorController.Refresh();
     }
 }

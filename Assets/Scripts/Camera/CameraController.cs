@@ -754,6 +754,8 @@ public class CameraController : MonoBehaviour
         if (orbitInput == null)
             orbitInput = freeLook.gameObject.AddComponent<CinemachineOrbitInput>();
 
+        CursorController.RegisterOrbitInput(orbitInput);
+
         freeLook.m_XAxis.m_MaxSpeed = 0f;
         freeLook.m_YAxis.m_MaxSpeed = 0f;
     }
