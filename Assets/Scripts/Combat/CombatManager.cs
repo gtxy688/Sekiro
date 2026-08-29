@@ -46,6 +46,9 @@ public class CombatManager : MonoBehaviour
         // 身体胶囊同时承担 Hurtbox 扫描。互撞冲量会挤开站位，所以忽略 PhysX 互撞；
         // 玩家仍在 CharacterBody.LateUpdate 里做胶囊分离，不会穿过 Boss。
         IgnoreCharacterPhysics(PlayerRef, BossRef);
+
+        // 擂台外圈空气墙：走位/垫步/击退都出不了场（坠落兜底仍在 CharacterBody）
+        ArenaBoundary.Ensure();
     }
 
     private static void IgnoreCharacterPhysics(CharacterBody a, CharacterBody b)
@@ -117,7 +120,7 @@ public class CombatManager : MonoBehaviour
 
         boss.SuppressAttackHitbox = true;
         boss.DisableWeaponHit();
-        boss.TakeDamage(hp, posture);
+        boss.TakeDamage(hp, posture, player);
         CombatEventBus.TriggerWeaponDeflected(
             CombatFxPoint.BetweenWeapons(player, boss, boss.transform.position + Vector3.up * 1.2f),
             DeflectType.Perfect);

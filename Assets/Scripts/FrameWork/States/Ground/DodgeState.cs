@@ -9,7 +9,6 @@ public class DodgeState : BaseState
     private float dodgeTimer;
     private float dodgeDuration;
     private float iFrameDuration;
-    private float rotationSpeed = 720f;
     private bool lockedDodge;
     private bool mikiriEligible;
 
@@ -18,8 +17,6 @@ public class DodgeState : BaseState
         this.parent = parent;
         dodgeDuration = body.Config != null ? body.Config.DodgeDuration : 0.5f;
         iFrameDuration = body.Config != null ? body.Config.DodgeIFrame : 0.3f;
-        if (body.Config != null)
-            rotationSpeed = body.Config.RotationSpeed;
     }
 
     public override void OnEnter()
@@ -32,13 +29,19 @@ public class DodgeState : BaseState
         // 进垫步当下有没有方向键：识破只认无方向，不看垫步动画叫前还是后
         mikiriEligible = body.MoveDirection.sqrMagnitude < 0.01f;
 
+        body.ClearSteerYaw();
         if (lockedDodge)
         {
+            // 锁定向 Boss 对准后，垫步 Root 只负责位移；Root yaw 与代码转向打架会滑步/拧身
+            body.SetSuppressRootYaw(true);
             FaceTargetInstant();
-            AnimUtil.TryCrossFade(body.Animator, ResolveLockedDodgeAnim(), 0.05f);
+            string anim = ResolveLockedDodgeAnim();
+            if (!AnimUtil.TryPlay(body.Animator, anim))
+                AnimUtil.TryCrossFade(body.Animator, anim, 0.05f);
         }
         else
         {
+            body.SetSuppressRootYaw(false);
             AnimUtil.TryCrossFade(body.Animator, "Dodge", 0.05f);
         }
     }
@@ -47,13 +50,17 @@ public class DodgeState : BaseState
     {
         dodgeTimer += Time.deltaTime;
 
-        // 锁定垫步保持朝向 Boss，让左右/后垫的 Root 始终在角色空间生效
+        // 锁定垫步保持朝向 Boss；RotateYaw 在 suppressRootYaw 下不工作，用 SnapYaw
         if (lockedDodge && IsLockedOnTarget())
             FaceTarget();
 
         if (dodgeTimer >= dodgeDuration)
         {
-            if (parent == null) return;
+            if (parent == null)
+            {
+                body.MainStateMachine.ChangeState(new GroundedState(body));
+                return;
+            }
             if (body.MoveDirection.sqrMagnitude > 0.01f)
             {
                 bool locked = IsLockedOnTarget();
@@ -76,6 +83,11 @@ public class DodgeState : BaseState
             body.MoveDirection = moveCmd.Direction;
         }
         return true;
+    }
+
+    public override void OnExit()
+    {
+        body.SetSuppressRootYaw(false);
     }
 
     // 受击拦截（M1/M17/M4）：
@@ -129,7 +141,7 @@ public class DodgeState : BaseState
         Vector3 toBoss = LockOnManager.Instance.Target.position - body.transform.position;
         toBoss.y = 0f;
         if (toBoss.sqrMagnitude < 0.001f) return;
-        body.RotateYaw(toBoss.normalized, rotationSpeed);
+        body.SnapYaw(toBoss);
     }
 
     private static bool IsLockedOnTarget()

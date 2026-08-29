@@ -77,10 +77,26 @@ public static class BossMovePicker
                     return 0f;
                 break;
             case BossMoveExtra.ConsecutiveParry2:
+            {
                 // 贴身交锋过多才跳：连续被玩家完美弹开未满 2 次，权重为 0。
+                CharacterBody player = CombatManager.Instance != null
+                    ? CombatManager.Instance.PlayerRef
+                    : null;
+                if (player != null && player.IsKnockedDown)
+                    return 0f;
                 if (self.ConsecutiveTimesParried < 2)
                     return 0f;
                 break;
+            }
+            case BossMoveExtra.PlayerKnockedDown:
+            {
+                CharacterBody player = CombatManager.Instance != null
+                    ? CombatManager.Instance.PlayerRef
+                    : null;
+                if (player == null || !player.IsKnockedDown)
+                    return 0f;
+                break;
+            }
         }
 
         return e.weight;
@@ -142,7 +158,7 @@ public static class BossMovePicker
         return null;
     }
 
-    // 第一条命只突刺；第二条命横扫:突刺 = 表上权重（默认 7:3）。
+    // 落地只接突刺。表上若仍残留 Sweep 序列，第二条命才按权重抽（横扫已不是危字，默认表已去掉）。
     static BossAnimSequence ChooseJumpThrustSequence(
         BossMoveEntry e, Animator animator, CharacterBody self, BossMoveTable table)
     {

@@ -61,6 +61,21 @@ public class GroundStunnedState : BaseState
 
     bool IsKnockdown => grade == HitGrade.Mid || grade == HitGrade.Heavy || heavyRepeat;
 
+    // 已过落地前摇、处于躺地窗口（Jump_Danger 等危字追击用）。
+    public bool IsInKnockdownWindow()
+    {
+        if (!useHitGrade || !IsKnockdown || !body.IsGrounded) return false;
+        // Repeat 是躺地循环，一切入即算倒地，不等 HurtHeavyFallEndTime。
+        if (heavyRepeat) return true;
+        if (grade == HitGrade.Mid)
+        {
+            float fallEnd = body.Config != null ? body.Config.HurtMidFallEndTime : 0.4f;
+            return stunTimer >= fallEnd;
+        }
+        float heavyFall = body.Config != null ? body.Config.HurtHeavyFallEndTime : 0.5f;
+        return stunTimer >= heavyFall;
+    }
+
     float DodgeCancelOpenTime()
     {
         if (grade == HitGrade.Heavy || heavyRepeat)
@@ -114,6 +129,7 @@ public class GroundStunnedState : BaseState
     public override void OnUpdate()
     {
         stunTimer += Time.deltaTime;
+        body.IsKnockedDown = IsInKnockdownWindow();
 
         if (waitForAnim && body.Animator != null)
         {
@@ -145,10 +161,16 @@ public class GroundStunnedState : BaseState
 
     void FinishStun()
     {
+        body.IsKnockedDown = false;
         bool knockdown = useHitGrade && IsKnockdown;
         if (knockdown)
             body.MainStateMachine.ChangeState(new GroundedState(body, new StandingState(body)));
         else
             body.MainStateMachine.ChangeState(new GroundedState(body));
+    }
+
+    public override void OnExit()
+    {
+        body.IsKnockedDown = false;
     }
 }

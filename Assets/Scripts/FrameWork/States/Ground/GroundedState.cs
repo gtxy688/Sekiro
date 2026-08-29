@@ -20,7 +20,8 @@ public class GroundedState : HierarchicalState
     public override void OnUpdate()
     {
         // 踩空掉落。Boss 不进空中状态（Config.UseAirState = false）。
-        if (!body.IsGrounded && !body.IsPostureBroken && !body.IsFinisherLocked && body.UsesAirState)
+        // 被弹开硬直（含 Deflected_Boat）不能因根运动短暂离地被切走。
+        if (!body.IsGrounded && !body.IsPostureBroken && !body.IsParried && !body.IsFinisherLocked && body.UsesAirState)
         {
             body.MainStateMachine.ChangeState(new AirState(body));
             return;
@@ -29,18 +30,23 @@ public class GroundedState : HierarchicalState
         base.OnUpdate(); // 执行子状态 (Idle 或 Move)
     }
 
-    //所有的地面状态，都共用这个跳跃逻辑！
     protected override bool OnParentHandleCommand(ICommand cmd)
     {
-        // 忍杀 / Elbow 投技：父层也吞掉跳跃/喝药，不能把演出切走。
+        // 忍杀 / Elbow 投技：父层也吞掉喝药，不能把演出切走。
         if (body.IsFinisherLocked)
         {
             return true;
         }
 
-        // 崩解倒地由 StaggerBrokenState 吞命令。父层若先切跳跃/喝药，
+        // 崩解倒地由 StaggerBrokenState 吞命令。父层若先切喝药，
         // RecoverFromBreak 永远不会跑，架势条会卡满且无法忍杀。
         if (body.IsPostureBroken)
+        {
+            return false;
+        }
+
+        // 被弹开硬直：葫芦在父层会强切，必须留给 ParriedState 吞掉。
+        if (body.IsParried)
         {
             return false;
         }
@@ -67,7 +73,6 @@ public class GroundedState : HierarchicalState
                 return true;
             }
 
-            // 无论子状态是 Idle 还是 Move，父类直接掐断，强切大状态。
             body.QueueJump();
             body.MainStateMachine.ChangeState(new AirState(body));
             return true;
@@ -90,6 +95,6 @@ public class GroundedState : HierarchicalState
             return true;
         }
 
-        return false; // 不是跳跃，抛给子状态(Idle/Move)去处理。
+        return false;
     }
 }

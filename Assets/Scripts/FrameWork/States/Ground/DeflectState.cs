@@ -354,10 +354,10 @@ public class DeflectState : BaseState
 
     public override bool OnHitReceived(HitData hit)
     {
-        // 危字：普通格挡等于没防。横扫连弹反窗口也不吃；其余危字只有弹反窗口内能弹开。
+        // 危字：普通格挡等于没防。突刺/抓取只有弹反窗口内能弹开。横扫已当普通刀，走下面格挡/弹反。
         if (hit.isPerilous)
         {
-            if (hit.perilousType == PerilousType.Sweep || canceling)
+            if (canceling)
                 return false;
             float perilousElapsed = Time.time - enterTime;
             if (perilousElapsed <= window || inBegin)
@@ -379,6 +379,13 @@ public class DeflectState : BaseState
     // 完美弹反：弹开攻击者 + 打铁表现。玩家弹反 Boss 且 Boss 架势崩时给玩家处决确认窗口。
     private bool HandlePerfectParry(HitData hit)
     {
+        if (!hit.isProjectile && hit.attacker != null
+            && HitReactionUtil.IsPlayer(body)
+            && HitReactionUtil.IsBoatFinalPulseParry(hit.attacker))
+        {
+            return HandleBoatMutualDeflect(hit);
+        }
+
         bool brokeAttackerPosture = false;
         // 箭不是刀刃相撞：弹开只挡伤害，不涨攻击者架势、不把 Boss 弹进硬直。
         if (hit.attacker != null && !hit.isProjectile)
@@ -406,9 +413,11 @@ public class DeflectState : BaseState
             : (body.Config != null ? body.Config.ParriedDuration : 1.0f);
 
         CombatEventBus.TriggerWeaponDeflected(
-            CombatFxPoint.BetweenWeapons(hit.attacker, body, hit.hitPoint), DeflectType.Perfect);
+            CombatFxPoint.ForDeflect(hit.attacker, body, hit.hitPoint, hit.isProjectile),
+            DeflectType.Perfect);
         CombatEventBus.TriggerCameraShake(0.3f);
         CombatManager.Instance?.HitStop();
+        body.MarkCombatTime();
 
         // 重箭弹反：弹开箭矢威力太大，玩家会借力后滑，镜头跟随下压后拉（普通近战弹反不动）
         if (HitReactionUtil.IsPlayer(body) && HitReactionUtil.IsArrowHeavyGuard(hit))
@@ -456,7 +465,34 @@ public class DeflectState : BaseState
         return true;
     }
 
-        // 窗口外挡住：普通格挡受击（GuardHurt 动画 + 架势上涨，格挡系数削弱架势伤害）
+    // 飞舟最后一刀被完美弹反：Boat（Boat2 末刀）/ Boat_Full（整段末刀）→ 双方播 Deflected_Boat。
+    private bool HandleBoatMutualDeflect(HitData hit)
+    {
+        CharacterBody attacker = hit.attacker;
+        if (attacker != null && !hit.isProjectile)
+        {
+            float gain = body.Config != null ? body.Config.DeflectPostureGain : 30f;
+            attacker.AccumulatePosture(gain, allowBreak: true, source: PostureBreakSource.Deflect);
+            attacker.ForceParryStun("Deflected_Boat");
+        }
+
+        CombatEventBus.TriggerWeaponDeflected(
+            CombatFxPoint.ForDeflect(attacker, body, hit.hitPoint, hit.isProjectile),
+            DeflectType.Perfect);
+        CombatEventBus.TriggerCameraShake(0.3f);
+        CombatManager.Instance?.HitStop();
+        body.MarkCombatTime();
+
+        if (HitReactionUtil.IsPlayer(body) && attacker != null && !hit.isProjectile)
+            attacker.NotifyPerfectlyParried();
+
+        // 玩家也必须走顶层 ForceParryStun：只改子状态会留在原 GroundedState 里，
+        // 葫芦/离地切空中都会把 Deflected_Boat 掐掉（Boss UseAirState=false 没有这个问题）。
+        body.ForceParryStun("Deflected_Boat", armKengeki: false);
+        return true;
+    }
+
+    // 窗口外挡住：普通格挡受击（GuardHurt 动画 + 架势上涨，格挡系数削弱架势伤害）
     private bool HandleGuardHit(HitData hit)
     {
         if (HitReactionUtil.IsPlayer(body))
@@ -492,7 +528,7 @@ public class DeflectState : BaseState
         AnimUtil.TryCrossFade(body.Animator, guardHurtAnim, 0.03f);
 
         CombatEventBus.TriggerWeaponDeflected(
-            CombatFxPoint.BetweenWeapons(hit.attacker, body, hit.hitPoint), DeflectType.Normal);
+            CombatFxPoint.ForDeflect(hit.attacker, body, hit.hitPoint, hit.isProjectile), DeflectType.Normal);
         return true;
     }
 
@@ -513,7 +549,7 @@ public class DeflectState : BaseState
         arrowHeavyLockTimer = 0f;
         AnimUtil.TryCrossFade(body.Animator, guardHurtAnim, 0.05f);
         CombatEventBus.TriggerWeaponDeflected(
-            CombatFxPoint.BetweenWeapons(hit.attacker, body, hit.hitPoint), DeflectType.Normal);
+            CombatFxPoint.ForDeflect(hit.attacker, body, hit.hitPoint, hit.isProjectile), DeflectType.Normal);
         // 箭 Heavy 格挡：架势顶不住会往后滑，镜头跟随下压后拉
         CombatEventBus.TriggerHeavyArrowDefended(body, perfect: false);
         return true;

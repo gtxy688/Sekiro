@@ -41,18 +41,26 @@ public class ParriedState : BaseState
         timer += Time.deltaTime;
 
         AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
-        if (!triedNestedPath && !AnimUtil.IsPlaying(info, animName) && timer > 0.05f)
+        AnimatorStateInfo next = body.Animator.IsInTransition(0)
+            ? body.Animator.GetNextAnimatorStateInfo(0)
+            : info;
+        if (!triedNestedPath && !AnimUtil.IsPlaying(info, animName)
+            && !AnimUtil.IsPlaying(next, animName) && timer > 0.05f)
         {
             triedNestedPath = true;
-            AnimUtil.TryPlay(body.Animator, animName);
+            AnimUtil.TryCrossFade(body.Animator, animName, 0.05f);
             info = body.Animator.GetCurrentAnimatorStateInfo(0);
+            next = body.Animator.IsInTransition(0)
+                ? body.Animator.GetNextAnimatorStateInfo(0)
+                : info;
         }
 
         bool animDone = false;
-        if (AnimUtil.IsPlaying(info, animName))
+        if (AnimUtil.IsPlaying(info, animName) || AnimUtil.IsPlaying(next, animName))
         {
             hasSeenAnim = true;
-            if (info.normalizedTime >= 0.95f) animDone = true;
+            if (AnimUtil.IsPlaying(info, animName) && info.normalizedTime >= 0.95f)
+                animDone = true;
         }
         else if (hasSeenAnim && !body.Animator.IsInTransition(0))
         {

@@ -40,6 +40,12 @@ public class CharacterConfig : ScriptableObject
     [Tooltip("相对 Hurt_Mid 动画 0 点，秒。超过则不能 MidToGuard，进入躺地。")]
     public float HurtMidFallEndTime = 0.4f;
 
+    [Tooltip("相对 Hurt_Heavy 动画 0 点，秒。超过才算躺地，Boss 可 Jump_Danger。Hurt_HeavyRepeat 已在躺地，不走此参数。")]
+    public float HurtHeavyFallEndTime = 0.5f;
+
+    [Tooltip("MidToGuard 动画开始后多久允许提前格挡/垫步。0 = 必须播完再行动。")]
+    public float MidToGuardDeflectDodgeOpenTime = 0f;
+
     [Header("防御/弹反（M4）")]
     public float DeflectWindow = 0.3f;             // 完美弹反窗口（秒）
     public float DeflectPostureGain = 30f;         // 完美弹反成功：攻击者涨的架势
@@ -85,15 +91,19 @@ public class CharacterConfig : ScriptableObject
 
     [Header("横扫踩头")]
     [Tooltip("脚底水平检测半径。踩中还要求 Boss 正在放 Sweep")]
-    public float SweepStompRadius = 0.6f;
+    public float SweepStompRadius = 0.85f;
 
-    [Tooltip("脚底相对 Boss 根向上的最大高度差")]
-    public float SweepStompHeight = 1.2f;
+    [Tooltip("脚底相对 Boss 根节点向上的最大高度差。跳起二段踩头需覆盖起跳高度，默认 2.5")]
+    public float SweepStompHeight = 2.5f;
 
     [Header("跳跃动画时机（代码切 Jump / Jumping / Fall）")]
     [Tooltip("Jump 播到这个归一化时间就切 Jumping。起跳还在播人已经在空中 → 调小（0.4~0.7）")]
     [Range(0.1f, 1f)]
     public float JumpToJumpingNormalized = 0.55f;
+
+    [Tooltip("Jump2 切 Jumping 的归一化时间。比 Jump 略早，避免二段踢僵在半空")]
+    [Range(0.1f, 1f)]
+    public float Jump2ToJumpingNormalized = 0.42f;
 
     [Tooltip("过最高点（速度转负）也立刻切 Jumping。起跳太长、空中还在抬腿时勾上")]
     public bool SwitchJumpingAtApex = true;
@@ -106,6 +116,9 @@ public class CharacterConfig : ScriptableObject
 
     [Tooltip("切到 Fall 的融合秒数")]
     public float LandAnimBlend = 0.05f;
+
+    [Tooltip("下落速度超过该值且近地时提前切 Fall（更顺，0 = 只靠 LandEarlyHeight / 接地）")]
+    public float FallStartDownSpeed = 1.5f;
 
     [Header("攻击输入")]
     public float AttackHoldDuration = 0.3f; // 按住攻击达到该时长后自动触发突刺

@@ -41,6 +41,43 @@ public static class HitReactionUtil
         return atk != null && atk.hitPulses != null && atk.hitPulses.Length > 1;
     }
 
+    // 飞舟最后一刀被完美弹反：Boat 的 Boat2 段末刀，或 Boat_Full 整段末刀 → Deflected_Boat。
+    // 不能读 ActiveAttack：AttackState 进招后会清空，Boss 挥刀期间恒为 null。
+    public static bool IsBoatFinalPulseParry(CharacterBody attacker)
+    {
+        if (attacker == null) return false;
+        BossMoveEntry entry = attacker.CurrentMoveEntry;
+        if (entry == null) return false;
+
+        BossMoveWindow w = attacker.CurrentMoveWindow;
+        if (w == null || !IsBoatFinalWindow(entry, w)) return false;
+        if (w.hitPulses == null || w.hitPulses.Length == 0) return false;
+
+        int lastMelee = -1;
+        for (int i = 0; i < w.hitPulses.Length; i++)
+        {
+            HitPulse p = w.hitPulses[i];
+            if (p != null && AttackWindowSync.PulseIsMelee(p))
+                lastMelee = i;
+        }
+        return lastMelee >= 0 && attacker.ActiveHitPulseIndex == lastMelee;
+    }
+
+    // Boat：仅第二段 Boat2；Boat_Full：单段整招。
+    static bool IsBoatFinalWindow(BossMoveEntry entry, BossMoveWindow w)
+    {
+        if (entry.windows == null || entry.windows.Length == 0) return false;
+        switch (entry.id)
+        {
+            case "Boat":
+                return entry.windows.Length >= 2 && entry.windows[1] == w;
+            case "Boat_Full":
+                return entry.windows[0] == w;
+            default:
+                return false;
+        }
+    }
+
     public static string GuardHurtAnim(CharacterBody body)
     {
         return body.ResolveHurtAnim(HurtContext.Guard);

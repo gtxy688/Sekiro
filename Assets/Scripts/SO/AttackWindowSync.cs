@@ -109,6 +109,8 @@ public static class AttackWindowSync
         need = MaxCueTime(need, cfg.sfxCues, cfg.arrowCues);
         if (cfg.StateDuration < need)
             cfg.StateDuration = need;
+        if (cfg.RotationWindowEnd > cfg.StateDuration)
+            cfg.RotationWindowEnd = cfg.StateDuration;
     }
 
     public static void CoverDuration(BossMoveWindow w)
@@ -120,6 +122,8 @@ public static class AttackWindowSync
         need = MaxCueTime(need, w.sfxCues, w.arrowCues);
         if (w.stateDuration < need)
             w.stateDuration = need;
+        if (w.rotateEnd > w.stateDuration)
+            w.rotateEnd = w.stateDuration;
     }
 
     static float NeededDuration(float hitStart, float recover, float comboEnd, HitPulse[] pulses)

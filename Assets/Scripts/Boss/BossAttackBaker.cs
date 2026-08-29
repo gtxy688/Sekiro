@@ -71,6 +71,8 @@ public static class BossAttackBaker
         AttackWindowSync.CoverDuration(cfg);
         if (bowTrack || w.waitAnimEnd)
             cfg.RotationWindowEnd = cfg.StateDuration;
+        else if (cfg.RotationWindowEnd > cfg.StateDuration)
+            cfg.RotationWindowEnd = cfg.StateDuration;
         return cfg;
     }
 }

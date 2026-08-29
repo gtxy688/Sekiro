@@ -157,6 +157,29 @@ public static class CombatHUDBuilder
         Debug.Log("[CombatHUD] CombatCanvas 面板：GamePanel / SettingPanel / EndPanel / RespawnPanel。字体在场景里改 TMP Font Asset，Play 不会再盖掉。");
     }
 
+    [MenuItem("Tools/战斗/预览暂停菜单")]
+    public static void PreviewPauseMenu()
+    {
+        Canvas canvas = FindCombatCanvas();
+        if (canvas == null)
+        {
+            EditorUtility.DisplayDialog("预览暂停菜单", "场景里找不到 CombatCanvas。请先打开 GameScene。", "确定");
+            return;
+        }
+
+        PauseMenuController pause = Object.FindObjectOfType<PauseMenuController>(true);
+        if (pause == null)
+        {
+            EditorUtility.DisplayDialog("预览暂停菜单", "场景里找不到 PauseMenuController（通常在 Mgr 上）。", "确定");
+            return;
+        }
+
+        pause.EditorPreviewPauseRoot();
+        EditorSceneManager.MarkSceneDirty(canvas.gameObject.scene);
+        Selection.activeGameObject = canvas.gameObject;
+        Debug.Log("[CombatHUD] 已展开 GameScene 暂停主界面（含无限生命 / 一击破防）。Play 后会自动收回。");
+    }
+
     [MenuItem("Tools/战斗/预览全部 UI")]
     public static void BakeUiPreview()
     {
@@ -173,7 +196,7 @@ public static class CombatHUDBuilder
 
         PauseMenuController pause = Object.FindObjectOfType<PauseMenuController>(true);
         if (pause != null)
-            pause.EditorPreviewAllPages();
+            pause.EditorPreviewPauseRoot();
 
         ActivateRespawnPreview(canvasTf.Find("RespawnPanel"));
         BakeCombatOverlay(hud != null ? hud.Find("GameOver") : null, false, new Vector2(0f, -240f));

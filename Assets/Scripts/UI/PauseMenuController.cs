@@ -48,6 +48,10 @@ public class PauseMenuController : MonoBehaviour
     private Button backButton;
     private Slider bgmSlider;
     private Slider sfxSlider;
+    private Button infiniteHealthToggle;
+    private Button oneHitPostureBreakToggle;
+    private TextMeshProUGUI infiniteHealthValueLabel;
+    private TextMeshProUGUI oneHitPostureBreakValueLabel;
     private Image bgmHandle;
     private Image sfxHandle;
     private Image bgmFill;
@@ -101,6 +105,7 @@ public class PauseMenuController : MonoBehaviour
 
         InputRebindService.Load(actions);
         AudioVolumeSettings.Load();
+        GameplaySettings.Load();
         playerMap = actions.FindActionMap("Player");
         EnsureEventSystem();
         TmpChineseFont.EnsureReady();
@@ -110,6 +115,7 @@ public class PauseMenuController : MonoBehaviour
         else
             WireExistingListeners();
         EnsurePauseCloseButtons();
+        EnsureGameplayToggleButtons();
         WireNavigation();
         HideMenu();
     }
@@ -221,6 +227,8 @@ public class PauseMenuController : MonoBehaviour
         rootPanel.SetActive(true);
         hubPanel.SetActive(false);
         settingsPanel.SetActive(false);
+        GameplaySettings.Load();
+        RefreshGameplayToggles();
         SelectButton(resumeButton);
     }
 
@@ -235,6 +243,7 @@ public class PauseMenuController : MonoBehaviour
         hubPanel.SetActive(true);
         settingsPanel.SetActive(false);
         AudioVolumeSettings.Load();
+        GameplaySettings.Load();
         bgmSlider.SetValueWithoutNotify(Mathf.Round(AudioVolumeSettings.Bgm * 100f));
         sfxSlider.SetValueWithoutNotify(Mathf.Round(AudioVolumeSettings.Sfx * 100f));
         RefreshAudioLabels();
@@ -291,6 +300,8 @@ public class PauseMenuController : MonoBehaviour
             ? EventSystem.current.currentSelectedGameObject
             : null;
         ApplyButtonVisual(resumeButton, false, IsUiSelected(resumeButton, selected));
+        ApplyToggleVisual(infiniteHealthToggle, infiniteHealthValueLabel, selected);
+        ApplyToggleVisual(oneHitPostureBreakToggle, oneHitPostureBreakValueLabel, selected);
         ApplyButtonVisual(openSettingsButton, false, IsUiSelected(openSettingsButton, selected));
         ApplyButtonVisual(quitButton, false, IsUiSelected(quitButton, selected));
         ApplyButtonVisual(hubKeybindButton, false, IsUiSelected(hubKeybindButton, selected));
@@ -339,6 +350,18 @@ public class PauseMenuController : MonoBehaviour
         if (label != null) label.color = TextColor;
     }
 
+    private static void ApplyToggleVisual(Button button, TextMeshProUGUI valueLabel, GameObject selected)
+    {
+        if (button == null) return;
+        bool uiSelected = IsUiSelected(button, selected);
+        ApplyButtonVisual(button, false, uiSelected);
+        Transform titleTf = button.transform.Find("Title");
+        TextMeshProUGUI titleLabel = titleTf != null ? titleTf.GetComponent<TextMeshProUGUI>() : null;
+        Color text = uiSelected ? SelectedTextColor : TextColor;
+        if (titleLabel != null) titleLabel.color = text;
+        if (valueLabel != null) valueLabel.color = text;
+    }
+
     private static void ApplyCloseVisual(Button button, Image icon, GameObject selected)
     {
         if (icon == null) return;
@@ -382,6 +405,26 @@ public class PauseMenuController : MonoBehaviour
             bgmValueLabel.text = Mathf.RoundToInt(bgmSlider.value) + "%";
         if (sfxValueLabel != null && sfxSlider != null)
             sfxValueLabel.text = Mathf.RoundToInt(sfxSlider.value) + "%";
+    }
+
+    private void RefreshGameplayToggles()
+    {
+        if (infiniteHealthValueLabel != null)
+            infiniteHealthValueLabel.text = GameplaySettings.InfiniteHealth ? "开" : "关";
+        if (oneHitPostureBreakValueLabel != null)
+            oneHitPostureBreakValueLabel.text = GameplaySettings.OneHitPostureBreak ? "开" : "关";
+    }
+
+    private void ToggleInfiniteHealth()
+    {
+        GameplaySettings.SetInfiniteHealth(!GameplaySettings.InfiniteHealth);
+        RefreshGameplayToggles();
+    }
+
+    private void ToggleOneHitPostureBreak()
+    {
+        GameplaySettings.SetOneHitPostureBreak(!GameplaySettings.OneHitPostureBreak);
+        RefreshGameplayToggles();
     }
 
     private void OnRowClicked(int rowIndex)
@@ -543,6 +586,7 @@ public class PauseMenuController : MonoBehaviour
         openSettingsButton = FindButton(rootTf, "设置");
         quitButton = FindButton(rootTf, "退出战斗");
         rootCloseButton = FindButton(rootTf, "Close");
+        BindGameplayToggleButtons(rootTf);
         hubKeybindButton = FindButton(hubTf, "键位设置");
         hubBackButton = FindButton(hubTf, "返回");
         hubCloseButton = FindButton(hubTf, "Close");
@@ -575,6 +619,22 @@ public class PauseMenuController : MonoBehaviour
         }
 
         return resumeButton != null && bgmSlider != null && sfxSlider != null;
+    }
+
+    private void BindGameplayToggleButtons(Transform panel)
+    {
+        if (panel == null) return;
+        infiniteHealthToggle = FindButton(panel, "无限生命");
+        oneHitPostureBreakToggle = FindButton(panel, "一击破防");
+        infiniteHealthValueLabel = FindToggleValueLabel(infiniteHealthToggle);
+        oneHitPostureBreakValueLabel = FindToggleValueLabel(oneHitPostureBreakToggle);
+    }
+
+    private static TextMeshProUGUI FindToggleValueLabel(Button toggle)
+    {
+        if (toggle == null) return null;
+        Transform value = toggle.transform.Find("Value");
+        return value != null ? value.GetComponent<TextMeshProUGUI>() : null;
     }
 
     private void BindSliderRow(Transform hub, string rowName, bool isBgm)
@@ -646,6 +706,10 @@ public class PauseMenuController : MonoBehaviour
             });
         }
 
+        BindClick(infiniteHealthToggle, ToggleInfiniteHealth);
+        BindClick(oneHitPostureBreakToggle, ToggleOneHitPostureBreak);
+        RefreshGameplayToggles();
+
         for (int i = 0; i < rebindRowButtons.Count; i++)
         {
             int index = i;
@@ -673,12 +737,51 @@ public class PauseMenuController : MonoBehaviour
         BindClick(settingsCloseButton, ShowHub);
     }
 
+    private void EnsureGameplayToggleButtons()
+    {
+        if (rootPanel == null) return;
+
+        Transform rootTf = rootPanel.transform;
+        Transform hubTf = hubPanel != null ? hubPanel.transform : null;
+
+        RemoveLegacyGameplayToggle(hubTf, "无限生命Row");
+        RemoveLegacyGameplayToggle(hubTf, "一击破防Row");
+        RemoveLegacyGameplayToggle(hubTf, "无限生命");
+        RemoveLegacyGameplayToggle(hubTf, "一击破防");
+        RemoveLegacyGameplayToggle(rootTf, "无限生命Row");
+        RemoveLegacyGameplayToggle(rootTf, "一击破防Row");
+
+        if (FindButton(rootTf, "无限生命") == null)
+            CreateGameplayToggleButton(rootTf, "无限生命", new Vector2(0f, 74f), ToggleInfiniteHealth, out infiniteHealthValueLabel);
+        if (FindButton(rootTf, "一击破防") == null)
+            CreateGameplayToggleButton(rootTf, "一击破防", new Vector2(0f, 12f), ToggleOneHitPostureBreak, out oneHitPostureBreakValueLabel);
+
+        BindGameplayToggleButtons(rootTf);
+        BindClick(infiniteHealthToggle, ToggleInfiniteHealth);
+        BindClick(oneHitPostureBreakToggle, ToggleOneHitPostureBreak);
+        RefreshGameplayToggles();
+    }
+
+    private static void RemoveLegacyGameplayToggle(Transform parent, string name)
+    {
+        if (parent == null) return;
+        Transform node = parent.Find(name);
+        if (node == null) return;
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+            Object.DestroyImmediate(node.gameObject);
+        else
+#endif
+            Object.Destroy(node.gameObject);
+    }
+
     public void EditorPreviewAllPages()
     {
         pauseCanvas = EnsureSettingPanelRoot();
         if (!TryBindExisting())
             BuildUIInto(pauseCanvas.transform);
         EnsurePauseCloseButtons();
+        EnsureGameplayToggleButtons();
         pauseCanvas.SetActive(true);
         Transform dimmer = pauseCanvas.transform.Find("Dimmer");
         if (dimmer != null)
@@ -699,6 +802,39 @@ public class PauseMenuController : MonoBehaviour
         {
             settingsPanel.SetActive(true);
             SetPanelPose(settingsPanel, new Vector2(680f, 40f));
+        }
+    }
+
+    // 编辑器预览：Esc 第一级暂停页（含练习开关）。
+    public void EditorPreviewPauseRoot()
+    {
+        pauseCanvas = EnsureSettingPanelRoot();
+        if (!TryBindExisting())
+            BuildUIInto(pauseCanvas.transform);
+        EnsurePauseCloseButtons();
+        EnsureGameplayToggleButtons();
+        GameplaySettings.Load();
+        RefreshGameplayToggles();
+        pauseCanvas.SetActive(true);
+        Transform dimmer = pauseCanvas.transform.Find("Dimmer");
+        if (dimmer != null)
+            dimmer.gameObject.SetActive(true);
+        if (rootPanel != null)
+        {
+            rootPanel.SetActive(true);
+            SetPanelPose(rootPanel, Vector2.zero);
+        }
+
+        if (hubPanel != null)
+        {
+            hubPanel.SetActive(false);
+            SetPanelPose(hubPanel, Vector2.zero);
+        }
+
+        if (settingsPanel != null)
+        {
+            settingsPanel.SetActive(false);
+            SetPanelPose(settingsPanel, Vector2.zero);
         }
     }
 
@@ -762,11 +898,15 @@ public class PauseMenuController : MonoBehaviour
         dimmer.raycastTarget = false;
         StretchFull(dimmer.rectTransform);
 
-        rootPanel = CreatePanel(canvasRoot, "RootPanel", new Vector2(460f, 420f));
-        CreateLabel(rootPanel.transform, "暂停", 42f, TextAlignmentOptions.Center, new Vector2(0f, 150f), new Vector2(400f, 60f));
-        resumeButton = CreateMenuButton(rootPanel.transform, "继续战斗", new Vector2(0f, 50f), Resume);
-        openSettingsButton = CreateMenuButton(rootPanel.transform, "设置", new Vector2(0f, -20f), ShowHub);
-        quitButton = CreateMenuButton(rootPanel.transform, "退出战斗", new Vector2(0f, -90f), RestartScene);
+        rootPanel = CreatePanel(canvasRoot, "RootPanel", new Vector2(460f, 540f));
+        CreateLabel(rootPanel.transform, "暂停", 42f, TextAlignmentOptions.Center, new Vector2(0f, 220f), new Vector2(400f, 60f));
+        resumeButton = CreateMenuButton(rootPanel.transform, "继续战斗", new Vector2(0f, 140f), Resume);
+        infiniteHealthToggle = CreateGameplayToggleButton(
+            rootPanel.transform, "无限生命", new Vector2(0f, 74f), ToggleInfiniteHealth, out infiniteHealthValueLabel);
+        oneHitPostureBreakToggle = CreateGameplayToggleButton(
+            rootPanel.transform, "一击破防", new Vector2(0f, 12f), ToggleOneHitPostureBreak, out oneHitPostureBreakValueLabel);
+        openSettingsButton = CreateMenuButton(rootPanel.transform, "设置", new Vector2(0f, -52f), ShowHub);
+        quitButton = CreateMenuButton(rootPanel.transform, "退出战斗", new Vector2(0f, -116f), RestartScene);
         rootCloseButton = CreateCloseButton(rootPanel.transform, Resume);
 
         hubPanel = CreatePanel(canvasRoot, "HubPanel", new Vector2(560f, 500f));
@@ -821,6 +961,31 @@ public class PauseMenuController : MonoBehaviour
         TextMeshProUGUI label = rowButton.GetComponentInChildren<TextMeshProUGUI>();
         bindingLabels.Add(label);
         rebindRowButtons.Add(rowButton);
+    }
+
+    private Button CreateGameplayToggleButton(
+        Transform parent,
+        string title,
+        Vector2 position,
+        UnityEngine.Events.UnityAction onClick,
+        out TextMeshProUGUI valueLabel)
+    {
+        Image image = CreateImage(parent, title, ButtonColor);
+        RectTransform rect = image.rectTransform;
+        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(320f, 50f);
+        rect.anchoredPosition = position;
+
+        Button button = image.gameObject.AddComponent<Button>();
+        button.transition = Selectable.Transition.None;
+        button.navigation = new Navigation { mode = Navigation.Mode.Explicit };
+        button.onClick.AddListener(onClick);
+
+        CreateLabel(image.transform, title, 24f, TextAlignmentOptions.Left,
+            new Vector2(-62f, 0f), new Vector2(170f, 44f), "Title");
+        valueLabel = CreateLabel(image.transform, "关", 24f, TextAlignmentOptions.Right,
+            new Vector2(98f, 0f), new Vector2(56f, 44f), "Value");
+        return button;
     }
 
     private void CreateSliderRow(Transform parent, string title, Vector2 position, bool isBgm)
@@ -1136,8 +1301,24 @@ public class PauseMenuController : MonoBehaviour
 
     private void WireNavigation()
     {
-        SetNav(resumeButton, null, openSettingsButton, null, null);
-        SetNav(openSettingsButton, resumeButton, quitButton, null, null);
+        SetNav(resumeButton, null, infiniteHealthToggle, null, null);
+        Navigation infiniteNav = new Navigation
+        {
+            mode = Navigation.Mode.Explicit,
+            selectOnUp = resumeButton,
+            selectOnDown = oneHitPostureBreakToggle != null ? oneHitPostureBreakToggle : openSettingsButton
+        };
+        if (infiniteHealthToggle != null)
+            infiniteHealthToggle.navigation = infiniteNav;
+        Navigation oneHitNav = new Navigation
+        {
+            mode = Navigation.Mode.Explicit,
+            selectOnUp = infiniteHealthToggle,
+            selectOnDown = openSettingsButton
+        };
+        if (oneHitPostureBreakToggle != null)
+            oneHitPostureBreakToggle.navigation = oneHitNav;
+        SetNav(openSettingsButton, oneHitPostureBreakToggle != null ? oneHitPostureBreakToggle : resumeButton, quitButton, null, null);
         SetNav(quitButton, openSettingsButton, null, null, null);
 
         SetSliderNav(bgmSlider, null, sfxSlider);

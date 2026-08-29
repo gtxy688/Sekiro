@@ -46,7 +46,28 @@ public class StandingState : BaseState
 
     public override bool HandleCommand(ICommand cmd)
     {
+        if (cmd is DodgeCommand)
+        {
+            CancelStanding(toDeflect: false);
+            return true;
+        }
+        if (cmd is DeflectCommand)
+        {
+            CancelStanding(toDeflect: true);
+            return true;
+        }
         return true;
+    }
+
+    void CancelStanding(bool toDeflect)
+    {
+        body.IsKnockedDown = false;
+        GroundedState ground = body.MainStateMachine.CurrentState as GroundedState;
+        if (ground == null) return;
+        if (toDeflect)
+            ground.SubStateMachine.ChangeState(new DeflectState(body, ground));
+        else
+            ground.SubStateMachine.ChangeState(new DodgeState(body, ground));
     }
 
     // 已经算站起来：不要拦截，让 ReceiveHit 按新一击完整播。

@@ -6,6 +6,7 @@ public class AttackTimelineWindow : EditorWindow
     AttackConfig playerConfig;
     BossMoveTable bossTable;
     int moveIndex;
+    int sequenceIndex;
     int segmentIndex;
     float scrub;
     readonly AttackTimelinePreview preview = new AttackTimelinePreview();
@@ -16,6 +17,7 @@ public class AttackTimelineWindow : EditorWindow
     ArrowSpawnCue[] workingArrows;
     Object loadedSource;
     int loadedMove = -1;
+    int loadedSeq = -1;
     int loadedSeg = -1;
 
     int dragPulse = -1;
@@ -56,6 +58,7 @@ public class AttackTimelineWindow : EditorWindow
         w.bossTable = table;
         w.playerConfig = null;
         w.moveIndex = 0;
+        w.sequenceIndex = 0;
         w.segmentIndex = 0;
         w.Show();
         w.ReloadWorking();
@@ -91,6 +94,8 @@ public class AttackTimelineWindow : EditorWindow
         float clipLength = clip != null && clip.length > 0.01f ? clip.length : 1f;
         if (clip == null && !string.IsNullOrEmpty(animName) && prefab != null)
             EditorGUILayout.HelpBox("预览 Animator 上找不到状态：" + animName, MessageType.Warning);
+
+        DrawSegmentTiming(clipLength);
 
         EditorGUILayout.LabelField("按住左侧名字左右拖可改时间，Shift 细调；右侧数字可手填。", EditorStyles.miniLabel);
         scrub = DragNameTime("进度（秒）", scrub, 0f, clipLength);
@@ -172,6 +177,7 @@ public class AttackTimelineWindow : EditorWindow
             bossTable = nextBoss;
             if (bossTable != null) playerConfig = null;
             moveIndex = 0;
+            sequenceIndex = 0;
             segmentIndex = 0;
         }
 
@@ -183,18 +189,33 @@ public class AttackTimelineWindow : EditorWindow
             moveIndex = EditorGUILayout.Popup("招式", Mathf.Clamp(moveIndex, 0, ids.Length - 1), ids);
 
             BossMoveEntry entry = bossTable.moves[Mathf.Clamp(moveIndex, 0, bossTable.moves.Length - 1)];
-            int segCount = SegmentCount(entry);
+            BossAnimSequence sequence = CurrentSequence(entry);
+            if (entry != null && entry.sequences != null && entry.sequences.Length > 1)
+            {
+                string[] seqLabels = new string[entry.sequences.Length];
+                for (int i = 0; i < entry.sequences.Length; i++)
+                    seqLabels[i] = SequenceLabel(entry.sequences[i], i);
+                sequenceIndex = EditorGUILayout.Popup(
+                    "动画分支", Mathf.Clamp(sequenceIndex, 0, entry.sequences.Length - 1), seqLabels);
+                sequence = CurrentSequence(entry);
+            }
+            else
+            {
+                sequenceIndex = 0;
+            }
+
+            int segCount = SegmentCount(entry, sequence);
             segmentIndex = Mathf.Clamp(segmentIndex, 0, Mathf.Max(0, segCount - 1));
 
             if (segCount <= 1)
             {
-                EditorGUILayout.LabelField("动画", StateName(entry, 0) ?? "—");
+                EditorGUILayout.LabelField("动画", StateName(entry, sequence, 0) ?? "—");
             }
             else
             {
                 string[] segs = new string[segCount];
                 for (int i = 0; i < segCount; i++)
-                    segs[i] = (i + 1) + "/" + segCount + "  " + (StateName(entry, i) ?? "—");
+                    segs[i] = (i + 1) + "/" + segCount + "  " + (StateName(entry, sequence, i) ?? "—");
                 segmentIndex = EditorGUILayout.Popup("第几段动画", segmentIndex, segs);
             }
 
@@ -204,21 +225,81 @@ public class AttackTimelineWindow : EditorWindow
                 EditorGUI.BeginChangeCheck();
                 AttackHitboxSlot slot = (AttackHitboxSlot)EditorGUILayout.EnumPopup(
                     "判定 Hitbox", window.hitboxSlot);
+                float trans = EditorGUILayout.FloatField(
+                    new GUIContent(
+                        "切入混合 (秒)",
+                        "切到本段动画的 CrossFade。JumpThrust 落地突刺：招式选 JumpThrust，第几段选 2/2 Kengeki_Thrust，改这一项。越小切得越干脆。"),
+                    window.transitionDuration);
                 if (EditorGUI.EndChangeCheck())
                 {
-                    Undo.RecordObject(bossTable, "Attack Timeline Hitbox");
+                    Undo.RecordObject(bossTable, "Attack Timeline Window");
                     window.hitboxSlot = slot;
+                    window.transitionDuration = Mathf.Max(0f, trans);
                     EditorUtility.SetDirty(bossTable);
                 }
             }
 
             if (entry != null && entry.sequences != null && entry.sequences.Length > 1)
+            {
+                bool seqOwnWindows = sequence != null && sequence.windows != null && sequence.windows.Length > 0;
                 EditorGUILayout.LabelField(
-                    "另有 " + (entry.sequences.Length - 1) + " 套动画分支，预览第一套；时间窗各套共用。",
+                    seqOwnWindows
+                        ? "本分支使用独立时间窗（与另一分支分开保存）。"
+                        : "本分支未建独立时间窗，编辑会写入招式行共用 windows。",
                     EditorStyles.miniLabel);
+            }
             if (GUILayout.Button("打开招式伤害表", GUILayout.Width(130)))
                 BossMoveDamageWindow.Open(bossTable);
         }
+    }
+
+    void DrawSegmentTiming(float clipLength)
+    {
+        if (bossTable == null) return;
+        BossMoveWindow window = CurrentWindow();
+        if (window == null) return;
+
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("切到下一段", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField($"本段 Clip 约 {clipLength:0.00} 秒。", EditorStyles.miniLabel);
+
+        EditorGUI.BeginChangeCheck();
+        bool waitEnd = EditorGUILayout.Toggle(
+            new GUIContent(
+                "等本段播完再切",
+                "勾选：本段动画播到最后一帧才切下一段（JumpThrust 起跳现在是这样）。取消：按下面的秒数提前切，开始和下一段 CrossFade。"),
+            window.waitAnimEnd);
+        float cutAt = window.stateDuration;
+        using (new EditorGUI.DisabledScope(waitEnd))
+        {
+            cutAt = EditorGUILayout.FloatField(
+                new GUIContent(
+                    "切下一段时间 (秒)",
+                    "从本段动画 0 点算起，到这一秒就切下一段。必须先取消「等本段播完再切」。JumpThrust 提前混突刺：招式选 JumpThrust，第几段选 1/2 JumpThrust，改这一项。"),
+                window.stateDuration);
+        }
+        if (EditorGUI.EndChangeCheck())
+        {
+            Undo.RecordObject(bossTable, "Attack Timeline Cut");
+            // 取消「等播完」时若还留着 99 秒占位，会一直不切下一段。
+            if (!waitEnd && window.waitAnimEnd && window.stateDuration > clipLength)
+                cutAt = clipLength;
+            window.waitAnimEnd = waitEnd;
+            if (!waitEnd)
+            {
+                window.stateDuration = Mathf.Clamp(cutAt, 0.01f, Mathf.Max(0.01f, clipLength));
+                if (window.rotateEnd > window.stateDuration)
+                    window.rotateEnd = window.stateDuration;
+            }
+            EditorUtility.SetDirty(bossTable);
+        }
+
+        if (waitEnd)
+            EditorGUILayout.HelpBox("现在等本段播完才混下一段。要提前衔接：取消勾选，再把「切下一段时间」改小。", MessageType.Info);
+        else
+            EditorGUILayout.HelpBox(
+                $"到 {window.stateDuration:0.00} 秒切下一段，混合时长看下一段的「切入混合」。不要点「用动画长度填写时长」（会填回整段 Clip）。",
+                MessageType.None);
     }
 
     void HandlePreviewView(Rect rect)
@@ -281,7 +362,8 @@ public class AttackTimelineWindow : EditorWindow
     void ReloadWorkingIfNeeded()
     {
         Object src = playerConfig != null ? (Object)playerConfig : bossTable;
-        if (src != loadedSource || moveIndex != loadedMove || segmentIndex != loadedSeg)
+        if (src != loadedSource || moveIndex != loadedMove || sequenceIndex != loadedSeq
+            || segmentIndex != loadedSeg)
             ReloadWorking();
     }
 
@@ -289,6 +371,7 @@ public class AttackTimelineWindow : EditorWindow
     {
         loadedSource = playerConfig != null ? (Object)playerConfig : bossTable;
         loadedMove = moveIndex;
+        loadedSeq = sequenceIndex;
         loadedSeg = segmentIndex;
         workingPulses = ClonePulses(CurrentStoredPulses(), CurrentHitStart(), CurrentRecover());
         workingSfx = CloneSfx(CurrentStoredSfx());
@@ -417,7 +500,7 @@ public class AttackTimelineWindow : EditorWindow
             pendingAddArrow = true;
         EditorGUILayout.EndHorizontal();
         EditorGUILayout.HelpBox(
-            "拖进度到撒手帧再点「加出箭」。与近战红条独立，「关闭近战判定」不会清出箭点。五连射插 5 点。Clip 上不要加 SpawnArrow。",
+            "拖进度到撒手帧再点「加出箭」。与近战红条独立，「关闭近战判定」不会清出箭点。Bow_Air5 动画 4 箭插 4 点。Clip 上不要加 SpawnArrow。",
             MessageType.None);
 
         Rect track = GUILayoutUtility.GetRect(16f, 22f, GUILayout.ExpandWidth(true));
@@ -665,7 +748,7 @@ public class AttackTimelineWindow : EditorWindow
     {
         if (entry == null) return "空 " + index;
         string id = string.IsNullOrEmpty(entry.id) ? ("空 " + index) : entry.id;
-        int segs = SegmentCount(entry);
+        int segs = SegmentCount(entry, FirstSequence(entry));
         if (segs <= 1) return id;
 
         string chain = SequenceChain(entry);
@@ -682,11 +765,14 @@ public class AttackTimelineWindow : EditorWindow
         return string.Join(" → ", seq.states);
     }
 
-    static int SegmentCount(BossMoveEntry entry)
+    static int SegmentCount(BossMoveEntry entry, BossAnimSequence seq)
     {
         if (entry == null) return 1;
-        int windows = entry.windows != null ? entry.windows.Length : 0;
-        BossAnimSequence seq = FirstSequence(entry);
+        int windows = 0;
+        if (seq != null && seq.windows != null && seq.windows.Length > 0)
+            windows = seq.windows.Length;
+        else if (entry.windows != null)
+            windows = entry.windows.Length;
         int states = seq != null && seq.states != null ? seq.states.Length : 0;
         return Mathf.Max(1, windows, states);
     }
@@ -698,9 +784,23 @@ public class AttackTimelineWindow : EditorWindow
         return entry.sequences[0];
     }
 
-    static string StateName(BossMoveEntry entry, int segment)
+    BossAnimSequence CurrentSequence(BossMoveEntry entry)
     {
-        BossAnimSequence seq = FirstSequence(entry);
+        if (entry == null || entry.sequences == null || entry.sequences.Length == 0)
+            return null;
+        int si = Mathf.Clamp(sequenceIndex, 0, entry.sequences.Length - 1);
+        return entry.sequences[si];
+    }
+
+    static string SequenceLabel(BossAnimSequence seq, int index)
+    {
+        if (seq == null || seq.states == null || seq.states.Length == 0)
+            return "分支 " + (index + 1);
+        return string.Join(" → ", seq.states);
+    }
+
+    static string StateName(BossMoveEntry entry, BossAnimSequence seq, int segment)
+    {
         if (seq == null || seq.states == null || seq.states.Length == 0)
             return null;
         int i = Mathf.Clamp(segment, 0, seq.states.Length - 1);
@@ -713,7 +813,8 @@ public class AttackTimelineWindow : EditorWindow
         if (bossTable == null || bossTable.moves == null || bossTable.moves.Length == 0)
             return null;
         int mi = Mathf.Clamp(moveIndex, 0, bossTable.moves.Length - 1);
-        return StateName(bossTable.moves[mi], segmentIndex);
+        BossMoveEntry entry = bossTable.moves[mi];
+        return StateName(entry, CurrentSequence(entry), segmentIndex);
     }
 
     BossMoveWindow CurrentWindow()
@@ -721,7 +822,7 @@ public class AttackTimelineWindow : EditorWindow
         if (bossTable == null || bossTable.moves == null || bossTable.moves.Length == 0)
             return null;
         BossMoveEntry entry = bossTable.moves[Mathf.Clamp(moveIndex, 0, bossTable.moves.Length - 1)];
-        return BossMovePicker.WindowFor(entry, segmentIndex);
+        return BossMovePicker.WindowFor(entry, segmentIndex, CurrentSequence(entry));
     }
 
     HitPulse[] CurrentStoredPulses()

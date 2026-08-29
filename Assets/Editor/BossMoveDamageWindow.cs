@@ -12,6 +12,7 @@ public class BossMoveDamageWindow : EditorWindow
     BossMoveTable table;
     Vector2 scroll;
     string filter = "";
+    int sequenceIndex;
     readonly System.Collections.Generic.Dictionary<string, bool> fold =
         new System.Collections.Generic.Dictionary<string, bool>();
 
@@ -129,11 +130,26 @@ public class BossMoveDamageWindow : EditorWindow
 
     void DrawSegments(BossMoveEntry entry)
     {
-        int count = SegmentCount(entry);
+        BossAnimSequence sequence = CurrentSequence(entry);
+        if (entry.sequences != null && entry.sequences.Length > 1)
+        {
+            string[] seqLabels = new string[entry.sequences.Length];
+            for (int i = 0; i < entry.sequences.Length; i++)
+                seqLabels[i] = SequenceLabel(entry.sequences[i], i);
+            sequenceIndex = EditorGUILayout.Popup(
+                "动画分支", Mathf.Clamp(sequenceIndex, 0, entry.sequences.Length - 1), seqLabels);
+            sequence = CurrentSequence(entry);
+        }
+        else
+        {
+            sequenceIndex = 0;
+        }
+
+        int count = SegmentCount(entry, sequence);
         for (int s = 0; s < count; s++)
         {
-            string anim = StateName(entry, s) ?? "—";
-            BossMoveWindow w = BossMovePicker.WindowFor(entry, s);
+            string anim = StateName(entry, sequence, s) ?? "—";
+            BossMoveWindow w = BossMovePicker.WindowFor(entry, s, sequence);
             if (w == null) continue;
 
             bool melee = AttackWindowSync.CanMeleeHit(w.hitStartTime, w.recoverStart, w.hitPulses);
@@ -353,10 +369,14 @@ public class BossMoveDamageWindow : EditorWindow
         }
     }
 
-    static int SegmentCount(BossMoveEntry entry)
+    static int SegmentCount(BossMoveEntry entry, BossAnimSequence seq)
     {
-        int windows = entry.windows != null ? entry.windows.Length : 0;
-        BossAnimSequence seq = FirstSequence(entry);
+        if (entry == null) return 1;
+        int windows = 0;
+        if (seq != null && seq.windows != null && seq.windows.Length > 0)
+            windows = seq.windows.Length;
+        else if (entry.windows != null)
+            windows = entry.windows.Length;
         int states = seq != null && seq.states != null ? seq.states.Length : 0;
         return Mathf.Max(1, windows, states);
     }
@@ -368,9 +388,23 @@ public class BossMoveDamageWindow : EditorWindow
         return entry.sequences[0];
     }
 
-    static string StateName(BossMoveEntry entry, int segment)
+    BossAnimSequence CurrentSequence(BossMoveEntry entry)
     {
-        BossAnimSequence seq = FirstSequence(entry);
+        if (entry == null || entry.sequences == null || entry.sequences.Length == 0)
+            return null;
+        int si = Mathf.Clamp(sequenceIndex, 0, entry.sequences.Length - 1);
+        return entry.sequences[si];
+    }
+
+    static string SequenceLabel(BossAnimSequence seq, int index)
+    {
+        if (seq == null || seq.states == null || seq.states.Length == 0)
+            return "分支 " + (index + 1);
+        return string.Join(" → ", seq.states);
+    }
+
+    static string StateName(BossMoveEntry entry, BossAnimSequence seq, int segment)
+    {
         if (seq == null || seq.states == null || seq.states.Length == 0)
             return null;
         int i = Mathf.Clamp(segment, 0, seq.states.Length - 1);

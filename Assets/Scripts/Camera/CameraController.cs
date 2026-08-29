@@ -113,11 +113,16 @@ public class CameraController : MonoBehaviour
     [Tooltip("整个镜头反应总时长（秒），≈ 重箭后滑时长")]
     [SerializeField] private float arrowReactDuration = 0.85f;
 
-    [Header("JumpThrust 镜头（Boss 起跳段上抬 + 略后拉）")]
+    [Header("JumpThrust 镜头（机位下沉仰视，LookAt 跟髋；Jump_Danger 不开）")]
+    [Tooltip("机位下沉距离（米）。正数=往下，用来仰视跳起的 Boss")]
     [SerializeField] private float jumpThrustLift = 1.15f;
     [SerializeField] private float jumpThrustBack = 0.45f;
-    [SerializeField] private float jumpThrustBlendIn = 0.28f;
+    [SerializeField] private float jumpThrustBlendIn = 0.16f;
     [SerializeField] private float jumpThrustBlendOut = 0.45f;
+    [Tooltip("Boss 髋骨升高 → LookAt 上抬系数（机位不再跟着抬，否则会变成俯视）")]
+    [SerializeField] private float jumpThrustHeightFollow = 1f;
+    [Tooltip("LookAt 额外上抬上限（米）")]
+    [SerializeField] private float jumpThrustMaxExtraLift = 5f;
 
     private bool setupDone;
     private CinemachineBrain brain;
@@ -136,8 +141,13 @@ public class CameraController : MonoBehaviour
     private bool jumpThrustActive;
     private float jumpThrustEnv;
     private float jumpThrustTarget;
+    private float lastJumpEnv;
+    private CharacterBody jumpThrustBoss;
+    private float jumpThrustBossBaseY;
+    private float jumpThrustPeakHipDy;
 
     private CinemachineTransposer lockTransposer;
+    private CinemachineComposer lockComposer;
     private Vector3 lockBaseOffset;
     private float[] baseOrbitRadius;
     private float[] baseOrbitHeight;
@@ -202,20 +212,33 @@ public class CameraController : MonoBehaviour
         UpdateArrowReaction();
     }
 
-    private void HandleJumpThrustCamera(bool active)
+    private void HandleJumpThrustCamera(bool active, CharacterBody boss, float bossBaseY)
     {
         if (isInFinisher) return;
         jumpThrustActive = active;
         jumpThrustTarget = active ? 1f : 0f;
+        if (active)
+        {
+            jumpThrustBoss = boss;
+            jumpThrustBossBaseY = bossBaseY;
+            jumpThrustPeakHipDy = 0f;
+        }
+        // 关闭时不立刻丢掉 Boss：下落跟髋还要读高度，env 到 0 再清。
     }
 
-    // JumpThrust 起跳：仅更新混合权重，偏移在 UpdateArrowReaction 里与重箭反应叠加。
+    // JumpThrust：混合权重。下落还原主要跟髋高，这段只收尾。
     private void UpdateJumpThrustCamera()
     {
         if (isInFinisher) return;
         float speed = jumpThrustTarget > jumpThrustEnv ? jumpThrustBlendIn : jumpThrustBlendOut;
         if (speed <= 0.01f) speed = 0.25f;
         jumpThrustEnv = Mathf.MoveTowards(jumpThrustEnv, jumpThrustTarget, Time.deltaTime / speed);
+        if (jumpThrustTarget <= 0f && jumpThrustEnv <= 0.001f)
+        {
+            jumpThrustEnv = 0f;
+            jumpThrustBoss = null;
+            jumpThrustPeakHipDy = 0f;
+        }
     }
 
     // 镜头被墙挤死（实际距离远小于期望距离）→ 虚化玩家给镜头让位。
@@ -273,15 +296,32 @@ public class CameraController : MonoBehaviour
     private void UpdateArrowReaction()
     {
         float e = isInFinisher ? 0f : ComputeArrowEnvelope();
-        float jLift = jumpThrustLift * jumpThrustEnv;
-        float jBack = jumpThrustBack * jumpThrustEnv;
-        if (e <= 0f && lastArrowEnv <= 0f && jumpThrustEnv <= 0f) return;
+        float lookUp = 0f;
+        float fall01 = 1f;
+        if (jumpThrustEnv > 0.01f && jumpThrustBoss != null)
+        {
+            float hipDy = jumpThrustBoss.GetJumpFollowWorldY() - jumpThrustBossBaseY;
+            if (hipDy < 0f) hipDy = 0f;
+            if (hipDy > jumpThrustPeakHipDy) jumpThrustPeakHipDy = hipDy;
+            // 髋从顶点往下落时，机位/后拉跟着收。顶点太低则不缩放，避免起跳瞬间被抹掉。
+            if (jumpThrustPeakHipDy > 0.12f)
+                fall01 = Mathf.Clamp01(hipDy / jumpThrustPeakHipDy);
+            lookUp = Mathf.Clamp(hipDy * jumpThrustHeightFollow, 0f, jumpThrustMaxExtraLift);
+        }
+        // 机位下沉、LookAt 跟髋：两者反向才是仰视。下落用 fall01 逐渐还原。
+        float jDrop = jumpThrustLift * jumpThrustEnv * fall01;
+        float jBack = jumpThrustBack * jumpThrustEnv * fall01;
+        if (e <= 0f && lastArrowEnv <= 0f && jumpThrustEnv <= 0f && lastJumpEnv <= 0f) return;
         lastArrowEnv = e;
+        lastJumpEnv = jumpThrustEnv;
 
         // 锁定机位：直接推 Transposer 偏移（Z 越负越远，Y 越低越贴地）
         if (lockTransposer != null)
             lockTransposer.m_FollowOffset = lockBaseOffset
-                + new Vector3(0f, jLift - arrowDownPeak * e, -jBack - arrowBackPeak * e);
+                + new Vector3(0f, -jDrop - arrowDownPeak * e, -jBack - arrowBackPeak * e);
+
+        if (lockComposer != null)
+            lockComposer.m_TrackedObjectOffset = lookAtOffset + new Vector3(0f, lookUp * jumpThrustEnv, 0f);
 
         // 自由机位：推三条轨道的半径和高度
         if (freeLook != null && freeLook.m_Orbits != null && freeLook.m_Orbits.Length >= 3
@@ -290,7 +330,7 @@ public class CameraController : MonoBehaviour
             for (int i = 0; i < 3; i++)
             {
                 freeLook.m_Orbits[i].m_Radius = baseOrbitRadius[i] + jBack + arrowBackPeak * e;
-                freeLook.m_Orbits[i].m_Height = baseOrbitHeight[i] + jLift - arrowDownPeak * e;
+                freeLook.m_Orbits[i].m_Height = baseOrbitHeight[i] - jDrop - arrowDownPeak * e;
             }
         }
     }
@@ -619,6 +659,8 @@ public class CameraController : MonoBehaviour
     {
         lockTransposer = lockVcam != null
             ? lockVcam.GetCinemachineComponent<CinemachineTransposer>() : null;
+        lockComposer = lockVcam != null
+            ? lockVcam.GetCinemachineComponent<CinemachineComposer>() : null;
         lockBaseOffset = followOffset;
 
         if (freeLook == null || freeLook.m_Orbits == null || freeLook.m_Orbits.Length < 3) return;

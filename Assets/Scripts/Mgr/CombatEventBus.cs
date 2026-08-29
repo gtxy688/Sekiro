@@ -58,13 +58,15 @@ public static class CombatEventBus
     public static event Action<float> OnCameraShake;
     // 重箭被格挡/弹反（角色, 是否完美弹反）—— 玩家会借力后滑，镜头跟随下压后拉
     public static event Action<CharacterBody, bool> OnHeavyArrowDefended;
-    // Boss JumpThrust 起跳段：镜头上抬跟随
-    public static event Action<bool> OnJumpThrustCamera;
+    // Boss JumpThrust 整段：镜头上抬 + 随 Boss 高度跟随（active, boss, 起手地面 Y）
+    public static event Action<bool, CharacterBody, float> OnJumpThrustCamera;
     // 出招音效（clip, 世界坐标）—— clip 由 AttackSfxCue 经事件传入，表现层不持有资源
     public static event Action<AudioClip, Vector3> OnAttackSfx;
     // 出刀瞬间（Hitbox 打开）—— 玩家挥刀刀光
     public static event Action<CharacterBody> OnAttackSwingStart;
     public static event Action<CharacterBody> OnAttackSwingEnd;
+    // Boss 弓段出箭
+    public static event Action<CharacterBody> OnArrowReleased;
 
     // ========== 2. 修改触发器 ==========
 
@@ -168,9 +170,9 @@ public static class CombatEventBus
         OnHeavyArrowDefended?.Invoke(body, perfect);
     }
 
-    public static void TriggerJumpThrustCamera(bool active)
+    public static void TriggerJumpThrustCamera(bool active, CharacterBody boss = null, float bossBaseY = 0f)
     {
-        OnJumpThrustCamera?.Invoke(active);
+        OnJumpThrustCamera?.Invoke(active, boss, bossBaseY);
     }
 
     public static void TriggerAttackSfx(AudioClip clip, Vector3 worldPos)
@@ -189,5 +191,11 @@ public static class CombatEventBus
     {
         if (attacker == null) return;
         OnAttackSwingEnd?.Invoke(attacker);
+    }
+
+    public static void TriggerArrowReleased(CharacterBody shooter)
+    {
+        if (shooter == null) return;
+        OnArrowReleased?.Invoke(shooter);
     }
 }

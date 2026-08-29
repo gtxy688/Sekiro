@@ -6,7 +6,14 @@ public class ArrowProjectile : MonoBehaviour
     [SerializeField] private Transform visualRoot;
     [Tooltip("模型本地轴与飞行 +Z 的偏差。弦一郎箭模沿 +X，默认绕 Y -90°")]
     [SerializeField] private Vector3 visualLocalEuler = new Vector3(0f, -90f, 0f);
-    [SerializeField] private float visualScale = 1.35f;
+    [SerializeField] private float visualScale = 2.4f;
+
+    [Header("可见性")]
+    [SerializeField] private bool enableTrail = true;
+    [SerializeField] private float trailTime = 0.22f;
+    [SerializeField] private float trailStartWidth = 0.12f;
+    [SerializeField] private float trailEndWidth = 0.02f;
+    [SerializeField] private Color trailColor = new Color(1.4f, 1.1f, 0.55f, 1f);
 
     private CharacterBody owner;
     private Vector3 direction;
@@ -21,12 +28,21 @@ public class ArrowProjectile : MonoBehaviour
     private readonly Collider[] overlapBuf = new Collider[16];
     private Vector3 lastPos;
     private bool spent;
+    private TrailRenderer trail;
+    private Material trailMat;
 
     void Awake()
     {
         if (visualRoot == null && transform.childCount > 0)
             visualRoot = transform.GetChild(0);
         ApplyVisualPose();
+        EnsureTrail();
+    }
+
+    void OnDestroy()
+    {
+        if (trailMat != null)
+            Destroy(trailMat);
     }
 
     void ApplyVisualPose()
@@ -34,6 +50,59 @@ public class ArrowProjectile : MonoBehaviour
         if (visualRoot == null) return;
         visualRoot.localRotation = Quaternion.Euler(visualLocalEuler);
         visualRoot.localScale = Vector3.one * visualScale;
+    }
+
+    void EnsureTrail()
+    {
+        if (!enableTrail) return;
+
+        trail = GetComponent<TrailRenderer>();
+        if (trail == null)
+            trail = gameObject.AddComponent<TrailRenderer>();
+
+        trail.time = trailTime;
+        trail.minVertexDistance = 0.04f;
+        trail.numCapVertices = 2;
+        trail.numCornerVertices = 2;
+        trail.alignment = LineAlignment.View;
+        trail.textureMode = LineTextureMode.Stretch;
+        trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        trail.receiveShadows = false;
+        trail.widthMultiplier = 1f;
+        trail.widthCurve = new AnimationCurve(
+            new Keyframe(0f, trailStartWidth),
+            new Keyframe(1f, trailEndWidth));
+
+        Gradient g = new Gradient();
+        Color c = trailColor;
+        g.SetKeys(
+            new[]
+            {
+                new GradientColorKey(c, 0f),
+                new GradientColorKey(c, 1f),
+            },
+            new[]
+            {
+                new GradientAlphaKey(1f, 0f),
+                new GradientAlphaKey(0f, 1f),
+            });
+        trail.colorGradient = g;
+
+        Shader shader = Shader.Find("ARPG/FX/AdditiveSpark");
+        if (shader == null)
+            shader = Shader.Find("Sprites/Default");
+        if (shader != null)
+        {
+            if (trailMat != null)
+                Destroy(trailMat);
+            trailMat = new Material(shader);
+            if (trailMat.HasProperty("_Color"))
+                trailMat.SetColor("_Color", c);
+            trail.material = trailMat;
+        }
+
+        trail.emitting = true;
+        trail.Clear();
     }
 
     public void Fire(
@@ -59,9 +128,15 @@ public class ArrowProjectile : MonoBehaviour
         this.knockback = knockback;
         this.grade = grade;
         ApplyVisualPose();
+        EnsureTrail();
         transform.rotation = Quaternion.LookRotation(this.direction, Vector3.up);
         lastPos = transform.position;
         spent = false;
+        if (trail != null)
+        {
+            trail.Clear();
+            trail.emitting = true;
+        }
     }
 
     private void LateUpdate()
@@ -113,6 +188,8 @@ public class ArrowProjectile : MonoBehaviour
             return false;
 
         spent = true;
+        if (trail != null)
+            trail.emitting = false;
         CombatManager.Instance?.ReportProjectileHit(
             owner, hurtbox, hitPoint, healthDmg, postureDmg, knockback, grade);
         Destroy(gameObject);

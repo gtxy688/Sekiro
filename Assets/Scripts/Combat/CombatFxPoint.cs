@@ -10,6 +10,15 @@ public static class CombatFxPoint
         return body.ActiveHitbox != null ? body.ActiveHitbox : body.Weapon;
     }
 
+    // 近战：两刀中点；箭：贴防守方刀刃（箭没有攻击方 Hitbox，BetweenWeapons 会落到两人刀之间的半空）。
+    public static Vector3 ForDeflect(
+        CharacterBody attacker, CharacterBody defender, Vector3 hitPoint, bool isProjectile)
+    {
+        if (isProjectile)
+            return OnDefenderWeapon(defender, hitPoint);
+        return BetweenWeapons(attacker, defender, hitPoint);
+    }
+
     public static Vector3 BetweenWeapons(CharacterBody a, CharacterBody b, Vector3 fallback)
     {
         Hitbox ha = FxHitbox(a);
@@ -33,6 +42,19 @@ public static class CombatFxPoint
         return ClosestMid(Hilt(a), Tip(a), Hilt(b), Tip(b));
     }
 
+    // 箭命中点在身上，火花改贴防守方刀身离命中点最近处。
+    static Vector3 OnDefenderWeapon(CharacterBody defender, Vector3 hitPoint)
+    {
+        Hitbox hb = FxHitbox(defender);
+        if (hb == null) return hitPoint;
+
+        Vector3 tip = Tip(hb);
+        Vector3 hilt = Hilt(hb);
+        Vector3 onBlade = ClosestOnSegment(hilt, tip, hitPoint);
+        // 略向命中点收一点，避免纯贴刀心时看起来飘在刃里。
+        return Vector3.Lerp(onBlade, hitPoint, 0.15f);
+    }
+
     static Vector3 Tip(Hitbox h)
     {
         return h.transform.position;
@@ -51,6 +73,15 @@ public static class CombatFxPoint
         if (col == null) col = body.GetComponent<Collider>();
         if (col == null) return from;
         return col.ClosestPoint(from);
+    }
+
+    static Vector3 ClosestOnSegment(Vector3 a, Vector3 b, Vector3 p)
+    {
+        Vector3 ab = b - a;
+        float lenSq = ab.sqrMagnitude;
+        if (lenSq < 1e-8f) return a;
+        float t = Mathf.Clamp01(Vector3.Dot(p - a, ab) / lenSq);
+        return a + ab * t;
     }
 
     // 两段线段最近点的中点。

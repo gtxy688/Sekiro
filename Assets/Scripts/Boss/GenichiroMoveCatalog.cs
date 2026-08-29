@@ -98,26 +98,18 @@ public static class GenichiroMoveCatalog
         return w;
     }
 
-    static BossMoveWindow SweepLanding()
+    // 躺地追击：Clip 约 85 帧，必须等播完，避免 2.4s 时长先结束、下一招抢进来。
+    static BossMoveWindow DangerJump()
     {
-        // 判定对齐已调过的 Perilous_Sweep；伤害按横扫默认 Light，不吃 JumpThrust 招式 Heavy。
-        BossMoveWindow w = Hits(2.4f, 1.75f, PerilousType.Sweep, AttackHitboxSlot.Weapon,
-            1.0624994f, 1.2986106f);
-        w.overrideCombat = true;
-        w.hitGrade = HitGrade.Light;
-        w.baseDamage = 10;
-        w.postureDamage = 10;
+        BossMoveWindow w = Hits(4f, 1.45f, PerilousType.Thrust, AttackHitboxSlot.Weapon,
+            0.9012096f, 1.0940335f);
+        w.waitAnimEnd = true;
         return w;
     }
 
     static BossAnimSequence Seq(params string[] states)
     {
         return new BossAnimSequence { states = states };
-    }
-
-    static BossAnimSequence Seq(BossMoveWindow[] windows, params string[] states)
-    {
-        return new BossAnimSequence { states = states, windows = windows };
     }
 
     static BossMoveEntry Move(
@@ -168,7 +160,7 @@ public static class GenichiroMoveCatalog
             Move("Slash_RushThenBow", BossMoveLayer.Active, 5f, 7f, 100f, 8f,
                 new[] { Seq("Kengeki_Heavy", "3011") },
                 new[] { Hits(1.852f, 1.852f, 1.2885f, 1.852f), NoHit(1.6f) }),
-            Move("Boat", BossMoveLayer.Active, 3f, 7f, 300f, 10f,
+            Move("Boat", BossMoveLayer.Active, 3f, 7f, 700f, 6f,
                 new[] { Seq("Boat1", "Boat2") },
                 new[]
                 {
@@ -207,14 +199,9 @@ public static class GenichiroMoveCatalog
                     Hits(1.2f, 1.0817f, 0.8818f, 1.0817f),
                     Hits(1.4f, 0.92f, 0.4322f, 0.5958f)
                 }),
+            // 横扫已不是危字：JumpThrust 落地只接突刺，不再接 Sweep。
             Move("JumpThrust", BossMoveLayer.Active, 0f, 5f, 100f, 8f,
-                new[]
-                {
-                    Seq("JumpThrust", "Kengeki_Thrust"),
-                    Seq(
-                        new[] { JumpAir(0.8f), SweepLanding() },
-                        "JumpThrust", "Sweep")
-                },
+                new[] { Seq("JumpThrust", "Kengeki_Thrust") },
                 new[]
                 {
                     JumpAir(0.8f),
@@ -223,10 +210,14 @@ public static class GenichiroMoveCatalog
                 },
                 PerilousType.None, extra: BossMoveExtra.ConsecutiveParry2,
                 dmg: 25, posture: 25f, grade: HitGrade.Heavy),
+            Move("Jump_Danger", BossMoveLayer.Active, 0f, 5f, 100f, 8f,
+                new[] { Seq("Jump_Danger") },
+                new[] { DangerJump() },
+                PerilousType.Thrust, extra: BossMoveExtra.PlayerKnockedDown,
+                dmg: 25, posture: 25f, grade: HitGrade.Heavy),
             Move("Perilous_Sweep", BossMoveLayer.Active, 0f, 5f, 10f, 8f,
                 new[] { Seq("Sweep") },
-                new[] { Hits(2.4f, 1.75f, 1.145f, 1.2863f) },
-                PerilousType.Sweep),
+                new[] { Hits(2.4f, 1.75f, 1.145f, 1.2863f) }),
             Move("Bow_Air5", BossMoveLayer.Active, 0f, 3f, 30f, 10f,
                 new[] { Seq("Dodge_Back", "Bow_Air5") }, new[] { NoHit(0.55f), NoHit(4.5f) }),
 
@@ -252,7 +243,7 @@ public static class GenichiroMoveCatalog
                 new[] { NoHit(0.8f), NoHit(1.8f), NoHit(1.8f) }),
             Move("Kengeki_Air5", BossMoveLayer.Kengeki, 0f, 2.5f, 20f, 8f,
                 new[] { Seq("Dodge_Back", "Bow_Air5") }, new[] { NoHit(0.55f), NoHit(4.5f) }),
-            Move("Boat_Full", BossMoveLayer.Kengeki, 0f, 2.5f, 20f, 12f,
+            Move("Boat_Full", BossMoveLayer.Kengeki, 0f, 2.5f, 80f, 8f,
                 new[] { Seq("Boat_Full") },
                 new[]
                 {

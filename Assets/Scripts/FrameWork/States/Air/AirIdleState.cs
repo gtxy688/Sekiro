@@ -74,7 +74,10 @@ public class AirIdleState : BaseState
         }
 
         if (phase == Phase.Jump2)
+        {
+            body.TryApplySweepStomp();
             TryFinishJump2();
+        }
 
         if (phase != Phase.Landing)
         {

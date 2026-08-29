@@ -2,37 +2,71 @@ using UnityEngine;
 
 // 音效管理器：订阅 CombatEventBus，播放对应 AudioClip
 // 与 FXManager 同模式（事件驱动，不做每帧轮询）
-// 格挡/弹反从 Resources 文件夹装池，每次随机且不连抽同一条
+// 战斗音效从 Resources 文件夹装池，每次随机且不连抽同一条
 public class AudioManager : MonoBehaviour
 {
     private const string BlockFolder = "Sounds/Block";
     private const string DeflectFolder = "Sounds/Deflect";
+    private const string PlayerHitFolder = "Sounds/Player/受击";
+    private const string PlayerSwingFolder = "Sounds/Player/挥剑";
+    private const string BossHitFolder = "Sounds/Boss/受击";
+    private const string BossSwingFolder = "Sounds/Boss/挥剑";
+    private const string BossArrowFolder = "Sounds/Boss/箭矢";
+    private const string BossKickFolder = "Sounds/Boss/拳脚";
+    private const string BossThrustFolder = "Sounds/Boss/t";
+    private const string FinisherFolder = "Sounds/Finisher";
+    private const string DeathFolder = "Sounds/Death";
+    private const string GourdFolder = "Sounds/Gourd";
+    private const string ReviveFolder = "Sounds/Revive";
+    private const string VictoryFolder = "Sounds/Victory";
 
     [Header("播放参数")]
     [Range(0.01f, 1f)]
-    [Tooltip("暂停菜单音效 100% 时的基础响度。wav 本身很大就调低这里，不要改滑条默认值。")]
+    [Tooltip("全局基础响度，× 暂停菜单音效滑条。wav 本身很大时优先调低这里。")]
     public float volume = 0.1f;
 
-    [Header("音效资源")]
-    public AudioClip playerHitSfx;    // 玩家受击
-    public AudioClip bossHitSfx;      // Boss 受击
-    public AudioClip perilousSfx;     // 危字警示
-    public AudioClip finisherSfx;     // 忍杀处决
-    public AudioClip deathSfx;        // 玩家死亡
-    public AudioClip gourdSfx;        // 喝葫芦
-    public AudioClip reviveSfx;       // 回生（M14）
-    public AudioClip victorySfx;      // 胜利（M10）
+    [Header("分类响度（× volume × 音效滑条）")]
+    [Range(0f, 2f)]
+    [Tooltip("开刀 / 挥剑")]
+    public float swingVolume = 1f;
+
+    [Range(0f, 2f)]
+    [Tooltip("受击")]
+    public float hitVolume = 1f;
 
     private AudioSource audioSource;
     private AudioClip[] blockPool = System.Array.Empty<AudioClip>();
     private AudioClip[] deflectPool = System.Array.Empty<AudioClip>();
+    private AudioClip[] playerHitPool = System.Array.Empty<AudioClip>();
+    private AudioClip[] playerSwingPool = System.Array.Empty<AudioClip>();
+    private AudioClip[] bossHitPool = System.Array.Empty<AudioClip>();
+    private AudioClip[] bossSwingPool = System.Array.Empty<AudioClip>();
+    private AudioClip[] bossArrowPool = System.Array.Empty<AudioClip>();
+    private AudioClip[] bossKickPool = System.Array.Empty<AudioClip>();
+    private AudioClip[] bossThrustPool = System.Array.Empty<AudioClip>();
+    private AudioClip[] finisherPool = System.Array.Empty<AudioClip>();
+    private AudioClip[] deathPool = System.Array.Empty<AudioClip>();
+    private AudioClip[] gourdPool = System.Array.Empty<AudioClip>();
+    private AudioClip[] revivePool = System.Array.Empty<AudioClip>();
+    private AudioClip[] victoryPool = System.Array.Empty<AudioClip>();
+
     private int lastBlockIndex = -1;
     private int lastDeflectIndex = -1;
+    private int lastPlayerHitIndex = -1;
+    private int lastPlayerSwingIndex = -1;
+    private int lastBossHitIndex = -1;
+    private int lastBossSwingIndex = -1;
+    private int lastBossArrowIndex = -1;
+    private int lastBossKickIndex = -1;
+    private int lastBossThrustIndex = -1;
+    private int lastFinisherIndex = -1;
+    private int lastDeathIndex = -1;
+    private int lastGourdIndex = -1;
+    private int lastReviveIndex = -1;
+    private int lastVictoryIndex = -1;
 
     private void Awake()
     {
-        // 自己加一条 Source，不要 GetComponent：和 BGMManager 同物体时会抢到 BGM 那条，
-        // 淡入淡出会把 volume 改成音乐音量，格挡/弹反就不再跟音效滑条走。
         audioSource = gameObject.AddComponent<AudioSource>();
         audioSource.playOnAwake = false;
         audioSource.loop = false;
@@ -40,39 +74,51 @@ public class AudioManager : MonoBehaviour
 
         blockPool = LoadPool(BlockFolder);
         deflectPool = LoadPool(DeflectFolder);
+        playerHitPool = LoadPool(PlayerHitFolder);
+        playerSwingPool = LoadPool(PlayerSwingFolder);
+        bossHitPool = LoadPool(BossHitFolder);
+        bossSwingPool = LoadPool(BossSwingFolder);
+        bossArrowPool = LoadPool(BossArrowFolder);
+        bossKickPool = LoadPool(BossKickFolder);
+        bossThrustPool = LoadPool(BossThrustFolder);
+        finisherPool = LoadPool(FinisherFolder);
+        deathPool = LoadPool(DeathFolder);
+        gourdPool = LoadPool(GourdFolder);
+        revivePool = LoadPool(ReviveFolder);
+        victoryPool = LoadPool(VictoryFolder);
 
         AudioVolumeSettings.Load();
         ApplySfxVolume();
     }
 
-    // 订阅事件
     private void OnEnable()
     {
         AudioVolumeSettings.OnChanged += ApplySfxVolume;
         CombatEventBus.OnWeaponDeflected += HandleWeaponDeflected;
         CombatEventBus.OnTakeDamage += HandleTakeDamage;
-        CombatEventBus.OnPerilousAttack += HandlePerilousAttack;
         CombatEventBus.OnFinisherTriggered += HandleFinisherTriggered;
         CombatEventBus.OnDeath += HandleDeath;
         CombatEventBus.OnGourdUsed += HandleGourdUsed;
         CombatEventBus.OnReviveAvailable += HandleReviveAvailable;
         CombatEventBus.OnVictory += HandleVictory;
         CombatEventBus.OnAttackSfx += HandleAttackSfx;
+        CombatEventBus.OnAttackSwingStart += HandleAttackSwingStart;
+        CombatEventBus.OnArrowReleased += HandleArrowReleased;
     }
 
-    // 取消订阅
     private void OnDisable()
     {
         AudioVolumeSettings.OnChanged -= ApplySfxVolume;
         CombatEventBus.OnWeaponDeflected -= HandleWeaponDeflected;
         CombatEventBus.OnTakeDamage -= HandleTakeDamage;
-        CombatEventBus.OnPerilousAttack -= HandlePerilousAttack;
         CombatEventBus.OnFinisherTriggered -= HandleFinisherTriggered;
         CombatEventBus.OnDeath -= HandleDeath;
         CombatEventBus.OnGourdUsed -= HandleGourdUsed;
         CombatEventBus.OnReviveAvailable -= HandleReviveAvailable;
         CombatEventBus.OnVictory -= HandleVictory;
         CombatEventBus.OnAttackSfx -= HandleAttackSfx;
+        CombatEventBus.OnAttackSwingStart -= HandleAttackSwingStart;
+        CombatEventBus.OnArrowReleased -= HandleArrowReleased;
     }
 
     private void ApplySfxVolume()
@@ -80,8 +126,6 @@ public class AudioManager : MonoBehaviour
         if (audioSource == null) return;
         audioSource.volume = volume * AudioVolumeSettings.Sfx;
     }
-
-    // ===== 资源池 =====
 
     private static AudioClip[] LoadPool(string folder)
     {
@@ -105,15 +149,28 @@ public class AudioManager : MonoBehaviour
         return filtered;
     }
 
-    // 池空返回 null 并 Warning；长 1 播那条；长 ≥ 2 均匀随机且 ≠ lastIndex。
-    // 第一次 lastIndex < 0，在全池抽。
-    private static AudioClip Pick(AudioClip[] pool, ref int lastIndex, string folder)
+    private void PlayPool(
+        AudioClip[] pool,
+        ref int lastIndex,
+        string folder,
+        float volumeScale = 1f,
+        bool warnIfEmpty = true)
     {
         if (pool == null || pool.Length == 0)
         {
-            Debug.LogWarning($"AudioManager: 音效池为空（Resources/{folder}）");
-            return null;
+            if (warnIfEmpty && !string.IsNullOrEmpty(folder))
+                Debug.LogWarning($"AudioManager: 音效池为空（Resources/{folder}）");
+            return;
         }
+
+        AudioClip clip = Pick(pool, ref lastIndex);
+        if (clip == null || audioSource == null) return;
+        audioSource.PlayOneShot(clip, volumeScale);
+    }
+
+    private static AudioClip Pick(AudioClip[] pool, ref int lastIndex)
+    {
+        if (pool == null || pool.Length == 0) return null;
 
         int i;
         if (pool.Length == 1 || lastIndex < 0)
@@ -130,81 +187,115 @@ public class AudioManager : MonoBehaviour
         return pool[i];
     }
 
-    // ===== 事件处理 =====
+    private static bool IsPlayer(CharacterBody body)
+    {
+        return body != null && body.GetComponent<PlayerBrain>() != null;
+    }
 
     private void HandleWeaponDeflected(Vector3 hitPoint, DeflectType type)
     {
-        AudioClip clip = null;
         if (type == DeflectType.Perfect)
-            clip = Pick(deflectPool, ref lastDeflectIndex, DeflectFolder);
+            PlayPool(deflectPool, ref lastDeflectIndex, DeflectFolder);
         else if (type == DeflectType.Normal)
-            clip = Pick(blockPool, ref lastBlockIndex, BlockFolder);
-
-        if (clip == null || audioSource == null) return;
-        audioSource.PlayOneShot(clip);
+            PlayPool(blockPool, ref lastBlockIndex, BlockFolder);
     }
 
     private void HandleTakeDamage(CharacterBody victim, int dmg, int currentHp)
     {
-        AudioClip clip = victim != null && victim.GetComponent<PlayerBrain>() != null
-            ? playerHitSfx
-            : bossHitSfx;
-        if (clip == null || audioSource == null) return;
-        audioSource.PlayOneShot(clip);
+        if (victim == null) return;
+        if (IsPlayer(victim))
+            PlayPool(playerHitPool, ref lastPlayerHitIndex, PlayerHitFolder, hitVolume);
+        else
+            PlayPool(bossHitPool, ref lastBossHitIndex, BossHitFolder, hitVolume);
     }
 
-    private void HandlePerilousAttack(PerilousType type)
+    private void HandleAttackSwingStart(CharacterBody attacker)
     {
-        if (perilousSfx != null)
+        if (attacker == null) return;
+
+        if (IsPlayer(attacker))
         {
-            audioSource.PlayOneShot(perilousSfx);
+            PlayPool(playerSwingPool, ref lastPlayerSwingIndex, PlayerSwingFolder, swingVolume);
+            return;
         }
+
+        AttackConfig atk = attacker.ActiveAttack;
+        BossMoveEntry entry = attacker.CurrentMoveEntry;
+        if (IsKickOrPunch(entry, atk))
+            PlayPool(bossKickPool, ref lastBossKickIndex, BossKickFolder, swingVolume);
+        else if (IsThrust(entry, atk))
+            PlayPool(bossThrustPool, ref lastBossThrustIndex, BossThrustFolder, swingVolume);
+        else
+            PlayPool(bossSwingPool, ref lastBossSwingIndex, BossSwingFolder, swingVolume);
+    }
+
+    private void HandleArrowReleased(CharacterBody shooter)
+    {
+        if (shooter == null || IsPlayer(shooter)) return;
+        PlayPool(bossArrowPool, ref lastBossArrowIndex, BossArrowFolder, swingVolume);
+    }
+
+    // 拳脚：Kick 段、Elbow 投技判定槽
+    private static bool IsKickOrPunch(BossMoveEntry entry, AttackConfig atk)
+    {
+        if (atk != null)
+        {
+            if (atk.HitboxSlot == AttackHitboxSlot.Elbow
+                || atk.HitboxSlot == AttackHitboxSlot.Kick)
+                return true;
+            string anim = atk.AnimName;
+            if (!string.IsNullOrEmpty(anim)
+                && (anim == "Kick" || anim == "Elbow"))
+                return true;
+        }
+        return entry != null && entry.id == "Kick";
+    }
+
+    // 突刺危 / 突刺动画走 t 库；普通横斩走挥剑库
+    private static bool IsThrust(BossMoveEntry entry, AttackConfig atk)
+    {
+        if (atk != null)
+        {
+            if (atk.Perilous == PerilousType.Thrust) return true;
+            string anim = atk.AnimName;
+            if (!string.IsNullOrEmpty(anim)
+                && (anim == "Kengeki_Thrust"
+                    || anim == "Jump_Danger"
+                    || anim.IndexOf("Thrust", System.StringComparison.OrdinalIgnoreCase) >= 0))
+                return true;
+        }
+        return entry != null && entry.perilous == PerilousType.Thrust;
     }
 
     private void HandleFinisherTriggered(Vector3 pos)
     {
-        if (finisherSfx != null)
-        {
-            audioSource.PlayOneShot(finisherSfx);
-        }
+        PlayPool(finisherPool, ref lastFinisherIndex, FinisherFolder, warnIfEmpty: false);
     }
 
     private void HandleDeath(CharacterBody c)
     {
-        if (deathSfx != null)
-        {
-            audioSource.PlayOneShot(deathSfx);
-        }
+        PlayPool(deathPool, ref lastDeathIndex, DeathFolder, warnIfEmpty: false);
     }
 
     private void HandleGourdUsed(CharacterBody c, int remaining)
     {
-        if (gourdSfx != null)
-        {
-            audioSource.PlayOneShot(gourdSfx);
-        }
+        PlayPool(gourdPool, ref lastGourdIndex, GourdFolder, warnIfEmpty: false);
     }
 
     private void HandleReviveAvailable(CharacterBody c)
     {
-        if (reviveSfx != null)
-        {
-            audioSource.PlayOneShot(reviveSfx);
-        }
+        PlayPool(revivePool, ref lastReviveIndex, ReviveFolder, warnIfEmpty: false);
     }
 
     private void HandleVictory(CharacterBody c)
     {
-        if (victorySfx != null)
-        {
-            audioSource.PlayOneShot(victorySfx);
-        }
+        PlayPool(victoryPool, ref lastVictoryIndex, VictoryFolder, warnIfEmpty: false);
     }
 
-    // 出招音：clip 由事件携带；第一版忽略 worldPos
+    // 时间轴手动插的 sfxCues 仍走这里；与开刀池可并存
     private void HandleAttackSfx(AudioClip clip, Vector3 worldPos)
     {
         if (clip == null || audioSource == null) return;
-        audioSource.PlayOneShot(clip);
+        audioSource.PlayOneShot(clip, swingVolume);
     }
 }

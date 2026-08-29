@@ -13,6 +13,15 @@ public class MidToGuardState : BaseState
 
     public MidToGuardState(CharacterBody body) : base(body) { }
 
+    public bool CanDeflectOrDodgeCancel
+    {
+        get
+        {
+            float open = body.MidToGuardDeflectDodgeOpenTime;
+            return open > 0f && timer >= open;
+        }
+    }
+
     public override void OnEnter()
     {
         body.IsGuarding = true;
@@ -32,8 +41,23 @@ public class MidToGuardState : BaseState
     {
         if (cmd is DeflectCommand)
         {
+            if (CanDeflectOrDodgeCancel)
+            {
+                CancelToDeflectOrDodge(toDeflect: true);
+                return true;
+            }
             released = false;
             return true;
+        }
+        if (cmd is DodgeCommand)
+        {
+            if (CanDeflectOrDodgeCancel)
+            {
+                CancelToDeflectOrDodge(toDeflect: false);
+                return true;
+            }
+            // 窗口未到：不消耗，留缓冲重试（格挡键可长按）
+            return false;
         }
         if (cmd is IdleCommand)
         {
@@ -80,5 +104,15 @@ public class MidToGuardState : BaseState
             ground.SubStateMachine.ChangeState(new IdleState(body, ground));
         else
             ground.SubStateMachine.ChangeState(new DeflectState(body, ground));
+    }
+
+    void CancelToDeflectOrDodge(bool toDeflect)
+    {
+        GroundedState ground = body.MainStateMachine.CurrentState as GroundedState;
+        if (ground == null) return;
+        if (toDeflect)
+            ground.SubStateMachine.ChangeState(new DeflectState(body, ground));
+        else
+            ground.SubStateMachine.ChangeState(new DodgeState(body, ground));
     }
 }

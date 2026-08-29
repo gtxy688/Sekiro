@@ -230,12 +230,13 @@ public class AirAttackState : BaseState
         return false;
     }
 
-    // 危字整段、飞舟、JumpThrust 全段（含无危字起跳）抓前摇打不断。
+    // 危字整段、飞舟、JumpThrust / Jump_Danger 全段抓前摇打不断。
     private static bool IsUninterruptibleAttack(AttackConfig cfg, BossMoveEntry entry)
     {
         if (cfg != null && cfg.Perilous != PerilousType.None)
             return true;
-        if (entry != null && (entry.id == "Boat" || entry.id == "Boat_Full" || entry.id == "JumpThrust"))
+        if (entry != null && (entry.id == "Boat" || entry.id == "Boat_Full"
+            || entry.id == "JumpThrust" || entry.id == "Jump_Danger"))
             return true;
         if (cfg != null && !string.IsNullOrEmpty(cfg.AnimName)
             && cfg.AnimName.StartsWith("Boat"))

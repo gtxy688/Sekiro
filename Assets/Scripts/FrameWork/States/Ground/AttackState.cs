@@ -15,7 +15,6 @@ public class AttackState : BaseState
     private bool[] arrowFired;
     private BossMoveEntry moveEntry;
     private BossMoveWindow moveWindow;
-    private bool jumpThrustCameraActive;
 
     // 构造函数只接收一个光盘（配置）
     public AttackState(CharacterBody body, HierarchicalState parent, AttackConfig config) : base(body)
@@ -86,11 +85,6 @@ public class AttackState : BaseState
         {
             CombatEventBus.TriggerPerilousAttack(config.Perilous);
         }
-
-        jumpThrustCameraActive = moveEntry != null && moveEntry.id == "JumpThrust"
-            && config.AnimName == "JumpThrust";
-        if (jumpThrustCameraActive)
-            CombatEventBus.TriggerJumpThrustCamera(true);
     }
 
     public override void OnUpdate()
@@ -156,9 +150,8 @@ public class AttackState : BaseState
 
     public override void OnExit()
     {
-        if (jumpThrustCameraActive)
-            CombatEventBus.TriggerJumpThrustCamera(false);
         body.DisableWeaponHit();
+        body.ActiveHitPulseIndex = -1;
         body.IsAttacking = false;
         body.IsAttackRecoveryOpen = false;
         body.AttackUninterruptible = false;
@@ -240,12 +233,13 @@ public class AttackState : BaseState
         return false;
     }
 
-    // 危字整段、飞舟、JumpThrust 全段（含无危字起跳）抓前摇打不断。
+    // 危字整段、飞舟、JumpThrust / Jump_Danger 全段抓前摇打不断。
     private static bool IsUninterruptibleAttack(AttackConfig cfg, BossMoveEntry entry)
     {
         if (cfg != null && cfg.Perilous != PerilousType.None)
             return true;
-        if (entry != null && (entry.id == "Boat" || entry.id == "Boat_Full" || entry.id == "JumpThrust"))
+        if (entry != null && (entry.id == "Boat" || entry.id == "Boat_Full"
+            || entry.id == "JumpThrust" || entry.id == "Jump_Danger"))
             return true;
         if (cfg != null && !string.IsNullOrEmpty(cfg.AnimName)
             && cfg.AnimName.StartsWith("Boat"))
@@ -319,6 +313,7 @@ public class AttackState : BaseState
     {
         if (body.SuppressAttackHitbox)
         {
+            body.ActiveHitPulseIndex = -1;
             if (weaponHitEnabled)
             {
                 body.DisableWeaponHit();
@@ -359,6 +354,8 @@ public class AttackState : BaseState
             weaponHitEnabled = false;
             activePulseIndex = -1;
         }
+
+        body.ActiveHitPulseIndex = wantOn ? pulseIndex : -1;
     }
 
     private void ApplyPulseCombat(int pulseIndex)

@@ -15,7 +15,7 @@ public class BossVoiceDirector : MonoBehaviour
 
     [Range(0.01f, 1f)]
     [Tooltip("暂停菜单音效 100% 时的语音基础响度。")]
-    public float volume = 0.8f;
+    public float volume = 0.2f;
 
     private CharacterBody playerBody;
     private CharacterBody bossBody;

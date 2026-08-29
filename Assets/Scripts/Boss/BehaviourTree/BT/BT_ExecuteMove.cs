@@ -12,6 +12,8 @@ public class BT_ExecuteMove : Node, ISelectorLock
     private bool started;
     private bool waitingAttack;
     private bool allowInterrupt;
+    private bool jumpThrustCameraActive;
+    private float jumpThrustBossBaseY;
 
     public bool IsBusy => started;
 
@@ -23,6 +25,7 @@ public class BT_ExecuteMove : Node, ISelectorLock
 
     public void ResetMove()
     {
+        ReleaseJumpThrustCamera();
         if (started && body != null)
         {
             body.CurrentMoveEntry = null;
@@ -46,6 +49,13 @@ public class BT_ExecuteMove : Node, ISelectorLock
         started = true;
         segment = 0;
         allowInterrupt = interruptCurrent;
+        jumpThrustCameraActive = move.id == "JumpThrust";
+        if (jumpThrustCameraActive)
+        {
+            // 跟髋不跟根：跳跃 Clip 常 keepOriginalPositionY，根贴地时视觉已在天上。
+            jumpThrustBossBaseY = body.GetJumpFollowWorldY();
+            CombatEventBus.TriggerJumpThrustCamera(true, body, jumpThrustBossBaseY);
+        }
         NodeState fired = FireCurrentSegment();
         // 起跳成功才清连弹计数，避免 Begin 失败后永远抽不到。
         if (fired != NodeState.Failure && move.extra == BossMoveExtra.ConsecutiveParry2)
@@ -69,6 +79,9 @@ public class BT_ExecuteMove : Node, ISelectorLock
             waitingAttack = false;
             segment++;
             TryInterruptAir5();
+            // Clip 末段已是下落：起跳段一结束就收镜头，不要挂到落地突刺。
+            if (jumpThrustCameraActive && segment > 0)
+                ReleaseJumpThrustCamera();
             if (sequence == null || segment >= sequence.states.Length)
             {
                 blackboard?.SetCooldown(entry.id);
@@ -116,5 +129,12 @@ public class BT_ExecuteMove : Node, ISelectorLock
         }
         waitingAttack = true;
         return NodeState.Running;
+    }
+
+    void ReleaseJumpThrustCamera()
+    {
+        if (!jumpThrustCameraActive) return;
+        CombatEventBus.TriggerJumpThrustCamera(false);
+        jumpThrustCameraActive = false;
     }
 }

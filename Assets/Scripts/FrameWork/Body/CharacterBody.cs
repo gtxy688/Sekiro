@@ -10,6 +10,45 @@ public class CharacterBody : MonoBehaviour
     public Animator Animator { get; private set; }
     public Rigidbody Rb { get; private set; }
 
+    private Transform jumpFollowBone;
+    private bool jumpFollowBoneResolved;
+
+    // 跳跃镜头跟髋骨：keepOriginalPositionY 时根可能贴地，视觉却在天上。
+    // GetBoneTransform 只认 Humanoid；弦一郎是 Generic（髋骨名 Pelvis），直接调会抛 InvalidOperationException。
+    public float GetJumpFollowWorldY()
+    {
+        Transform bone = ResolveJumpFollowBone();
+        return bone != null ? bone.position.y : transform.position.y;
+    }
+
+    Transform ResolveJumpFollowBone()
+    {
+        if (jumpFollowBoneResolved) return jumpFollowBone;
+        jumpFollowBoneResolved = true;
+
+        if (Animator != null && Animator.isHuman)
+            jumpFollowBone = Animator.GetBoneTransform(HumanBodyBones.Hips);
+
+        if (jumpFollowBone == null)
+            jumpFollowBone = FindNamedChild(transform, "Pelvis")
+                ?? FindNamedChild(transform, "Hips")
+                ?? FindNamedChild(transform, "Hip")
+                ?? FindNamedChild(transform, "Spine");
+
+        return jumpFollowBone;
+    }
+
+    static Transform FindNamedChild(Transform root, string name)
+    {
+        if (root.name == name) return root;
+        for (int i = 0; i < root.childCount; i++)
+        {
+            Transform found = FindNamedChild(root.GetChild(i), name);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
     // 武器的碰撞盒（M3：BoxCast 版 Hitbox，不再用 OnTrigger）
     public Hitbox Weapon { get; private set; }
     public Hitbox ActiveHitbox { get; private set; }
@@ -28,7 +67,7 @@ public class CharacterBody : MonoBehaviour
     [Tooltip("箭 Prefab：模型 + ArrowProjectile。不要 Hitbox、不要 Collider")]
     public ArrowProjectile arrowPrefab;
     public float arrowSpeed = 32f;
-    public float arrowCastRadius = 0.08f;
+    public float arrowCastRadius = 0.12f;
     public float arrowLifetime = 2f;
     public LayerMask arrowTargetLayers;
     [Tooltip("被瞄准的胸口。空则用 Hurtbox 中心。玩家拖，Boss 不拖")]
@@ -44,6 +83,9 @@ public class CharacterBody : MonoBehaviour
     public bool PreferFastWalk { get; set; }
     // HP 归零（倒地待回生 / 真死）。AI 用这个停招，不要去判 DeadState 类型。
     public bool IsDowned => CurrentHP <= 0;
+
+    // 玩家 Mid/Heavy 受击已过「倒地过程」、处于躺地可被 Jump_Danger 抓取。≠ IsDowned（HP=0）。
+    public bool IsKnockedDown { get; set; }
 
     // 4. 物理状态 (Body 负责检测，State 读取)
     public bool IsGrounded { get; private set; }
@@ -119,13 +161,17 @@ public class CharacterBody : MonoBehaviour
     // 硬直结束后交锋层可抽一招；距离过远或抽空则清掉
     public bool KengekiArmed { get; set; }
 
+    // 多段刀当前脉冲（弹反 Boat 最后一刀等）。AttackState 写入。
+    public int ActiveHitPulseIndex { get; set; } = -1;
     // 横扫被踩后关刀：招继续播，但不走 ReceiveHit、也不再开判定
     public bool SuppressAttackHitbox { get; set; }
     public bool AirJump2Used { get; private set; }
+    public bool SweepStompApplied { get; private set; }
 
     public void ResetAirJump2()
     {
         AirJump2Used = false;
+        SweepStompApplied = false;
     }
     // 连续被对手近战完美弹开的次数。JumpThrust（3022）抽招读这个；出手或交锋中断后清零。
     public int ConsecutiveTimesParried { get; private set; }
@@ -159,6 +205,9 @@ public class CharacterBody : MonoBehaviour
 
     public float ArrowHeavyDeflectDodgeOpenTime =>
         Config != null ? Config.ArrowHeavyDeflectDodgeOpenTime : 0f;
+
+    public float MidToGuardDeflectDodgeOpenTime =>
+        Config != null ? Config.MidToGuardDeflectDodgeOpenTime : 0f;
 
     // 距上次受击的时间，用于架势自然回复的延迟判断
     private float lastHitTime;
@@ -254,7 +303,10 @@ public class CharacterBody : MonoBehaviour
 
     private void Start()
     {
-        // 启动状态机：直接进入最外层的主状态 (复合节点)
+        // 进状态机前先采一次接地。迟滞默认 false，否则头几帧 IsGrounded 仍假，
+        // GroundedState 会当成踩空切 AirState，进场播 Jump/Fall。
+        Physics.SyncTransforms();
+        UpdateEnvironmentalChecks();
         MainStateMachine.ChangeState(new GroundedState(this));
     }
 
@@ -308,9 +360,9 @@ public class CharacterBody : MonoBehaviour
     public bool IsPerformingSweep()
     {
         if (!IsAttacking) return false;
-        if (CurrentMoveWindow != null && CurrentMoveWindow.perilous == PerilousType.Sweep)
+        if (CurrentMoveEntry != null && CurrentMoveEntry.id == "Perilous_Sweep")
             return true;
-        if (CurrentMoveEntry != null && CurrentMoveEntry.perilous == PerilousType.Sweep)
+        if (Animator != null && AnimUtil.IsPlaying(Animator.GetCurrentAnimatorStateInfo(0), "Sweep"))
             return true;
         return false;
     }
@@ -319,13 +371,64 @@ public class CharacterBody : MonoBehaviour
     {
         if (boss == null || Config == null) return false;
         Vector3 feet = groundCheckPoint != null ? groundCheckPoint.position : transform.position;
-        Vector3 bossPos = boss.transform.position;
-        Vector3 delta = bossPos - feet;
-        delta.y = 0f;
-        if (delta.sqrMagnitude > Config.SweepStompRadius * Config.SweepStompRadius)
+        if (!TryGetStompBounds(boss, out Bounds bounds))
             return false;
-        float dy = feet.y - bossPos.y;
-        return dy >= 0f && dy <= Config.SweepStompHeight;
+
+        Vector3 closest = bounds.ClosestPoint(feet);
+        float horiz = Vector2.Distance(
+            new Vector2(feet.x, feet.z),
+            new Vector2(closest.x, closest.z));
+        if (horiz > Config.SweepStompRadius)
+            return false;
+
+        float aboveRoot = feet.y - boss.transform.position.y;
+        if (aboveRoot < 0.15f) return false;
+        return aboveRoot <= Config.SweepStompHeight;
+    }
+
+    static bool TryGetStompBounds(CharacterBody boss, out Bounds bounds)
+    {
+        bounds = default;
+        if (boss == null) return false;
+
+        Hurtbox hurtbox = boss.GetComponentInChildren<Hurtbox>();
+        if (hurtbox != null)
+        {
+            Collider col = hurtbox.GetComponent<Collider>();
+            if (col == null)
+                col = hurtbox.GetComponentInChildren<Collider>();
+            if (col != null)
+            {
+                bounds = col.bounds;
+                return true;
+            }
+        }
+
+        Collider bodyCol = boss.GetComponent<Collider>();
+        if (bodyCol == null)
+            bodyCol = boss.GetComponentInChildren<Collider>();
+        if (bodyCol != null)
+        {
+            bounds = bodyCol.bounds;
+            return true;
+        }
+
+        bounds = new Bounds(boss.transform.position + Vector3.up * 1.1f, new Vector3(0.9f, 2.2f, 0.9f));
+        return true;
+    }
+
+    public bool TryApplySweepStomp()
+    {
+        if (SweepStompApplied || !IsAirborne) return false;
+
+        CharacterBody boss = CombatManager.Instance != null ? CombatManager.Instance.BossRef : null;
+        if (boss == null || !boss.IsPerformingSweep() || !IsWithinSweepStompRange(boss))
+            return false;
+
+        SweepStompApplied = true;
+        QueueJump();
+        CombatManager.Instance.ApplySweepStomp(this, boss);
+        return true;
     }
 
     // 返回 true = 命令吃掉。playedNew = 本次新播了 Jump2（已用过则为 false）。
@@ -343,14 +446,7 @@ public class CharacterBody : MonoBehaviour
 
         AnimUtil.TryCrossFade(Animator, "Jump2", Config != null ? Config.JumpAnimBlend : 0.08f);
         playedNew = true;
-
-        CharacterBody boss = CombatManager.Instance != null ? CombatManager.Instance.BossRef : null;
-        if (boss != null && boss.IsPerformingSweep() && IsWithinSweepStompRange(boss))
-        {
-            QueueJump();
-            CombatManager.Instance.ApplySweepStomp(this, boss);
-        }
-
+        TryApplySweepStomp();
         return true;
     }
 
@@ -517,6 +613,7 @@ public class CharacterBody : MonoBehaviour
     private bool groundedHysteresis;     // 上一帧接地结果
     private int groundedChangeFrames;    // 连续"与上一帧相反"的帧数
     private bool groundedCheckRaw;       // 本帧 CheckSphere 原始结果（未迟滞，坠图保护用）
+    private bool groundedCheckPrimed;    // 第一次检测直接采信，避免默认 false 让进场播 Fall
 
     private void UpdateEnvironmentalChecks()
     {
@@ -530,6 +627,16 @@ public class CharacterBody : MonoBehaviour
             check = true; // 容错
         }
         groundedCheckRaw = check;
+
+        // 第一次没有「上一帧」：直接采信，不要从默认 false 再等迟滞。
+        if (!groundedCheckPrimed)
+        {
+            groundedCheckPrimed = true;
+            groundedHysteresis = check;
+            groundedChangeFrames = 0;
+            IsGrounded = check;
+            return;
+        }
 
         // 迟滞防抖：结果必须连续 N 帧保持一致才翻转 IsGrounded。
         // 否则球边缘蹭到地面时，物理步进会让 true/false 每帧抖动，
@@ -842,16 +949,23 @@ public class CharacterBody : MonoBehaviour
     }
 
     // 被完美弹反后的硬直入口（M4）：物理强制覆写，不走 Command，直接切顶层状态机。
-    // 只用于玩家被 Boss 弹开。Boss 连段被玩家弹反不走这里，招继续。
+    // 普通弹反只用于玩家被 Boss 弹开。飞舟互弹时双方都走这里播 Deflected_Boat。
     // ParriedState 装在 GroundedState 内（通过带初始子状态的构造），顶层结构不变。
-    public void ForceParryStun()
+    public void ForceParryStun(string animName = null, bool armKengeki = true)
     {
         EnsureRuntimeReady();
         IsAttacking = false;
         AttackUninterruptible = false;
         DisableWeaponHit();
-        KengekiArmed = true;
-        MainStateMachine.ChangeState(new GroundedState(this, new ParriedState(this)));
+        ActiveHitPulseIndex = -1;
+        if (armKengeki)
+            KengekiArmed = true;
+        MainStateMachine.ChangeState(new GroundedState(this, new ParriedState(this, animName)));
+    }
+
+    public void ForceParryStun()
+    {
+        ForceParryStun(null);
     }
 
     // 被识破但未崩解：停挥刀，播 Mikiri_Deflect（资源侧曾写成 Miriki_Deflect）。
@@ -1020,15 +1134,30 @@ public class CharacterBody : MonoBehaviour
         ArrowProjectile arrow = Instantiate(arrowPrefab, origin, Quaternion.LookRotation(dir, Vector3.up));
         arrow.Fire(this, dir, arrowSpeed, arrowCastRadius, layers, arrowLifetime,
             damage, posture, knockback, grade);
+        CombatEventBus.TriggerArrowReleased(this);
     }
 
     public Vector3 GetProjectileAimPoint()
     {
         if (projectileAimPoint != null)
             return projectileAimPoint.position;
+
+        // Hurtbox 常挂在根上，transform.position 是脚底——箭会朝地飞。
+        // 优先用碰撞体中心（胸口附近），再退到根上方。
         Hurtbox hurtbox = GetComponentInChildren<Hurtbox>();
         if (hurtbox != null)
-            return hurtbox.transform.position;
+        {
+            Collider col = hurtbox.GetComponent<Collider>();
+            if (col == null)
+                col = hurtbox.GetComponentInChildren<Collider>();
+            if (col != null)
+                return col.bounds.center;
+        }
+
+        Collider bodyCol = GetComponent<Collider>();
+        if (bodyCol != null)
+            return bodyCol.bounds.center;
+
         return transform.position + Vector3.up * 1.2f;
     }
 
@@ -1095,21 +1224,28 @@ public class CharacterBody : MonoBehaviour
     }
 
     // 受击结算：扣血 + 涨架势。由 ReceiveHit（物理）或外部调用。
-    public void TakeDamage(int healthDmg, float postureDmg)
+    public void TakeDamage(int healthDmg, float postureDmg, CharacterBody instigator = null)
     {
         if (CurrentHP <= 0) return; // 已死不再重复结算
 
-        CurrentHP -= healthDmg;
-        AccumulatePosture(postureDmg);
+        GameplaySettings.Load();
+        bool skipHp = healthDmg > 0
+                      && GameplaySettings.InfiniteHealth
+                      && HitReactionUtil.IsPlayer(this);
 
-        // 事件总线：血条/音效/相机都靠这个驱动
-        CombatEventBus.TriggerTakeDamage(this, healthDmg, Mathf.Max(CurrentHP, 0));
-        if (Config != null)
-            CombatEventBus.TriggerHPChanged(this, Mathf.Max(CurrentHP, 0), Config.MaxHP);
+        if (!skipHp)
+            CurrentHP -= healthDmg;
+        AccumulatePosture(postureDmg, true, PostureBreakSource.Attack, instigator);
 
-        if (CurrentHP <= 0)
+        if (!skipHp)
         {
-            HandleDeath();
+            // 事件总线：血条/音效/相机都靠这个驱动
+            CombatEventBus.TriggerTakeDamage(this, healthDmg, Mathf.Max(CurrentHP, 0));
+            if (Config != null)
+                CombatEventBus.TriggerHPChanged(this, Mathf.Max(CurrentHP, 0), Config.MaxHP);
+
+            if (CurrentHP <= 0)
+                HandleDeath();
         }
     }
 
@@ -1118,13 +1254,29 @@ public class CharacterBody : MonoBehaviour
     public bool AccumulatePosture(
         float amount,
         bool allowBreak = true,
-        PostureBreakSource source = PostureBreakSource.Attack)
+        PostureBreakSource source = PostureBreakSource.Attack,
+        CharacterBody instigator = null)
     {
         if (IsPostureBroken) return false; // 崩解中不累计
 
         float maxPosture = Config != null ? Config.MaxPosture : 100f;
+
+        if (allowBreak && amount > 0f
+            && GameplaySettings.ShouldOneHitBreakBoss(this, source, instigator))
+        {
+            CurrentPosture = maxPosture;
+            MarkCombatTime();
+            CombatEventBus.TriggerPostureChanged(this, CurrentPosture, maxPosture);
+            IsPostureBroken = true;
+            CurrentPostureBreakSource = source;
+            CombatEventBus.TriggerPostureBroken(this);
+            CombatEventBus.TriggerFinisherOpportunityChanged(this, true);
+            ForcePostureBroken(source);
+            return true;
+        }
+
         CurrentPosture = Mathf.Min(CurrentPosture + amount, maxPosture);
-        lastHitTime = Time.time; // 受击计时，用于架势回复延迟
+        MarkCombatTime();
 
         CombatEventBus.TriggerPostureChanged(this, CurrentPosture, maxPosture);
 
@@ -1140,6 +1292,12 @@ public class CharacterBody : MonoBehaviour
         }
 
         return false;
+    }
+
+    // 刷新架势回复延迟。完美弹反自己不涨架势，但刀刃相撞仍算战斗，不能开始回条。
+    public void MarkCombatTime()
+    {
+        lastHitTime = Time.time;
     }
 
     // 架势自然回复：停止受击超过 PostureDecayDelay 秒后，每秒回 PostureDecayRate
@@ -1319,7 +1477,7 @@ public class CharacterBody : MonoBehaviour
         }
 
         // 2. 没拦住 → 伤害/架势结算（M2）：扣血 + 涨架势 + 死亡判定
-        TakeDamage(healthDmg, postureDmg);
+        TakeDamage(healthDmg, postureDmg, attacker);
         // 玩家挨实锤打断 Boss 连弹计数，下次要重新弹满 2 次才可能 JumpThrust。
         if (HitReactionUtil.IsPlayer(this) && attacker != null)
             attacker.ResetConsecutiveTimesParried();

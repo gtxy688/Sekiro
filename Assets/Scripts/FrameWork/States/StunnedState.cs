@@ -23,6 +23,7 @@ public class StunnedState : HierarchicalState
 
     protected override BaseState GetInitialSubState()
     {
+        body.IsKnockedDown = false;
         return new GroundStunnedState(body, this, context, useHitGrade, grade);
     }
 
@@ -33,11 +34,13 @@ public class StunnedState : HierarchicalState
         {
             if (ground != null && ground.CanDodgeCancel)
             {
+                body.IsKnockedDown = false;
                 body.MainStateMachine.ChangeState(
                     new GroundedState(body, new DodgeState(body, null)));
                 return true;
             }
-            return true;
+            // 后摇未到：不消耗，留缓冲重试（对齐 StaggerBroken / MidToGuard）
+            return false;
         }
         if (useHitGrade && cmd is DeflectCommand)
         {

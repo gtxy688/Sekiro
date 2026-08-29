@@ -11,6 +11,7 @@ public class BossMoveWindow
     public float comboWindowEnd = 0.9f;
     public float stateDuration = 1.8f;
     public float rotateEnd = 0.3f;
+    [Tooltip("切到本段动画的 CrossFade 时长（秒）。JumpThrust 落地突刺改第二段；越小切得越干脆。")]
     public float transitionDuration = 0.1f;
 
     [Tooltip("段级危字标记（优先于招式的 entry.perilous）。用于一招多段中仅某段是危字的情况，如 Slash_SpinElbow 的 Elbow 段 = Grab。段级与招式级都未标 = 非危字")]
@@ -25,7 +26,7 @@ public class BossMoveWindow
     [Tooltip("相对本段动画 0 点。clip 为空则跳过")]
     public AttackSfxCue[] sfxCues;
 
-    [Tooltip("相对本段动画 0 点出箭。空 = 本段不出箭。五连射插 5 条")]
+    [Tooltip("相对本段动画 0 点出箭。空 = 本段不出箭。Bow_Air5 动画 4 箭插 4 条")]
     public ArrowSpawnCue[] arrowCues;
 
     [Tooltip("勾选后本段用下面的伤害和等级；不勾则用招默认值。段内某刀还可再覆盖")]
