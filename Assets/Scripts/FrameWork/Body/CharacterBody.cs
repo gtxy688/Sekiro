@@ -83,6 +83,14 @@ public class CharacterBody : MonoBehaviour
     public bool PreferFastWalk { get; set; }
     // HP 归零（倒地待回生 / 真死）。AI 用这个停招，不要去判 DeadState 类型。
     public bool IsDowned => CurrentHP <= 0;
+    // 回生动画播放中（HP 已回满但人还没站起来）。Boss 仍应按「玩家失能」处理。
+    public bool IsReviving { get; private set; }
+    public bool IsIncapacitatedForBoss => IsDowned || IsReviving;
+
+    public void SetReviving(bool reviving)
+    {
+        IsReviving = reviving;
+    }
 
     // 玩家 Mid/Heavy 受击已过「倒地过程」、处于躺地可被 Jump_Danger 抓取。≠ IsDowned（HP=0）。
     public bool IsKnockedDown { get; set; }

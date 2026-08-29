@@ -602,7 +602,8 @@ public class PauseMenuController : MonoBehaviour
 
         resumeButton = FindButton(rootTf, "继续战斗");
         openSettingsButton = FindButton(rootTf, "设置");
-        quitButton = FindButton(rootTf, "退出战斗");
+        quitButton = FindButton(rootTf, "重新开始") ?? FindButton(rootTf, "退出战斗");
+        EnsureButtonLabel(quitButton, "重新开始");
         exitGameButton = FindButton(rootTf, "退出游戏");
         rootCloseButton = FindButton(rootTf, "Close");
         BindGameplayToggleButtons(rootTf);
@@ -897,6 +898,14 @@ public class PauseMenuController : MonoBehaviour
         return t != null ? t.GetComponent<Button>() : null;
     }
 
+    private static void EnsureButtonLabel(Button button, string text)
+    {
+        if (button == null || string.IsNullOrEmpty(text)) return;
+        TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>();
+        if (label != null)
+            label.text = text;
+    }
+
     private static TextMeshProUGUI FindTmp(Transform root, string name)
     {
         Transform t = root != null ? root.Find(name) : null;
@@ -939,7 +948,7 @@ public class PauseMenuController : MonoBehaviour
         oneHitPostureBreakToggle = CreateGameplayToggleButton(
             rootPanel.transform, "一击破防", new Vector2(0f, 42f), ToggleOneHitPostureBreak, out oneHitPostureBreakValueLabel);
         openSettingsButton = CreateMenuButton(rootPanel.transform, "设置", new Vector2(0f, -22f), ShowHub);
-        quitButton = CreateMenuButton(rootPanel.transform, "退出战斗", new Vector2(0f, -86f), RestartScene);
+        quitButton = CreateMenuButton(rootPanel.transform, "重新开始", new Vector2(0f, -86f), RestartScene);
         exitGameButton = CreateMenuButton(rootPanel.transform, "退出游戏", new Vector2(0f, -150f), QuitGame);
         rootCloseButton = CreateCloseButton(rootPanel.transform, Resume);
 

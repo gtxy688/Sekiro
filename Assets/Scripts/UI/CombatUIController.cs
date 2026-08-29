@@ -181,11 +181,7 @@ public class CombatUIController : MonoBehaviour
     private void HandleReviveAvailable(CharacterBody c)
     {
         if (c == playerBody)
-        {
-            // 这次死亡会用掉一次回生：立刻把对应活点换成 EndDot
-            playerStatusView?.SetReviveDots(Mathf.Max(0, playerBody.ReviveRemaining - 1));
             revivePromptView?.BeginDeathFade(playerBody != null ? playerBody.GetComponent<PlayerInput>() : null);
-        }
     }
 
     private void HandleReviveChoiceReady(CharacterBody c)
@@ -216,7 +212,7 @@ public class CombatUIController : MonoBehaviour
         if (c == playerBody)
         {
             revivePromptView?.HidePrompt();
-            playerStatusView?.SetReviveDots(0);
+            playerStatusView?.SetReviveDots(playerBody != null ? playerBody.ReviveRemaining : 0);
             gameOverView?.ShowGameOver();
         }
     }

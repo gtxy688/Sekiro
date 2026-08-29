@@ -96,6 +96,7 @@ public class BTBrain : MonoBehaviour
 
         behaviorTreeRoot = ConstructBehaviorTree();
         behaviorTreeRoot.SetBlackboard(blackboard);
+        CombatEventBus.OnRevived += HandlePlayerRevived;
     }
 
     private BT_ExecuteMove activeExecutor;
@@ -103,7 +104,12 @@ public class BTBrain : MonoBehaviour
     private BT_ExecuteMove interruptExecutor;
     private BT_HealPunish healPunish;
     private Node moveToTarget;
-    private bool circlingDownedPlayer;
+    private bool circlingIncapacitatedPlayer;
+
+    private enum PostRevivePhase { None, WaitPlayerStand, DodgeBack }
+    private PostRevivePhase postRevivePhase;
+    private float postReviveTimer;
+    private const float PostReviveStandDelay = 0.35f;
 
     private void Update()
     {
@@ -118,17 +124,30 @@ public class BTBrain : MonoBehaviour
             return;
         }
 
-        bool playerDowned = PlayerBody != null && PlayerBody.IsDowned;
-        if (playerDowned && !circlingDownedPlayer)
+        bool playerIncapacitated = PlayerBody != null && PlayerBody.IsIncapacitatedForBoss;
+        if (playerIncapacitated && !circlingIncapacitatedPlayer)
         {
-            circlingDownedPlayer = true;
+            circlingIncapacitatedPlayer = true;
             ResetExecutors();
             if (body.IsAttacking)
                 body.CancelAttackToIdle();
         }
-        else if (!playerDowned)
+        else if (!playerIncapacitated)
         {
-            circlingDownedPlayer = false;
+            circlingIncapacitatedPlayer = false;
+        }
+
+        if (postRevivePhase != PostRevivePhase.None)
+        {
+            UpdatePostRevivePhase();
+            return;
+        }
+
+        if (playerIncapacitated)
+        {
+            ResetExecutors();
+            moveToTarget?.Evaluate();
+            return;
         }
 
         // 开场语音：可以走位，但不要出招。
@@ -159,6 +178,7 @@ public class BTBrain : MonoBehaviour
 
     private void OnDisable()
     {
+        CombatEventBus.OnRevived -= HandlePlayerRevived;
         if (body == null) return;
         body.MoveDirection = Vector3.zero;
         body.MoveUsesWorldDir = false;
@@ -196,5 +216,83 @@ public class BTBrain : MonoBehaviour
         children.Add(moveToTarget);
 
         return new Selector(children);
+    }
+
+    private void HandlePlayerRevived(CharacterBody player)
+    {
+        if (player != PlayerBody) return;
+        postRevivePhase = PostRevivePhase.WaitPlayerStand;
+        postReviveTimer = 0f;
+        circlingIncapacitatedPlayer = false;
+        ResetExecutors();
+        if (body.IsAttacking)
+            body.CancelAttackToIdle();
+    }
+
+    private void UpdatePostRevivePhase()
+    {
+        ResetExecutors();
+
+        switch (postRevivePhase)
+        {
+            case PostRevivePhase.WaitPlayerStand:
+                HoldFacePlayer();
+                body.MoveDirection = Vector3.zero;
+                if (PlayerBody != null && PlayerBody.IsReviving)
+                    return;
+
+                postReviveTimer += Time.deltaTime;
+                if (postReviveTimer < PostReviveStandDelay)
+                    return;
+
+                BeginReviveBackoff();
+                postRevivePhase = PostRevivePhase.DodgeBack;
+                postReviveTimer = 0f;
+                return;
+
+            case PostRevivePhase.DodgeBack:
+                if (IsInReviveBackoff())
+                {
+                    postReviveTimer += Time.deltaTime;
+                    return;
+                }
+
+                postRevivePhase = PostRevivePhase.None;
+                ArmPostReviveRoamGap();
+                return;
+        }
+    }
+
+    private void HoldFacePlayer()
+    {
+        if (PlayerTarget == null) return;
+        Vector3 to = PlayerTarget.position - body.transform.position;
+        to.y = 0f;
+        if (to.sqrMagnitude < 0.001f) return;
+        body.SnapYaw(to);
+    }
+
+    private void BeginReviveBackoff()
+    {
+        GroundedState ground = body.MainStateMachine.CurrentState as GroundedState;
+        if (ground == null)
+            body.MainStateMachine.ChangeState(new GroundedState(body, new BossReviveBackoffState(body, null)));
+        else
+            ground.SubStateMachine.ChangeState(new BossReviveBackoffState(body, ground));
+    }
+
+    private bool IsInReviveBackoff()
+    {
+        if (body.MainStateMachine.CurrentState is not GroundedState ground)
+            return postReviveTimer < 0.6f;
+        return ground.SubStateMachine.CurrentState is BossReviveBackoffState;
+    }
+
+    private void ArmPostReviveRoamGap()
+    {
+        if (blackboard == null) return;
+        float gap = roamAfterAttack + Random.Range(0f, Mathf.Max(0f, roamAfterAttackJitter));
+        blackboard.Set("active_gap_dur", gap);
+        blackboard.SetCooldown("active_gap");
     }
 }

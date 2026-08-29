@@ -14,6 +14,8 @@ public class BT_MoveToTarget : Node
     private readonly float roamApproachStrength;  // 朝玩家逼近分量（<1 避免直接撞上去）
     private float roamTimer;
     private float roamSign = 1f;
+    private bool downedOrbitLocked;
+    private float downedOrbitSign = 1f;
 
     public BT_MoveToTarget(CharacterBody body, Transform target, float stopDistance,
         float roamStrafeDuration = 1.2f, float roamStrafeStrength = 0.8f,
@@ -36,12 +38,12 @@ public class BT_MoveToTarget : Node
         }
 
         float distance = Vector3.Distance(body.transform.position, target.position);
-        bool playerDowned = IsTargetDowned();
+        bool playerIncapacitated = IsTargetIncapacitated(target);
 
         if (distance <= stopDistance)
         {
             body.PreferFastWalk = false;
-            return RoamAroundTarget(playerDowned ? 0f : roamApproachStrength);
+            return RoamAroundTarget(playerIncapacitated ? 0f : roamApproachStrength, playerIncapacitated);
         }
 
         // 过远用 Walk 快跑拉近，不要用 Walk_Strafe 慢挪。
@@ -54,10 +56,8 @@ public class BT_MoveToTarget : Node
         return NodeState.Running;
     }
 
-    // 近距离走位：始终看着玩家，脚步绕他侧向画圈（周期换边），并带一点前压。
-    // 这样选招等待不再是"罚站"，玩家也能明显感到 Boss 一直在试探性地压迫。
-    // 玩家倒地时 approach=0，只绕尸不踩上去。
-    private NodeState RoamAroundTarget(float approach)
+    // 玩家失能时 approach=0，只绕圈不踩上去；方向锁定避免周期性换边像来回走。
+    private NodeState RoamAroundTarget(float approach, bool orbitOnly)
     {
         Vector3 toTarget = target.position - body.transform.position;
         toTarget.y = 0f;
@@ -69,20 +69,38 @@ public class BT_MoveToTarget : Node
             body.RotateYaw(face, body.Config != null ? body.Config.RotationSpeed : 720f);
         }
 
-        // 绕圈方向周期性换边，避免绕着一个方向转圈僵化
-        roamTimer += Time.deltaTime;
-        if (roamTimer >= roamStrafeDuration)
-        {
-            roamTimer = 0f;
-            roamSign = -roamSign;
-        }
-
         Vector3 right = toTarget.sqrMagnitude > 0.001f
             ? Vector3.Cross(Vector3.up, toTarget.normalized)
             : body.transform.right;
 
-        Vector3 roamDir = right * (roamSign * roamStrafeStrength)
-            + toTarget.normalized * approach;
+        Vector3 roamDir;
+        if (orbitOnly)
+        {
+            if (!downedOrbitLocked)
+            {
+                downedOrbitLocked = true;
+                downedOrbitSign = roamSign >= 0f ? 1f : -1f;
+            }
+
+            roamDir = right * downedOrbitSign;
+        }
+        else
+        {
+            downedOrbitLocked = false;
+            roamTimer += Time.deltaTime;
+            if (roamTimer >= roamStrafeDuration)
+            {
+                roamTimer = 0f;
+                roamSign = -roamSign;
+            }
+
+            roamDir = right * (roamSign * roamStrafeStrength)
+                + toTarget.normalized * approach;
+        }
+
+        if (roamDir.sqrMagnitude > 0.0001f)
+            roamDir.Normalize();
+
         Vector2 moveDir = new Vector2(roamDir.x, roamDir.z);
 
         body.MoveUsesWorldDir = true;
@@ -91,11 +109,11 @@ public class BT_MoveToTarget : Node
         return NodeState.Running;
     }
 
-    private bool IsTargetDowned()
+    private static bool IsTargetIncapacitated(Transform targetTransform)
     {
-        if (target == null) return false;
-        CharacterBody player = target.GetComponent<CharacterBody>();
-        if (player == null) player = target.GetComponentInParent<CharacterBody>();
-        return player != null && player.IsDowned;
+        if (targetTransform == null) return false;
+        CharacterBody player = targetTransform.GetComponent<CharacterBody>();
+        if (player == null) player = targetTransform.GetComponentInParent<CharacterBody>();
+        return player != null && player.IsIncapacitatedForBoss;
     }
 }

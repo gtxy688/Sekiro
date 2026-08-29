@@ -35,6 +35,7 @@ public class RevivePendingState : BaseState
             reviveTimer += Time.deltaTime;
             if (reviveTimer >= reviveDuration)
             {
+                body.SetReviving(false);
                 body.MainStateMachine.ChangeState(new GroundedState(body));
             }
             return;
@@ -78,10 +79,16 @@ public class RevivePendingState : BaseState
 
     private void BeginRevive()
     {
+        body.SetReviving(true);
         body.Revive();
         reviving = true;
         reviveTimer = 0f;
         AnimUtil.TryCrossFade(body.Animator, "Revive", 0.1f);
+    }
+
+    public override void OnExit()
+    {
+        body.SetReviving(false);
     }
 
     private void GiveUp()

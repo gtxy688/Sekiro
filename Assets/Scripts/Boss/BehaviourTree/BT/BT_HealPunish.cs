@@ -34,7 +34,7 @@ public class BT_HealPunish : Node, ISelectorLock
         }
         if (executor.IsBusy) return executor.Evaluate();
 
-        if (player == null || player.IsDowned)
+        if (player == null || player.IsIncapacitatedForBoss)
         {
             punishAt = -1f;
             return NodeState.Failure;
@@ -81,7 +81,7 @@ public class BT_HealPunish : Node, ISelectorLock
     public void ArmIfPlayerHealing()
     {
         if (punishAt >= 0f) return;
-        if (player == null || !player.IsHealing || player.IsDowned) return;
+        if (player == null || !player.IsHealing || player.IsIncapacitatedForBoss) return;
         if (body == null || body.IsParried || body.IsPostureBroken || body.IsFinisherLocked) return;
         // 喝药瞬间 Boss 已在出招 → 不射重箭，也不排队。
         if (body.IsAttacking) return;
