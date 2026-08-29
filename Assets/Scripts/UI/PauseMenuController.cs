@@ -36,6 +36,7 @@ public class PauseMenuController : MonoBehaviour
     private Button resumeButton;
     private Button openSettingsButton;
     private Button quitButton;
+    private Button exitGameButton;
     private Button rootCloseButton;
     private Button hubKeybindButton;
     private Button hubBackButton;
@@ -117,6 +118,7 @@ public class PauseMenuController : MonoBehaviour
             WireExistingListeners();
         EnsurePauseCloseButtons();
         EnsureGameplayToggleButtons();
+        EnsureExitGameButton();
         WireNavigation();
         HideMenu();
         CursorController.Refresh();
@@ -226,6 +228,12 @@ public class PauseMenuController : MonoBehaviour
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
+    private void QuitGame()
+    {
+        CancelRebind();
+        CombatPromptStyle.QuitGame();
+    }
+
     private void ShowRoot()
     {
         CancelRebind();
@@ -313,6 +321,7 @@ public class PauseMenuController : MonoBehaviour
         ApplyToggleVisual(oneHitPostureBreakToggle, oneHitPostureBreakValueLabel, selected);
         ApplyButtonVisual(openSettingsButton, false, IsUiSelected(openSettingsButton, selected));
         ApplyButtonVisual(quitButton, false, IsUiSelected(quitButton, selected));
+        ApplyButtonVisual(exitGameButton, false, IsUiSelected(exitGameButton, selected));
         ApplyButtonVisual(hubKeybindButton, false, IsUiSelected(hubKeybindButton, selected));
         ApplyButtonVisual(hubBackButton, false, IsUiSelected(hubBackButton, selected));
         ApplyCloseVisual(hubCloseButton, hubCloseIcon, selected);
@@ -594,6 +603,7 @@ public class PauseMenuController : MonoBehaviour
         resumeButton = FindButton(rootTf, "继续战斗");
         openSettingsButton = FindButton(rootTf, "设置");
         quitButton = FindButton(rootTf, "退出战斗");
+        exitGameButton = FindButton(rootTf, "退出游戏");
         rootCloseButton = FindButton(rootTf, "Close");
         BindGameplayToggleButtons(rootTf);
         hubKeybindButton = FindButton(hubTf, "键位设置");
@@ -685,6 +695,7 @@ public class PauseMenuController : MonoBehaviour
         BindClick(resumeButton, Resume);
         BindClick(openSettingsButton, ShowHub);
         BindClick(quitButton, RestartScene);
+        BindClick(exitGameButton, QuitGame);
         BindClick(rootCloseButton, Resume);
         BindClick(hubKeybindButton, ShowSettings);
         BindClick(hubBackButton, ShowRoot);
@@ -771,6 +782,17 @@ public class PauseMenuController : MonoBehaviour
         RefreshGameplayToggles();
     }
 
+    private void EnsureExitGameButton()
+    {
+        if (rootPanel == null) return;
+
+        Transform rootTf = rootPanel.transform;
+        exitGameButton = FindButton(rootTf, "退出游戏");
+        if (exitGameButton == null)
+            exitGameButton = CreateMenuButton(rootTf, "退出游戏", new Vector2(0f, -180f), QuitGame);
+        BindClick(exitGameButton, QuitGame);
+    }
+
     private static void RemoveLegacyGameplayToggle(Transform parent, string name)
     {
         if (parent == null) return;
@@ -791,6 +813,7 @@ public class PauseMenuController : MonoBehaviour
             BuildUIInto(pauseCanvas.transform);
         EnsurePauseCloseButtons();
         EnsureGameplayToggleButtons();
+        EnsureExitGameButton();
         pauseCanvas.SetActive(true);
         Transform dimmer = pauseCanvas.transform.Find("Dimmer");
         if (dimmer != null)
@@ -822,6 +845,7 @@ public class PauseMenuController : MonoBehaviour
             BuildUIInto(pauseCanvas.transform);
         EnsurePauseCloseButtons();
         EnsureGameplayToggleButtons();
+        EnsureExitGameButton();
         GameplaySettings.Load();
         RefreshGameplayToggles();
         pauseCanvas.SetActive(true);
@@ -907,15 +931,16 @@ public class PauseMenuController : MonoBehaviour
         dimmer.raycastTarget = false;
         StretchFull(dimmer.rectTransform);
 
-        rootPanel = CreatePanel(canvasRoot, "RootPanel", new Vector2(460f, 540f));
-        CreateLabel(rootPanel.transform, "暂停", 42f, TextAlignmentOptions.Center, new Vector2(0f, 220f), new Vector2(400f, 60f));
-        resumeButton = CreateMenuButton(rootPanel.transform, "继续战斗", new Vector2(0f, 140f), Resume);
+        rootPanel = CreatePanel(canvasRoot, "RootPanel", new Vector2(460f, 600f));
+        CreateLabel(rootPanel.transform, "暂停", 42f, TextAlignmentOptions.Center, new Vector2(0f, 250f), new Vector2(400f, 60f));
+        resumeButton = CreateMenuButton(rootPanel.transform, "继续战斗", new Vector2(0f, 170f), Resume);
         infiniteHealthToggle = CreateGameplayToggleButton(
-            rootPanel.transform, "无限生命", new Vector2(0f, 74f), ToggleInfiniteHealth, out infiniteHealthValueLabel);
+            rootPanel.transform, "无限生命", new Vector2(0f, 104f), ToggleInfiniteHealth, out infiniteHealthValueLabel);
         oneHitPostureBreakToggle = CreateGameplayToggleButton(
-            rootPanel.transform, "一击破防", new Vector2(0f, 12f), ToggleOneHitPostureBreak, out oneHitPostureBreakValueLabel);
-        openSettingsButton = CreateMenuButton(rootPanel.transform, "设置", new Vector2(0f, -52f), ShowHub);
-        quitButton = CreateMenuButton(rootPanel.transform, "退出战斗", new Vector2(0f, -116f), RestartScene);
+            rootPanel.transform, "一击破防", new Vector2(0f, 42f), ToggleOneHitPostureBreak, out oneHitPostureBreakValueLabel);
+        openSettingsButton = CreateMenuButton(rootPanel.transform, "设置", new Vector2(0f, -22f), ShowHub);
+        quitButton = CreateMenuButton(rootPanel.transform, "退出战斗", new Vector2(0f, -86f), RestartScene);
+        exitGameButton = CreateMenuButton(rootPanel.transform, "退出游戏", new Vector2(0f, -150f), QuitGame);
         rootCloseButton = CreateCloseButton(rootPanel.transform, Resume);
 
         hubPanel = CreatePanel(canvasRoot, "HubPanel", new Vector2(560f, 500f));
@@ -1328,7 +1353,8 @@ public class PauseMenuController : MonoBehaviour
         if (oneHitPostureBreakToggle != null)
             oneHitPostureBreakToggle.navigation = oneHitNav;
         SetNav(openSettingsButton, oneHitPostureBreakToggle != null ? oneHitPostureBreakToggle : resumeButton, quitButton, null, null);
-        SetNav(quitButton, openSettingsButton, null, null, null);
+        SetNav(quitButton, openSettingsButton, exitGameButton, null, null);
+        SetNav(exitGameButton, quitButton, null, null, null);
 
         SetSliderNav(bgmSlider, null, sfxSlider);
         SetSliderNav(sfxSlider, bgmSlider, hubKeybindButton);
