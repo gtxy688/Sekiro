@@ -156,15 +156,16 @@ public class CharacterBody : MonoBehaviour
         }
     }
     private bool isFinisherLocked;
-    private int facingHoldStateHash;
-    private Vector3 facingHoldDir;
-    // 攻击转向窗：吃 Root 位移，丢掉 Clip yaw，否则挥砍根旋转会把刚对准的朝向拧走
-    private bool suppressRootYaw;
-    private bool steerYawActive;
-    private Vector3 steerYawDir;
-    private float steerYawSpeed;
+
+    // 转向模块：朝向的运行时状态与决策已迁入 FacingController（重构试点一），
+    // 本类只保留同名转发接口，调用方零改动。
+    // 懒创建与 EnsureRuntimeReady 同理：Play 中改脚本触发域重载后，非序列化字段会丢，
+    // 下次访问自动补一套，避免 OnAnimatorMove/RotateYaw NRE。
+    private FacingController facing;
+    private FacingController Facing => facing ??= new FacingController(this);
+
     // 识破打断后继续锁水平朝向，直到下一招；硬直一结束走位就会对准玩家猛转。
-    public bool IsCombatYawFrozen { get; private set; }
+    public bool IsCombatYawFrozen => Facing.IsCombatYawFrozen;
 
     // 被完美弹刀硬直中（避免查 ParriedState 类型）
     public bool IsParried { get; set; }
@@ -471,37 +472,9 @@ public class CharacterBody : MonoBehaviour
 
         transform.position += delta;
 
-        bool holdFacing = false;
-        if (facingHoldStateHash != 0)
-        {
-            AnimatorStateInfo info = Animator.GetCurrentAnimatorStateInfo(0);
-            if (info.shortNameHash == facingHoldStateHash)
-            {
-                facingHoldStateHash = 0;
-            }
-            else
-            {
-                holdFacing = true;
-            }
-        }
-
-        if (holdFacing)
-        {
-            ApplyYaw(facingHoldDir);
-        }
-        else if (steerYawActive)
-        {
-            ApplySteerYaw();
-        }
-        else if (suppressRootYaw)
-        {
-            // 转向窗外仍锁水平朝向：挥砍后半段的 Root yaw 不会把起手对准拧偏
-            FlattenYaw();
-        }
-        else
-        {
-            transform.rotation *= Animator.deltaRotation;
-        }
+        // 旋转优先级（Hold > 攻击转向 > Root 抑制 > 动画增量）决策已迁入转向模块。
+        // 顺序保持原样：先写位置增量，再决定旋转，最后统一同步刚体。
+        Facing.ApplyRootRotation(Animator);
 
         Rb.position = transform.position;
         Rb.rotation = transform.rotation;
@@ -657,130 +630,25 @@ public class CharacterBody : MonoBehaviour
         Debug.LogWarning($"[CharacterBody] {name} 坠出地图（y < {fallKillY}），已传回安全落点 {lastSafePosition}");
     }
 
-    // --- 供 State 调用的公共方法举例 ---
-    // 比如在移动状态中，需要让角色转身
+    // --- 转向接口：实现已迁入 FacingController，签名不变，全项目调用方零改动 ---
     // 水平转向（度/秒）。刚体冻结旋转后只改 transform，避免和插值抢 yaw
-    public void RotateYaw(Vector3 worldDir, float degreesPerSecond)
-    {
-        // 攻击/硬直/识破后冻结：走位节点的 RotateYaw 不走 Command，必须在这里拦住。
-        if (suppressRootYaw || IsParried || IsFinisherLocked || IsCombatYawFrozen) return;
-        if (worldDir.sqrMagnitude < 0.01f) return;
-        worldDir.y = 0f;
-        if (worldDir.sqrMagnitude < 0.01f) return;
-        Quaternion target = Quaternion.LookRotation(worldDir.normalized, Vector3.up);
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, target, degreesPerSecond * Time.deltaTime);
-    }
+    public void RotateYaw(Vector3 worldDir, float degreesPerSecond) => Facing.RotateYaw(worldDir, degreesPerSecond);
 
     // 立即水平朝向（忍杀开演前对齐，不用每帧转）。
     // holdUntilState：Animator 还没切到该状态前，每帧 OnAnimatorMove 后再 Snap 一次。
-    public void SnapYaw(Vector3 worldDir, string holdUntilState = null)
-    {
-        worldDir.y = 0f;
-        if (worldDir.sqrMagnitude < 0.0001f) return;
-        Vector3 dir = worldDir.normalized;
-        ApplyYaw(dir);
-        if (!string.IsNullOrEmpty(holdUntilState))
-        {
-            facingHoldDir = dir;
-            facingHoldStateHash = UnityEngine.Animator.StringToHash(holdUntilState);
-        }
-        else
-        {
-            facingHoldStateHash = 0;
-        }
-    }
-
-    private void ApplyYaw(Vector3 worldDir)
-    {
-        transform.rotation = Quaternion.LookRotation(worldDir, Vector3.up);
-        if (Rb != null)
-        {
-            Rb.rotation = transform.rotation;
-        }
-    }
+    public void SnapYaw(Vector3 worldDir, string holdUntilState = null) => Facing.SnapYaw(worldDir, holdUntilState);
 
     // 攻击转向：在 OnAnimatorMove 里转，才能盖过同一帧的 Clip 根旋转
-    public void SetSteerYaw(Vector3 worldDir, float degreesPerSecond)
-    {
-        worldDir.y = 0f;
-        if (worldDir.sqrMagnitude < 0.01f || degreesPerSecond <= 0f)
-        {
-            ClearSteerYaw();
-            return;
-        }
+    public void SetSteerYaw(Vector3 worldDir, float degreesPerSecond) => Facing.SetSteerYaw(worldDir, degreesPerSecond);
 
-        steerYawDir = worldDir.normalized;
-        steerYawSpeed = degreesPerSecond;
-        steerYawActive = true;
-    }
+    public void ClearSteerYaw() => Facing.ClearSteerYaw();
 
-    public void ClearSteerYaw()
-    {
-        steerYawActive = false;
-        steerYawDir = Vector3.zero;
-    }
-
-    public void SetSuppressRootYaw(bool suppress)
-    {
-        suppressRootYaw = suppress;
-        if (!suppress)
-        {
-            ClearSteerYaw();
-        }
-    }
+    public void SetSuppressRootYaw(bool suppress) => Facing.SetSuppressRootYaw(suppress);
 
     // 钉住当前水平朝向：清掉 Snap 残留 hold，丢掉之后的 Root yaw / 走位转向。
-    public void FreezeCombatYaw()
-    {
-        facingHoldStateHash = 0;
-        facingHoldDir = Vector3.zero;
-        ClearSteerYaw();
-        Vector3 fwd = transform.forward;
-        fwd.y = 0f;
-        if (fwd.sqrMagnitude > 0.0001f)
-        {
-            ApplyYaw(fwd.normalized);
-        }
-        suppressRootYaw = true;
-        IsCombatYawFrozen = true;
-    }
+    public void FreezeCombatYaw() => Facing.FreezeCombatYaw();
 
-    public void ClearCombatYawFrozen()
-    {
-        IsCombatYawFrozen = false;
-    }
-
-    private void ApplySteerYaw()
-    {
-        float dt = Time.deltaTime;
-        Vector3 currentFwd = transform.forward;
-        currentFwd.y = 0f;
-        if (currentFwd.sqrMagnitude < 0.0001f)
-        {
-            ApplyYaw(steerYawDir);
-            return;
-        }
-
-        Quaternion current = Quaternion.LookRotation(currentFwd.normalized, Vector3.up);
-        Quaternion target = Quaternion.LookRotation(steerYawDir, Vector3.up);
-        Quaternion next = Quaternion.RotateTowards(current, target, steerYawSpeed * dt);
-        Vector3 nextFwd = next * Vector3.forward;
-        nextFwd.y = 0f;
-        if (nextFwd.sqrMagnitude > 0.0001f)
-        {
-            ApplyYaw(nextFwd.normalized);
-        }
-    }
-
-    private void FlattenYaw()
-    {
-        Vector3 fwd = transform.forward;
-        fwd.y = 0f;
-        if (fwd.sqrMagnitude > 0.0001f)
-        {
-            ApplyYaw(fwd.normalized);
-        }
-    }
+    public void ClearCombatYawFrozen() => Facing.ClearCombatYawFrozen();
 
     // 摇杆输入 → 世界移动方向（相机相对，原神式）：
     // 输入先经相机水平朝向变换，W = 远离镜头、A/D = 屏幕左右，与相机摆放无关
