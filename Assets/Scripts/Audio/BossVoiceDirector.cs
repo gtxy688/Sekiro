@@ -17,8 +17,10 @@ public class BossVoiceDirector : MonoBehaviour
     [Tooltip("暂停菜单音效 100% 时的语音基础响度。")]
     public float volume = 0.2f;
 
-    private CharacterBody playerBody;
-    private CharacterBody bossBody;
+    // 陷阱3-3：可 Inspector 拖入玩家/Boss 引用，避免懒加载 FindObjectOfType；
+    // 未拖时仍走 ResolveBodies 查找兜底（场景零改动）。
+    [SerializeField] private CharacterBody playerBody;
+    [SerializeField] private CharacterBody bossBody;
     private RectTransform playerPostureRect;
     private VoiceLineView view;
     private AudioSource source;

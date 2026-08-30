@@ -125,7 +125,9 @@ public class CameraController : MonoBehaviour
     [SerializeField] private float jumpThrustMaxExtraLift = 5f;
 
     private bool setupDone;
-    private CinemachineBrain brain;
+    // 陷阱3-3：可 Inspector 拖入主相机 Brain，避免懒加载 FindObjectOfType；
+    // 未拖时仍走查找兜底（场景零改动）。
+    [SerializeField] private CinemachineBrain brain;
     private Coroutine releaseLockYawCo;
     private Coroutine finisherDollyCo;
     private bool isInFinisher;
@@ -794,9 +796,14 @@ public class CameraController : MonoBehaviour
     {
         if (lockVcam == null)
         {
+            // 陷阱3-3 兜底：字符串查找改名即失效。理想路径是 Inspector 拖 lockVcam；
+            // 走到这里说明没拖，告警一次提示接线（场景已存在同名物体时）。
             GameObject existing = GameObject.Find("LockOn Camera");
             if (existing != null)
+            {
                 lockVcam = existing.GetComponent<CinemachineVirtualCamera>();
+                Debug.LogWarning("[CameraController] 锁定相机经字符串查找获得（\"LockOn Camera\"），请在 Inspector 拖入 lockVcam，避免改名后查找失效。");
+            }
         }
 
         if (lockVcam == null)
