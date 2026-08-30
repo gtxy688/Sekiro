@@ -136,6 +136,12 @@ public class CharacterBody : MonoBehaviour
     }
     private bool isFinisherLocked;
 
+    // 陷阱3-1 状态复用：无参 GroundedState 每角色仅一实例。OnEnter 走 GetInitialSubState
+    // （Idle 已随实例缓存）、OnExit 清空子状态机，重复进入安全——消灭高频"回待机"的
+    // Grounded+Idle 成对分配。带强制子状态的变体（被弹/崩解/喝药等物理覆写）仍按需 new。
+    private GroundedState sharedGrounded;
+    public GroundedState SharedGrounded => sharedGrounded ??= new GroundedState(this);
+
     // 转向模块：朝向的运行时状态与决策已迁入 FacingController（重构试点一），
     // 本类只保留同名转发接口，调用方零改动。
     // 懒创建与 EnsureRuntimeReady 同理：Play 中改脚本触发域重载后，非序列化字段会丢，
@@ -273,7 +279,7 @@ public class CharacterBody : MonoBehaviour
         // GroundedState 会当成踩空切 AirState，进场播 Jump/Fall。
         Physics.SyncTransforms();
         UpdateEnvironmentalChecks();
-        MainStateMachine.ChangeState(new GroundedState(this));
+        MainStateMachine.ChangeState(SharedGrounded);
     }
 
     private void Update()
@@ -336,7 +342,7 @@ public class CharacterBody : MonoBehaviour
             }
             else
             {
-                MainStateMachine.ChangeState(new GroundedState(this));
+                MainStateMachine.ChangeState(SharedGrounded);
             }
         }
     }
@@ -689,7 +695,7 @@ public class CharacterBody : MonoBehaviour
         DisableWeaponHit();
         ClearSteerYaw();
         SetSuppressRootYaw(false);
-        MainStateMachine.ChangeState(new GroundedState(this));
+        MainStateMachine.ChangeState(SharedGrounded);
     }
 
     // 死亡判定（M14）：判定与事件已迁入 CombatStats.HandleDeath，
@@ -712,7 +718,7 @@ public class CharacterBody : MonoBehaviour
     public void RecoverFromBreak(float remainingRatio = 0f)
     {
         ClearPostureBreak(remainingRatio);
-        MainStateMachine.ChangeState(new GroundedState(this));
+        MainStateMachine.ChangeState(SharedGrounded);
     }
 
     // 动画事件可选入口：正常结算改由 FinisherState 在动画结束时驱动。

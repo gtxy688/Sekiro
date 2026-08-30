@@ -11,9 +11,14 @@ public class GroundedState : HierarchicalState
         this.forcedInitialSubState = forcedInitialSubState;
     }
 
+    // 陷阱3-1 状态复用：默认 Idle 子状态随本实例缓存。IdleState 的唯一存储字段是
+    // 不可变的 parent（=本实例），行为状态全在 OnEnter 重置（CrossFade/清速度/清移动意图），
+    // 重复进入安全——消灭每次回待机的 IdleState 分配。带强制子状态的变体不受影响。
+    private IdleState cachedIdleSubState;
+
     protected override BaseState GetInitialSubState()
     {
-        return forcedInitialSubState ?? new IdleState(body, this);
+        return forcedInitialSubState ?? (cachedIdleSubState ??= new IdleState(body, this));
     }
 
     // 负责处理父层级的状态切换,内部层级切换交由子状态去处理
