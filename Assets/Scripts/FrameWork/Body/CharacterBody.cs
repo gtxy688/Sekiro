@@ -181,17 +181,12 @@ public class CharacterBody : MonoBehaviour
         AirJump2Used = false;
     }
     // 连续被对手近战完美弹开的次数。JumpThrust（3022）抽招读这个；出手或交锋中断后清零。
-    public int ConsecutiveTimesParried { get; private set; }
+    // （记账已迁入 DeflectMemory，这里只转发）
+    public int ConsecutiveTimesParried => Deflect.ConsecutiveTimesParried;
 
-    public void NotifyPerfectlyParried()
-    {
-        ConsecutiveTimesParried++;
-    }
+    public void NotifyPerfectlyParried() => Deflect.NotifyPerfectlyParried();
 
-    public void ResetConsecutiveTimesParried()
-    {
-        ConsecutiveTimesParried = 0;
-    }
+    public void ResetConsecutiveTimesParried() => Deflect.ResetConsecutiveTimesParried();
 
     // 下一次出手覆盖：Boss 表行烘焙、玩家突刺会先写这里。null 则玩家回退 LightAttack。
     public AttackConfig ActiveAttack { get; set; }
@@ -219,10 +214,12 @@ public class CharacterBody : MonoBehaviour
     // 距上次受击的时间，用于架势自然回复的延迟判断
     private float lastHitTime;
 
-    // 抖刀惩罚状态（M4）：连点防御缩短弹反窗口
-    private int deflectMashCount;
-    private float lastDeflectPressTime;
-    private float deflectWindowScale = 1f;
+    // 弹反记忆模块（重构试点二）：抖刀惩罚 + Boss 被动防御 + 连续被弹的记账已迁入 DeflectMemory。
+    // 切状态编排权通过委托留在本类（模块"请求"、Façade 编排）；懒创建理由同 Facing。
+    private DeflectMemory deflect;
+    private DeflectMemory Deflect => deflect ??= new DeflectMemory(this,
+        (hit, mode) => TryChangeGroundedSubState(g => new DeflectState(this, g,
+            remash: false, mode: mode, pendingHit: hit)));
 
     [Header("环境检测设置")]
     public Transform groundCheckPoint;
@@ -718,41 +715,17 @@ public class CharacterBody : MonoBehaviour
         return "Hurt_Ground";
     }
 
-    // ===== 抖刀惩罚（M4）=====
-    // DeflectState 进入时调用：0.5s 内连点 ≥3 次 → 窗口 ×0.75，下限 0.1s；停止 0.5s 后恢复
-    public void RegisterDeflectPress()
-    {
-        float now = Time.time;
-        if (now - lastDeflectPressTime > (Config != null ? Config.DeflectMashWindow : 0.5f))
-        {
-            deflectMashCount = 0;
-            deflectWindowScale = 1f;
-        }
-        deflectMashCount++;
-        lastDeflectPressTime = now;
+    // ===== 抖刀惩罚（M4）/ 弹反窗口 =====
+    // 记账与窗口缩放已迁入 DeflectMemory，这里只转发。
 
-        if (Config != null && deflectMashCount > Config.DeflectMashLimit)
-        {
-            deflectWindowScale *= Config.DeflectMashPenalty;
-            float min = Config.DeflectWindowMin;
-            float baseWindow = Config.DeflectWindow;
-            if (baseWindow * deflectWindowScale < min) deflectWindowScale = min / baseWindow;
-        }
-    }
+    public void RegisterDeflectPress() => Deflect.RegisterDeflectPress();
 
-    public float LastDeflectCancelTime { get; private set; }
+    public float LastDeflectCancelTime => Deflect.LastDeflectCancelTime;
 
-    public void NotifyDeflectCancel()
-    {
-        LastDeflectCancelTime = Time.time;
-    }
+    public void NotifyDeflectCancel() => Deflect.NotifyDeflectCancel();
 
     // 当前生效的弹反窗口（已计入抖刀惩罚）
-    public float GetDeflectWindow()
-    {
-        float baseWindow = Config != null ? Config.DeflectWindow : 0.3f;
-        return baseWindow * deflectWindowScale;
-    }
+    public float GetDeflectWindow() => Deflect.GetDeflectWindow();
 
     // 锁定四向移动参数：有 MoveZ 用 MoveZ，否则回退 MoveY。
     public void SetMoveStrafe(float x, float z, bool instant)
@@ -830,34 +803,10 @@ public class CharacterBody : MonoBehaviour
     // ===== M7 Boss 被动防御（只狼攻防转换）=====
     // 只狼模式：Boss 非攻击/非硬直时被玩家命中 → 强制格挡判定；连续格挡达阈值后
     // 升级为完美弹反（弹开玩家、抢回主动权）。由 BTBrain 启动时对 Boss 开启。
+    // 计数与升级判定已迁入 DeflectMemory；本字段是 Inspector 配置（prefab 已保存该值），保留原位。
     public bool EnablePassiveDeflect;
-    private int passiveDeflectCount;
-    private float lastPassiveDeflectTime;
 
-    public bool TryPassiveDeflect(HitData hit)
-    {
-        if (!EnablePassiveDeflect || IsDefeated) return false;
-        if (hit.isPerilous || hit.attacker == null) return false;
-        // 攻击中（可被抓前摇）/ 被弹硬直 / 崩解中 → 不回防御，走常规受击
-        if (IsAttacking || IsParried || IsPostureBroken) return false;
-
-        float now = Time.time;
-        int threshold = Config != null ? Config.PassiveDeflectThreshold : 2;   // 数值走 SO，缺失回退旧默认
-        float resetWindow = Config != null ? Config.PassiveDeflectResetWindow : 2.5f;
-        if (passiveDeflectCount > 0 && now - lastPassiveDeflectTime > resetWindow)
-            passiveDeflectCount = 0;
-        lastPassiveDeflectTime = now;
-
-        bool upgraded = passiveDeflectCount >= threshold;
-        passiveDeflectCount = upgraded ? 0 : passiveDeflectCount + 1;
-
-        // 强制进格挡姿态并当场处理这次命中（PerfectParry 弹开攻击者 / PassiveGuard 普通格挡）。
-        // 空中（AirState）等不可防御场景返回 false，交回常规受击链路。
-        return TryChangeGroundedSubState(g => new DeflectState(this, g,
-            remash: false,
-            mode: upgraded ? DeflectEntryMode.PerfectParry : DeflectEntryMode.PassiveGuard,
-            pendingHit: hit));
-    }
+    public bool TryPassiveDeflect(HitData hit) => Deflect.TryPassiveDeflect(hit);
 
     // 架势崩解硬直入口（M9）：玩家 = 击飞倒地（不被处决）；Boss = 处决窗口（红点）。
     public void ForcePostureBroken(PostureBreakSource source = PostureBreakSource.Attack)
