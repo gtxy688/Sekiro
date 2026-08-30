@@ -1,13 +1,19 @@
 using UnityEditor;
 using UnityEngine;
 
-[CustomEditor(typeof(AttackConfig))]
-public class AttackConfigEditor : Editor
+using ARPG.Configs;
+namespace ARPG.Editor
 {
-    public override void OnInspectorGUI()
+
+    [CustomEditor(typeof(AttackConfig))]
+    public class AttackConfigEditor : UnityEditor.Editor
     {
-        DrawDefaultInspector();
-        if (GUILayout.Button("打开攻击时间轴"))
-            AttackTimelineWindow.Open((AttackConfig)target);
+        public override void OnInspectorGUI()
+        {
+            DrawDefaultInspector();
+            if (GUILayout.Button("打开攻击时间轴"))
+                AttackTimelineWindow.Open((AttackConfig)target);
+        }
     }
+
 }

@@ -1,26 +1,31 @@
 
 using UnityEngine;
 
-
-// 2. 状态机驱动器
-public class StateMachine
+using ARPG.FrameWork.States.Base;
+namespace ARPG.FrameWork.States
 {
-    public BaseState CurrentState { get; private set; }
 
-    public void ChangeState(BaseState newState)
-    {
-        CurrentState?.OnExit();
-        CurrentState = newState;
-        CurrentState?.OnEnter();
-    }
 
-    public void Update()
+    // 2. 状态机驱动器
+    public class StateMachine
     {
-        CurrentState?.OnUpdate();
-    }
+        public BaseState CurrentState { get; private set; }
 
-    public bool HandleCommand(ICommand command)
-    {
-        return CurrentState != null && CurrentState.HandleCommand(command);
+        public void ChangeState(BaseState newState)
+        {
+            CurrentState?.OnExit();
+            CurrentState = newState;
+            CurrentState?.OnEnter();
+        }
+
+        public void Update()
+        {
+            CurrentState?.OnUpdate();
+        }
+
+        public bool HandleCommand(ICommand command)
+        {
+            return CurrentState != null && CurrentState.HandleCommand(command);
+        }
     }
 }

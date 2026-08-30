@@ -1,34 +1,39 @@
 using UnityEngine;
 
-public static class AttackAnimClock
+namespace ARPG.FrameWork
 {
-    public const int Layer = 0;
 
-    public static float ReadSeconds(Animator animator, string animName)
+    public static class AttackAnimClock
     {
-        if (animator == null || string.IsNullOrEmpty(animName))
-            return 0f;
+        public const int Layer = 0;
 
-        int hash = Animator.StringToHash(animName);
-
-        if (animator.IsInTransition(Layer))
+        public static float ReadSeconds(Animator animator, string animName)
         {
-            AnimatorStateInfo next = animator.GetNextAnimatorStateInfo(Layer);
-            if (next.shortNameHash == hash)
-                return SecondsFrom(next);
+            if (animator == null || string.IsNullOrEmpty(animName))
+                return 0f;
+
+            int hash = Animator.StringToHash(animName);
+
+            if (animator.IsInTransition(Layer))
+            {
+                AnimatorStateInfo next = animator.GetNextAnimatorStateInfo(Layer);
+                if (next.shortNameHash == hash)
+                    return SecondsFrom(next);
+            }
+
+            AnimatorStateInfo current = animator.GetCurrentAnimatorStateInfo(Layer);
+            if (current.shortNameHash == hash)
+                return SecondsFrom(current);
+
+            return 0f;
         }
 
-        AnimatorStateInfo current = animator.GetCurrentAnimatorStateInfo(Layer);
-        if (current.shortNameHash == hash)
-            return SecondsFrom(current);
-
-        return 0f;
+        static float SecondsFrom(AnimatorStateInfo info)
+        {
+            if (info.length <= 0.0001f)
+                return 0f;
+            return info.normalizedTime * info.length;
+        }
     }
 
-    static float SecondsFrom(AnimatorStateInfo info)
-    {
-        if (info.length <= 0.0001f)
-            return 0f;
-        return info.normalizedTime * info.length;
-    }
 }

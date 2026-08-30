@@ -1,3 +1,8 @@
+using ARPG.Boss;
+using ARPG.Configs;
+
+namespace ARPG.Editor
+{
 #if UNITY_EDITOR
 using System.Globalization;
 using System.IO;
@@ -450,3 +455,5 @@ public static class GenichiroMoveCatalogExporter
     static string AssignLine(float v, string format) => string.Format(format, F(v));
 }
 #endif
+
+}

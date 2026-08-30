@@ -1,78 +1,88 @@
 using UnityEngine;
 
-// Mid/Heavy 倒地（含躺地）播完后的起身。期间挨刀按新的一次受击处理。
-public class StandingState : BaseState
+using ARPG.Combat;
+using ARPG.FrameWork;
+using ARPG.FrameWork.Body;
+using ARPG.FrameWork.States;
+using ARPG.FrameWork.States.Base;
+namespace ARPG.FrameWork.States.Ground
 {
-    private const float FallbackDuration = 2f;
 
-    private string animName;
-    private float timer;
-    private bool waitForAnim;
-
-    public StandingState(CharacterBody body) : base(body) { }
-
-    public override void OnEnter()
+    // Mid/Heavy 倒地（含躺地）播完后的起身。期间挨刀按新的一次受击处理。
+    public class StandingState : BaseState
     {
-        timer = 0f;
-        animName = HitReactionUtil.StandingAnim(body);
-        waitForAnim = AnimUtil.TryCrossFade(body.Animator, animName, 0.08f);
-    }
+        private const float FallbackDuration = 2f;
 
-    public override void OnUpdate()
-    {
-        timer += Time.deltaTime;
-        if (waitForAnim && body.Animator != null)
+        private string animName;
+        private float timer;
+        private bool waitForAnim;
+
+        public StandingState(CharacterBody body) : base(body) { }
+
+        public override void OnEnter()
         {
-            AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
-            if (AnimUtil.IsPlaying(info, animName))
+            timer = 0f;
+            animName = HitReactionUtil.StandingAnim(body);
+            waitForAnim = AnimUtil.TryCrossFade(body.Animator, animName, 0.08f);
+        }
+
+        public override void OnUpdate()
+        {
+            timer += Time.deltaTime;
+            if (waitForAnim && body.Animator != null)
             {
-                if (info.normalizedTime >= 0.99f && !body.Animator.IsInTransition(0))
+                AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
+                if (AnimUtil.IsPlaying(info, animName))
                 {
-                    GoIdle();
-                    return;
+                    if (info.normalizedTime >= 0.99f && !body.Animator.IsInTransition(0))
+                    {
+                        GoIdle();
+                        return;
+                    }
                 }
+
+                if (timer >= FallbackDuration)
+                    GoIdle();
+                return;
             }
 
-            if (timer >= FallbackDuration)
-                GoIdle();
-            return;
+            GoIdle();
         }
 
-        GoIdle();
-    }
-
-    public override bool HandleCommand(ICommand cmd)
-    {
-        if (cmd is DodgeCommand)
+        public override bool HandleCommand(ICommand cmd)
         {
-            CancelStanding(toDeflect: false);
+            if (cmd is DodgeCommand)
+            {
+                CancelStanding(toDeflect: false);
+                return true;
+            }
+            if (cmd is DeflectCommand)
+            {
+                CancelStanding(toDeflect: true);
+                return true;
+            }
             return true;
         }
-        if (cmd is DeflectCommand)
+
+        void CancelStanding(bool toDeflect)
         {
-            CancelStanding(toDeflect: true);
-            return true;
+            body.IsKnockedDown = false;
+            // 换格挡/垫步叶子（共用配方见 CharacterBody.TryChangeToDeflectOrDodge）
+            body.TryChangeToDeflectOrDodge(toDeflect);
         }
-        return true;
+
+        // 已经算站起来：不要拦截，让 ReceiveHit 按新一击完整播。
+        public override bool OnHitReceived(HitData hit)
+        {
+            return false;
+        }
+
+        void GoIdle()
+        {
+            // 地面上换 Idle 子状态；非地面态回退重建地面父状态
+            if (!body.TryChangeGroundedSubState(g => new IdleState(body, g)))
+                body.MainStateMachine.ChangeState(new GroundedState(body));
+        }
     }
 
-    void CancelStanding(bool toDeflect)
-    {
-        body.IsKnockedDown = false;
-        // 换格挡/垫步叶子（共用配方见 CharacterBody.TryChangeToDeflectOrDodge）
-        body.TryChangeToDeflectOrDodge(toDeflect);
-    }
-
-    // 已经算站起来：不要拦截，让 ReceiveHit 按新一击完整播。
-    public override bool OnHitReceived(HitData hit)
-    {
-        return false;
-    }
-
-    void GoIdle()
-    {
-        // 地面上换 Idle 子状态；非地面态回退重建地面父状态
-        if (!body.TryChangeGroundedSubState(g => new IdleState(body, g)))
-            body.MainStateMachine.ChangeState(new GroundedState(body));
-    }
 }

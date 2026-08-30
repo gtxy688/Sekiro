@@ -78,7 +78,7 @@ AI 辅助开发，**用户负责测试与验收（按模块）**。AI 每完成�
 - 大脑：`Assets/Scripts/Player/Brain/`、`Assets/Scripts/Boss/`
 - 表现：`Assets/Scripts/UI/`、`Assets/Scripts/Audio/`、`Assets/Scripts/Camera/`
 - 管理器：`Assets/Scripts/Mgr/`
-- 命名空间不强制，保持现有风格（无命名空间）
+- 命名空间：全部代码位于 `ARPG.*`（与文件夹结构对齐：Audio→`ARPG.Audio`、Boss→`ARPG.Boss`(`BehaviourTree` 子目录→`ARPG.Boss.BehaviourTree`)、Camera→`ARPG.Camera`、Combat→`ARPG.Combat`、Configs+SO→`ARPG.Configs`、FrameWork→`ARPG.FrameWork`(`Body`→`ARPG.FrameWork.Body`，`States`→`ARPG.FrameWork.States.{Ground,Air,Dead,Base}`)、Mgr→`ARPG.Mgr`、Player→`ARPG.Player`、UI→`ARPG.UI`）。新增脚本必须放入对应命名空间，跨模块类型引用一律 `using ARPG.X;`，禁止在全局命名空间新增类型。
 
 ## 数据结构
 - 配置数据用 ScriptableObject（AttackConfig/CharacterConfig），带 `[CreateAssetMenu]`

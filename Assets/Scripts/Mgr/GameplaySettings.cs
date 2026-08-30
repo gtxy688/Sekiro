@@ -1,64 +1,72 @@
 using System;
 using UnityEngine;
 
-// 调试/练习用玩法开关。表现层写入，战斗逻辑只读。
-public static class GameplaySettings
+using ARPG.Combat;
+using ARPG.FrameWork.Body;
+using ARPG.FrameWork.States;
+namespace ARPG.Mgr
 {
-    public const string InfiniteHealthKey = "gameplay.infinite_health";
-    public const string OneHitPostureBreakKey = "gameplay.one_hit_posture_break";
 
-    public static event Action OnChanged;
-
-    public static bool InfiniteHealth { get; private set; }
-    public static bool OneHitPostureBreak { get; private set; }
-
-    private static bool loaded;
-
-    public static void Load()
+    // 调试/练习用玩法开关。表现层写入，战斗逻辑只读。
+    public static class GameplaySettings
     {
-        if (loaded) return;
-        InfiniteHealth = PlayerPrefs.GetInt(InfiniteHealthKey, 0) == 1;
-        OneHitPostureBreak = PlayerPrefs.GetInt(OneHitPostureBreakKey, 0) == 1;
-        loaded = true;
+        public const string InfiniteHealthKey = "gameplay.infinite_health";
+        public const string OneHitPostureBreakKey = "gameplay.one_hit_posture_break";
+
+        public static event Action OnChanged;
+
+        public static bool InfiniteHealth { get; private set; }
+        public static bool OneHitPostureBreak { get; private set; }
+
+        private static bool loaded;
+
+        public static void Load()
+        {
+            if (loaded) return;
+            InfiniteHealth = PlayerPrefs.GetInt(InfiniteHealthKey, 0) == 1;
+            OneHitPostureBreak = PlayerPrefs.GetInt(OneHitPostureBreakKey, 0) == 1;
+            loaded = true;
+        }
+
+        public static void SetInfiniteHealth(bool enabled)
+        {
+            Load();
+            if (InfiniteHealth == enabled) return;
+            InfiniteHealth = enabled;
+            PlayerPrefs.SetInt(InfiniteHealthKey, InfiniteHealth ? 1 : 0);
+            PlayerPrefs.Save();
+            OnChanged?.Invoke();
+        }
+
+        public static void SetOneHitPostureBreak(bool enabled)
+        {
+            Load();
+            if (OneHitPostureBreak == enabled) return;
+            OneHitPostureBreak = enabled;
+            PlayerPrefs.SetInt(OneHitPostureBreakKey, OneHitPostureBreak ? 1 : 0);
+            PlayerPrefs.Save();
+            OnChanged?.Invoke();
+        }
+
+        // 弹反 / 普攻 / 识破：Boss 被玩家打出架势伤害时直接崩防；拼刀等其它来源不算。
+        public static bool ShouldOneHitBreakBoss(
+            CharacterBody target,
+            PostureBreakSource source,
+            CharacterBody instigator = null)
+        {
+            Load();
+            if (!OneHitPostureBreak || target == null || CombatManager.Instance == null)
+                return false;
+            if (target != CombatManager.Instance.BossRef)
+                return false;
+
+            if (source == PostureBreakSource.Deflect || source == PostureBreakSource.Mikiri)
+                return true;
+
+            return source == PostureBreakSource.Attack
+                   && instigator != null
+                   && HitReactionUtil.IsPlayer(instigator);
+        }
     }
 
-    public static void SetInfiniteHealth(bool enabled)
-    {
-        Load();
-        if (InfiniteHealth == enabled) return;
-        InfiniteHealth = enabled;
-        PlayerPrefs.SetInt(InfiniteHealthKey, InfiniteHealth ? 1 : 0);
-        PlayerPrefs.Save();
-        OnChanged?.Invoke();
-    }
-
-    public static void SetOneHitPostureBreak(bool enabled)
-    {
-        Load();
-        if (OneHitPostureBreak == enabled) return;
-        OneHitPostureBreak = enabled;
-        PlayerPrefs.SetInt(OneHitPostureBreakKey, OneHitPostureBreak ? 1 : 0);
-        PlayerPrefs.Save();
-        OnChanged?.Invoke();
-    }
-
-    // 弹反 / 普攻 / 识破：Boss 被玩家打出架势伤害时直接崩防；拼刀等其它来源不算。
-    public static bool ShouldOneHitBreakBoss(
-        CharacterBody target,
-        PostureBreakSource source,
-        CharacterBody instigator = null)
-    {
-        Load();
-        if (!OneHitPostureBreak || target == null || CombatManager.Instance == null)
-            return false;
-        if (target != CombatManager.Instance.BossRef)
-            return false;
-
-        if (source == PostureBreakSource.Deflect || source == PostureBreakSource.Mikiri)
-            return true;
-
-        return source == PostureBreakSource.Attack
-               && instigator != null
-               && HitReactionUtil.IsPlayer(instigator);
-    }
 }

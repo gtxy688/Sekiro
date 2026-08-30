@@ -1,83 +1,89 @@
-// 复合状态/父状态 
-public abstract class HierarchicalState : BaseState
+using ARPG.FrameWork.Body;
+using ARPG.FrameWork.States;
+
+namespace ARPG.FrameWork.States.Base
 {
-    // 父状态内部自己养的“子状态机”
-    public StateMachine SubStateMachine { get; private set; } = new StateMachine();
-
-    public HierarchicalState(CharacterBody body) : base(body) { }
-
-    // 要求子类必须提供一个默认进入的子状态
-    protected abstract BaseState GetInitialSubState();
-
-    public override void OnEnter()
+    // 复合状态/父状态 
+    public abstract class HierarchicalState : BaseState
     {
-        // 自动切入默认子状态
-        BaseState initial = GetInitialSubState();
-        if (initial != null)
+        // 父状态内部自己养的“子状态机”
+        public StateMachine SubStateMachine { get; private set; } = new StateMachine();
+
+        public HierarchicalState(CharacterBody body) : base(body) { }
+
+        // 要求子类必须提供一个默认进入的子状态
+        protected abstract BaseState GetInitialSubState();
+
+        public override void OnEnter()
         {
-            SubStateMachine.ChangeState(initial);
-        }
-    }
-
-    public override void OnUpdate()
-    {
-        // 如果父状态自己没被切走，就驱动当前的子状态更新
-        SubStateMachine.Update();
-    }
-
-    public override void OnExit()
-    {
-        // 强制退出当前正在运行的子状态
-        SubStateMachine.ChangeState(null);
-    }
-
-    // 命令的路由转发 (父类 -> 子类)
-    public override bool HandleCommand(ICommand cmd)
-    {
-        // 第一步：父状态自己先看看要不要拦截这个命令？
-        // (交由具体的父状态子类去实现 OnParentHandleCommand)
-        if (OnParentHandleCommand(cmd))
-        {
-            return true; // 父类拦截了！停止传递。
+            // 自动切入默认子状态
+            BaseState initial = GetInitialSubState();
+            if (initial != null)
+            {
+                SubStateMachine.ChangeState(initial);
+            }
         }
 
-        // 第二步：如果父类不关心，往下抛给当前正在运行的子状态
-        if (SubStateMachine.CurrentState != null)
+        public override void OnUpdate()
         {
-            return SubStateMachine.CurrentState.HandleCommand(cmd);
+            // 如果父状态自己没被切走，就驱动当前的子状态更新
+            SubStateMachine.Update();
         }
 
-        return false;
-    }
-
-    // 留给具体父状态去实现拦截逻辑
-    protected virtual bool OnParentHandleCommand(ICommand cmd) 
-    { 
-        return false; 
-    }
-
-    // 受击路由转发（M1）：先问父状态要不要拦截，再往下抛给当前子状态。
-    // 这样 DeflectState 即使在 GroundedState 的"子"状态机里，也能被查问到。
-    public override bool OnHitReceived(HitData hit)
-    {
-        // 第一步：父状态先看看要不要拦截？（如 StunnedState 受击期间二次受击）
-        if (OnParentHandleHit(hit))
+        public override void OnExit()
         {
-            return true;
+            // 强制退出当前正在运行的子状态
+            SubStateMachine.ChangeState(null);
         }
 
-        // 第二步：抛给当前正在运行的子状态
-        if (SubStateMachine.CurrentState != null)
+        // 命令的路由转发 (父类 -> 子类)
+        public override bool HandleCommand(ICommand cmd)
         {
-            return SubStateMachine.CurrentState.OnHitReceived(hit);
+            // 第一步：父状态自己先看看要不要拦截这个命令？
+            // (交由具体的父状态子类去实现 OnParentHandleCommand)
+            if (OnParentHandleCommand(cmd))
+            {
+                return true; // 父类拦截了！停止传递。
+            }
+
+            // 第二步：如果父类不关心，往下抛给当前正在运行的子状态
+            if (SubStateMachine.CurrentState != null)
+            {
+                return SubStateMachine.CurrentState.HandleCommand(cmd);
+            }
+
+            return false;
         }
 
-        return false;
-    }
+        // 留给具体父状态去实现拦截逻辑
+        protected virtual bool OnParentHandleCommand(ICommand cmd) 
+        { 
+            return false; 
+        }
 
-    // 留给具体父状态去实现受击拦截逻辑
-    protected virtual bool OnParentHandleHit(HitData hit)
-    {
-        return false;
+        // 受击路由转发（M1）：先问父状态要不要拦截，再往下抛给当前子状态。
+        // 这样 DeflectState 即使在 GroundedState 的"子"状态机里，也能被查问到。
+        public override bool OnHitReceived(HitData hit)
+        {
+            // 第一步：父状态先看看要不要拦截？（如 StunnedState 受击期间二次受击）
+            if (OnParentHandleHit(hit))
+            {
+                return true;
+            }
+
+            // 第二步：抛给当前正在运行的子状态
+            if (SubStateMachine.CurrentState != null)
+            {
+                return SubStateMachine.CurrentState.OnHitReceived(hit);
+            }
+
+            return false;
+        }
+
+        // 留给具体父状态去实现受击拦截逻辑
+        protected virtual bool OnParentHandleHit(HitData hit)
+        {
+            return false;
+        }
     }
 }

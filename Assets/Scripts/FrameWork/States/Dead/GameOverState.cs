@@ -1,57 +1,66 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-// 游戏结束（M14）：真死。未倒地则先 Dead 再 Deading；已躺着则直接 Deading。
-// 按攻击键重开当前场景
-public class GameOverState : BaseState
+using ARPG.FrameWork;
+using ARPG.FrameWork.Body;
+using ARPG.FrameWork.States;
+using ARPG.FrameWork.States.Base;
+namespace ARPG.FrameWork.States.Dead
 {
-    private HierarchicalState parent;
-    private readonly bool alreadyDowned;
-    private float fallTimer;
-    private float fallDuration = 1.2f;
-    private bool lying;
 
-    public GameOverState(CharacterBody body, HierarchicalState parent, bool alreadyDowned = false) : base(body)
+    // 游戏结束（M14）：真死。未倒地则先 Dead 再 Deading；已躺着则直接 Deading。
+    // 按攻击键重开当前场景
+    public class GameOverState : BaseState
     {
-        this.parent = parent;
-        this.alreadyDowned = alreadyDowned;
-    }
+        private HierarchicalState parent;
+        private readonly bool alreadyDowned;
+        private float fallTimer;
+        private float fallDuration = 1.2f;
+        private bool lying;
 
-    public override void OnEnter()
-    {
-        fallTimer = 0f;
-        if (alreadyDowned)
+        public GameOverState(CharacterBody body, HierarchicalState parent, bool alreadyDowned = false) : base(body)
         {
-            lying = true;
-            AnimUtil.TryCrossFade(body.Animator, "Deading", 0.05f);
+            this.parent = parent;
+            this.alreadyDowned = alreadyDowned;
         }
-        else
+
+        public override void OnEnter()
         {
-            lying = false;
-            AnimUtil.TryCrossFade(body.Animator, "Dead", 0.1f);
+            fallTimer = 0f;
+            if (alreadyDowned)
+            {
+                lying = true;
+                AnimUtil.TryCrossFade(body.Animator, "Deading", 0.05f);
+            }
+            else
+            {
+                lying = false;
+                AnimUtil.TryCrossFade(body.Animator, "Dead", 0.1f);
+            }
         }
-    }
 
-    public override void OnUpdate()
-    {
-        if (lying) return;
-
-        fallTimer += Time.deltaTime;
-        var info = body.Animator.GetCurrentAnimatorStateInfo(0);
-        if ((AnimUtil.IsPlaying(info, "Dead") && info.normalizedTime >= 0.95f) || fallTimer >= fallDuration)
+        public override void OnUpdate()
         {
-            lying = true;
-            AnimUtil.TryCrossFade(body.Animator, "Deading", 0.05f);
+            if (lying) return;
+
+            fallTimer += Time.deltaTime;
+            var info = body.Animator.GetCurrentAnimatorStateInfo(0);
+            if ((AnimUtil.IsPlaying(info, "Dead") && info.normalizedTime >= 0.95f) || fallTimer >= fallDuration)
+            {
+                lying = true;
+                AnimUtil.TryCrossFade(body.Animator, "Deading", 0.05f);
+            }
         }
-    }
 
-    public override bool HandleCommand(ICommand cmd)
-    {
-        if (cmd is AttackCommand)
+        public override bool HandleCommand(ICommand cmd)
         {
-            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+            if (cmd is AttackCommand)
+            {
+                SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+                return true;
+            }
             return true;
         }
-        return true;
     }
+
 }
