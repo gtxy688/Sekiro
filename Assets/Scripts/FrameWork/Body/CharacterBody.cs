@@ -50,9 +50,13 @@ public class CharacterBody : MonoBehaviour
         return null;
     }
 
-    // 武器的碰撞盒（M3：BoxCast 版 Hitbox，不再用 OnTrigger）
-    public Hitbox Weapon { get; private set; }
-    public Hitbox ActiveHitbox { get; private set; }
+    // 武器的碰撞盒（M3）：运行时状态与判定开关已迁入 WeaponController，这里只转发
+    public Hitbox Weapon => WeaponCtrl.Weapon;
+    public Hitbox ActiveHitbox => WeaponCtrl.ActiveHitbox;
+
+    // 武器模块：Hitbox 槽位解析 + 判定开关 + 射箭；构造时完成原 InitHitboxes（Awake 时机）
+    private WeaponController weaponCtrl;
+    private WeaponController WeaponCtrl => weaponCtrl ??= new WeaponController(this);
 
     [Header("Hitbox 槽位")]
     [Tooltip("刀。空则 Awake 自动找（会跳过肘/脚引用）")]
@@ -272,7 +276,8 @@ public class CharacterBody : MonoBehaviour
         // 实例化纯 C# 的状态机引擎
         MainStateMachine = new StateMachine();
 
-        InitHitboxes();
+        // 武器模块构造（原 InitHitboxes：解析默认刀 + Initialize）
+        _ = WeaponCtrl;
 
         // 从 Config 初始化战斗属性（M2，原 InitCombat 已并入 CombatStats 构造）
         _ = Combat;
@@ -833,166 +838,18 @@ public class CharacterBody : MonoBehaviour
         MainStateMachine.ChangeState(new GroundedState(this, brokenState));
     }
 
+    // ===== 武器接口：实现已迁入 WeaponController，签名不变，全项目调用方零改动 =====
+
     // 开启武器判定（M3/M8）：攻击状态/动画事件调用。绑定本招式的伤害配置
-    public void EnableWeaponHit(AttackConfig config)
-    {
-        if (config == null) return;
-        // 弓段 / 假红条：即使动画事件误调也不开刀。
-        if (!AttackWindowSync.CanMeleeHit(config.HitStartTime, config.RecoveryWindowStart, config.hitPulses))
-            return;
-        Hitbox target = ResolveHitbox(config.HitboxSlot);
-        if (target == null) return;
-
-        if (ActiveHitbox != null && ActiveHitbox != target)
-            ActiveHitbox.Disable();
-
-        target.SetConfig(config);
-        target.Enable();
-        ActiveHitbox = target;
-        CombatEventBus.TriggerAttackSwingStart(this);
-    }
+    public void EnableWeaponHit(AttackConfig config) => WeaponCtrl.EnableWeaponHit(config);
 
     // 关闭武器判定（M3/M8）
-    public void DisableWeaponHit()
-    {
-        Hitbox target = ActiveHitbox != null ? ActiveHitbox : Weapon;
-        if (target == null) return;
-        target.Disable();
-        ActiveHitbox = null;
-        CombatEventBus.TriggerAttackSwingEnd(this);
-    }
+    public void DisableWeaponHit() => WeaponCtrl.DisableWeaponHit();
 
     // 时间轴 arrowCues 到点由 AttackState 调用。伤害读招式表该支出箭，不读烘焙 AttackConfig。
-    public void SpawnArrow(int cueIndex = 0)
-    {
-        if (arrowPrefab == null || arrowSpawn == null)
-        {
-            Debug.LogWarning($"{name} 缺少 arrowPrefab 或 arrowSpawn，不出箭。");
-            return;
-        }
+    public void SpawnArrow(int cueIndex = 0) => WeaponCtrl.SpawnArrow(cueIndex);
 
-        if (CurrentMoveEntry == null)
-        {
-            Debug.LogWarning($"{name} SpawnArrow 时没有当前招式表行。");
-            return;
-        }
-
-        ArrowSpawnCue cue = null;
-        if (CurrentMoveWindow != null && CurrentMoveWindow.arrowCues != null
-            && cueIndex >= 0 && cueIndex < CurrentMoveWindow.arrowCues.Length)
-            cue = CurrentMoveWindow.arrowCues[cueIndex];
-
-        AttackCombatResolve.Resolve(
-            CurrentMoveEntry, CurrentMoveWindow, cue,
-            out int damage, out float posture, out float knockback, out HitGrade grade);
-
-        Vector3 origin = arrowSpawn.position;
-        Vector3 aim = ResolveProjectileAimPoint();
-        Vector3 dir = aim - origin;
-        if (dir.sqrMagnitude < 0.0001f)
-            dir = arrowSpawn.forward.sqrMagnitude > 0.0001f ? arrowSpawn.forward : transform.forward;
-        dir.Normalize();
-
-        // 出射点沿瞄准方向略前移，避免从弓身侧面穿出；方向以瞄准为准。
-        origin += dir * 0.35f;
-
-        LayerMask layers = arrowTargetLayers;
-        if (layers == 0 && Weapon != null)
-            layers = Weapon.targetLayers;
-        if (layers == 0)
-            Debug.LogWarning($"{name} arrowTargetLayers 未设，箭扫不到人。");
-
-        ArrowProjectile arrow = Instantiate(arrowPrefab, origin, Quaternion.LookRotation(dir, Vector3.up));
-        arrow.Fire(this, dir, arrowSpeed, arrowCastRadius, layers, arrowLifetime,
-            damage, posture, knockback, grade);
-        CombatEventBus.TriggerArrowReleased(this);
-    }
-
-    public Vector3 GetProjectileAimPoint()
-    {
-        if (projectileAimPoint != null)
-            return projectileAimPoint.position;
-
-        // Hurtbox 常挂在根上，transform.position 是脚底——箭会朝地飞。
-        // 优先用碰撞体中心（胸口附近），再退到根上方。
-        Hurtbox hurtbox = GetComponentInChildren<Hurtbox>();
-        if (hurtbox != null)
-        {
-            Collider col = hurtbox.GetComponent<Collider>();
-            if (col == null)
-                col = hurtbox.GetComponentInChildren<Collider>();
-            if (col != null)
-                return col.bounds.center;
-        }
-
-        Collider bodyCol = GetComponent<Collider>();
-        if (bodyCol != null)
-            return bodyCol.bounds.center;
-
-        return transform.position + Vector3.up * 1.2f;
-    }
-
-    Vector3 ResolveProjectileAimPoint()
-    {
-        if (CombatTarget == null)
-            return transform.position + transform.forward * 8f + Vector3.up * 1.2f;
-
-        CharacterBody targetBody = CombatTarget.GetComponent<CharacterBody>();
-        if (targetBody == null)
-            targetBody = CombatTarget.GetComponentInParent<CharacterBody>();
-        if (targetBody != null)
-            return targetBody.GetProjectileAimPoint();
-
-        return CombatTarget.position + Vector3.up * 1.2f;
-    }
-
-    void InitHitboxes()
-    {
-        Weapon = weaponHitbox != null ? weaponHitbox : FindDefaultWeaponHitbox();
-        InitHitbox(Weapon);
-        InitHitbox(elbowHitbox);
-        InitHitbox(kickHitbox);
-    }
-
-    void InitHitbox(Hitbox hitbox)
-    {
-        if (hitbox != null)
-            hitbox.Initialize(this);
-    }
-
-    Hitbox FindDefaultWeaponHitbox()
-    {
-        Hitbox[] all = GetComponentsInChildren<Hitbox>(true);
-        for (int i = 0; i < all.Length; i++)
-        {
-            Hitbox h = all[i];
-            if (h == null || h == elbowHitbox || h == kickHitbox)
-                continue;
-            return h;
-        }
-        return null;
-    }
-
-    Hitbox ResolveHitbox(AttackHitboxSlot slot)
-    {
-        if (slot == AttackHitboxSlot.Elbow)
-        {
-            if (elbowHitbox != null)
-                return elbowHitbox;
-            Debug.LogWarning($"{name} 未指定 Elbow Hitbox，回退到刀");
-            return Weapon;
-        }
-
-        if (slot == AttackHitboxSlot.Kick)
-        {
-            if (kickHitbox != null)
-                return kickHitbox;
-            Debug.LogWarning($"{name} 未指定 Kick Hitbox，回退到刀");
-            return Weapon;
-        }
-
-        return Weapon;
-    }
+    public Vector3 GetProjectileAimPoint() => WeaponCtrl.GetProjectileAimPoint();
 
     // ===== 战斗数值接口：实现已迁入 CombatStats，签名不变，全项目调用方零改动 =====
 
