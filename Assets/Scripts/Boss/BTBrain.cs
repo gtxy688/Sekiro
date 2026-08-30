@@ -297,7 +297,7 @@ public class BTBrain : MonoBehaviour
     {
         if (blackboard == null) return;
         float gap = roamAfterAttack + Random.Range(0f, Mathf.Max(0f, roamAfterAttackJitter));
-        blackboard.Set("active_gap_dur", gap);
+        blackboard.ActiveGapDuration = gap;
         blackboard.SetCooldown("active_gap");
     }
 }

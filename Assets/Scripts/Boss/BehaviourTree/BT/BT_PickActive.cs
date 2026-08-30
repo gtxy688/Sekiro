@@ -68,14 +68,14 @@ public class BT_PickActive : Node, ISelectorLock
     {
         if (blackboard == null) return;
         float gap = roamAfterAttack + UnityEngine.Random.Range(0f, Mathf.Max(0f, roamAfterAttackJitter));
-        blackboard.Set("active_gap_dur", gap);
+        blackboard.ActiveGapDuration = gap;
         blackboard.SetCooldown("active_gap");
     }
 
     private bool IsRoamGapActive()
     {
         if (blackboard == null) return false;
-        float gap = blackboard.Get<float>("active_gap_dur");
+        float gap = blackboard.ActiveGapDuration;
         if (gap <= 0.01f) gap = roamAfterAttack;
         return blackboard.IsOnCooldown("active_gap", gap);
     }
