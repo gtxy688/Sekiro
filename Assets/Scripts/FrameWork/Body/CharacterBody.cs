@@ -11,44 +11,13 @@ public class CharacterBody : MonoBehaviour
     public Animator Animator { get; private set; }
     public Rigidbody Rb { get; private set; }
 
-    private Transform jumpFollowBone;
-    private bool jumpFollowBoneResolved;
+    // 移动感知模块：接地检测（迟滞防抖）/坠图保护/跳跃冲量/锁定动画参数/输入换算/跟髋骨采样
+    // 已迁入 Locomotion。懒创建理由同 Facing；EnsureGroundDetectionWired（Awake 接线序列化字段）保留在本类。
+    private Locomotion loco;
+    private Locomotion Loco => loco ??= new Locomotion(this);
 
-    // 跳跃镜头跟髋骨：keepOriginalPositionY 时根可能贴地，视觉却在天上。
-    // GetBoneTransform 只认 Humanoid；弦一郎是 Generic（髋骨名 Pelvis），直接调会抛 InvalidOperationException。
-    public float GetJumpFollowWorldY()
-    {
-        Transform bone = ResolveJumpFollowBone();
-        return bone != null ? bone.position.y : transform.position.y;
-    }
-
-    Transform ResolveJumpFollowBone()
-    {
-        if (jumpFollowBoneResolved) return jumpFollowBone;
-        jumpFollowBoneResolved = true;
-
-        if (Animator != null && Animator.isHuman)
-            jumpFollowBone = Animator.GetBoneTransform(HumanBodyBones.Hips);
-
-        if (jumpFollowBone == null)
-            jumpFollowBone = FindNamedChild(transform, "Pelvis")
-                ?? FindNamedChild(transform, "Hips")
-                ?? FindNamedChild(transform, "Hip")
-                ?? FindNamedChild(transform, "Spine");
-
-        return jumpFollowBone;
-    }
-
-    static Transform FindNamedChild(Transform root, string name)
-    {
-        if (root.name == name) return root;
-        for (int i = 0; i < root.childCount; i++)
-        {
-            Transform found = FindNamedChild(root.GetChild(i), name);
-            if (found != null) return found;
-        }
-        return null;
-    }
+    // 跳跃镜头跟髋骨采样已迁入 Locomotion（相机在 LateUpdate 采样）
+    public float GetJumpFollowWorldY() => Loco.GetJumpFollowWorldY();
 
     // 武器的碰撞盒（M3）：运行时状态与判定开关已迁入 WeaponController，这里只转发
     public Hitbox Weapon => WeaponCtrl.Weapon;
@@ -100,8 +69,8 @@ public class CharacterBody : MonoBehaviour
     // 玩家 Mid/Heavy 受击已过「倒地过程」、处于躺地可被 Jump_Danger 抓取。≠ IsDowned（HP=0）。
     public bool IsKnockedDown { get; set; }
 
-    // 4. 物理状态 (Body 负责检测，State 读取)
-    public bool IsGrounded { get; private set; }
+    // 4. 物理状态 (Locomotion 负责检测，State 读取)
+    public bool IsGrounded => Loco.IsGrounded;
 
     // 全权根运动：位移由动画 Root 曲线驱动（Animator.applyRootMotion = true）
     // 空中只吃 Root 的 XZ（贴图/骨骼跟动画），Y 留给跳跃初速度和重力
@@ -160,7 +129,7 @@ public class CharacterBody : MonoBehaviour
             isFinisherLocked = value;
             if (value)
             {
-                hasPendingJump = false;
+                Loco.CancelPendingJump();
                 MoveDirection = Vector3.zero;
             }
         }
@@ -184,12 +153,9 @@ public class CharacterBody : MonoBehaviour
 
     // 多段刀当前脉冲（弹反 Boat 最后一刀等）。AttackState 写入。
     public int ActiveHitPulseIndex { get; set; } = -1;
-    public bool AirJump2Used { get; private set; }
+    public bool AirJump2Used => Loco.AirJump2Used;
 
-    public void ResetAirJump2()
-    {
-        AirJump2Used = false;
-    }
+    public void ResetAirJump2() => Loco.ResetAirJump2();
     // 连续被对手近战完美弹开的次数。JumpThrust（3022）抽招读这个；出手或交锋中断后清零。
     // （记账已迁入 DeflectMemory，这里只转发）
     public int ConsecutiveTimesParried => Deflect.ConsecutiveTimesParried;
@@ -243,18 +209,6 @@ public class CharacterBody : MonoBehaviour
     [Tooltip("掉到该 Y 以下判定坠图，传回最近安全落点（地面 y≈0 时用默认值即可）")]
     public float fallKillY = -12f;
 
-    private Vector3 lastSafePosition;
-    private bool hasSafePosition;
-
-    // 跳跃冲量要等到 FixedUpdate 再写速度：
-    // Animator 是 Animate Physics，根运动在物理帧里会把 velocity.y 盖掉。
-    private float pendingJumpSpeed;
-    private bool hasPendingJump;
-
-    // 玩家 Controller 用 MoveZ，Boss 用 MoveY。缓存起来避免每帧 SetFloat 打到不存在的参数。
-    private int moveXHash;
-    private int moveForwardHash;
-    private bool moveParamsResolved;
     private Collider bodyCollider;
 
     private void Awake()
@@ -351,50 +305,15 @@ public class CharacterBody : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (!hasPendingJump || Rb == null) return;
-        ApplyJumpVelocity(pendingJumpSpeed);
-        hasPendingJump = false;
+        // 跳跃冲量等物理帧再写（Animator 是 Animate Physics），消费逻辑在 Locomotion
+        Loco.ApplyPendingJumpVelocity();
     }
 
-    // 起跳：只打垂直初速度。根运动保持开着，由 OnAnimatorMove 丢掉 Y、保留 XZ。
-    public void QueueJump()
-    {
-        if (IsFinisherLocked) return;
-
-        float speed = Config != null ? Config.JumpSpeed : 6f;
-        if (speed <= 0.01f) speed = 6f;
-
-        pendingJumpSpeed = speed;
-        hasPendingJump = true;
-        ApplyJumpVelocity(speed);
-    }
-
-    // （横扫跳踩已删除：未实现对应踩头反制，Jump2 保留为空中二段）
+    // 起跳：只打垂直初速度。根运动保持开着，由 OnAnimatorMove 丢掉 Y、保留 XZ。（实现已迁入 Locomotion）
+    public void QueueJump() => Loco.QueueJump();
 
     // 返回 true = 命令吃掉。playedNew = 本次新播了 Jump2（已用过则为 false）。
-    public bool TryAirJump2(out bool playedNew)
-    {
-        playedNew = false;
-        if (AirJump2Used) return true;
-        AirJump2Used = true;
-
-        if (!AnimUtil.HasState(Animator, "Jump2"))
-        {
-            Debug.LogError($"{name} 的 Animator 缺少状态：Jump2");
-            return true;
-        }
-
-        AnimUtil.TryCrossFade(Animator, "Jump2", Config != null ? Config.JumpAnimBlend : 0.08f);
-        playedNew = true;
-        return true;
-    }
-
-    private void ApplyJumpVelocity(float speed)
-    {
-        if (Rb == null) return;
-        Vector3 v = Rb.velocity;
-        Rb.velocity = new Vector3(v.x, speed, v.z);
-    }
+    public bool TryAirJump2(out bool playedNew) => Loco.TryAirJump2(out playedNew);
 
     // 改脚本后仍停在 Play 时，纯 C# 状态机会丢。下一帧补一套，避免 Update NRE。
     private void EnsureRuntimeReady()
@@ -560,80 +479,11 @@ public class CharacterBody : MonoBehaviour
         return TryExecuteCommand(new AttackCommand());
     }
 
-    // --- 物理环境检测 ---
-    private bool groundedHysteresis;     // 上一帧接地结果
-    private int groundedChangeFrames;    // 连续"与上一帧相反"的帧数
-    private bool groundedCheckRaw;       // 本帧 CheckSphere 原始结果（未迟滞，坠图保护用）
-    private bool groundedCheckPrimed;    // 第一次检测直接采信，避免默认 false 让进场播 Fall
+    // --- 物理环境检测 / 坠图保护：实现已迁入 Locomotion（含迟滞防抖与安全点记录），
+    //     这里保留同名私有转发，Update/Start 的调用点与顺序零改动 ---
+    private void UpdateEnvironmentalChecks() => Loco.UpdateEnvironmentalChecks();
 
-    private void UpdateEnvironmentalChecks()
-    {
-        bool check;
-        if (groundCheckPoint != null)
-        {
-            check = Physics.CheckSphere(groundCheckPoint.position, groundCheckRadius, groundLayer);
-        }
-        else
-        {
-            check = true; // 容错
-        }
-        groundedCheckRaw = check;
-
-        // 第一次没有「上一帧」：直接采信，不要从默认 false 再等迟滞。
-        if (!groundedCheckPrimed)
-        {
-            groundedCheckPrimed = true;
-            groundedHysteresis = check;
-            groundedChangeFrames = 0;
-            IsGrounded = check;
-            return;
-        }
-
-        // 迟滞防抖：结果必须连续 N 帧保持一致才翻转 IsGrounded。
-        // 否则球边缘蹭到地面时，物理步进会让 true/false 每帧抖动，
-        // 导致 GroundedState(Idle) ↔ AirState(Jump) 反复横跳（"莫名其妙的待机+跳跃动画"）
-        if (check == groundedHysteresis)
-        {
-            groundedChangeFrames = 0;
-        }
-        else
-        {
-            groundedChangeFrames++;
-            if (groundedChangeFrames >= groundHysteresisFrames)
-            {
-                groundedHysteresis = check;
-                groundedChangeFrames = 0;
-            }
-        }
-        IsGrounded = groundedHysteresis;
-    }
-
-    // --- 坠出地图保护 ---
-    // 脚下有真实地面时持续记录；坠过 fallKillY 传回最近一次记录。
-    // 必须用原始检测结果记录，不能用 IsGrounded：迟滞有 2 帧延迟，
-    // 被传送/击飞到空中的头几帧 IsGrounded 仍是 true，会把空中坐标记成"安全点"，
-    // 之后每次回传都落回虚空，永远回不到地面（实测踩过的坑）。
-    // 写 transform 后同步 Rb.position 并清零速度（与 OnAnimatorMove 同一套写法），
-    // 落回地面后原始检测立刻为 true，迟滞跟进翻转，空中状态经正常落地流程回地面。
-    private void UpdateFallSafety()
-    {
-        if (groundedCheckRaw)
-        {
-            lastSafePosition = transform.position;
-            hasSafePosition = true;
-            return;
-        }
-
-        if (!hasSafePosition || transform.position.y >= fallKillY) return;
-
-        transform.position = lastSafePosition;
-        if (Rb != null)
-        {
-            Rb.position = lastSafePosition;
-            Rb.velocity = Vector3.zero;
-        }
-        Debug.LogWarning($"[CharacterBody] {name} 坠出地图（y < {fallKillY}），已传回安全落点 {lastSafePosition}");
-    }
+    private void UpdateFallSafety() => Loco.UpdateFallSafety();
 
     // --- 转向接口：实现已迁入 FacingController，签名不变，全项目调用方零改动 ---
     // 水平转向（度/秒）。刚体冻结旋转后只改 transform，避免和插值抢 yaw
@@ -655,24 +505,9 @@ public class CharacterBody : MonoBehaviour
 
     public void ClearCombatYawFrozen() => Facing.ClearCombatYawFrozen();
 
-    // 摇杆输入 → 世界移动方向（相机相对，原神式）：
+    // 摇杆输入 → 世界移动方向（相机相对，原神式）：实现已迁入 Locomotion
     // 输入先经相机水平朝向变换，W = 远离镜头、A/D = 屏幕左右，与相机摆放无关
-    public Vector3 InputToWorldDir(Vector2 inputDir)
-    {
-        Camera cam = GameCamera != null ? GameCamera : Camera.main;
-        if (cam != null)
-        {
-            Vector3 camForward = cam.transform.forward;
-            camForward.y = 0f;
-            camForward.Normalize();
-            Vector3 camRight = cam.transform.right;
-            camRight.y = 0f;
-            camRight.Normalize();
-            return (camForward * inputDir.y + camRight * inputDir.x).normalized;
-        }
-        // 没有相机时回退世界方向（容错）
-        return new Vector3(inputDir.x, 0f, inputDir.y).normalized;
-    }
+    public Vector3 InputToWorldDir(Vector2 inputDir) => Loco.InputToWorldDir(inputDir);
 
     // AttackCommand 不携带配置（用户决策 9）：有 ActiveAttack 用覆盖，否则玩家走 LightAttack。
     public AttackConfig GetAttackConfig()
@@ -718,40 +553,8 @@ public class CharacterBody : MonoBehaviour
     // 当前生效的弹反窗口（已计入抖刀惩罚）
     public float GetDeflectWindow() => Deflect.GetDeflectWindow();
 
-    // 锁定四向移动参数：有 MoveZ 用 MoveZ，否则回退 MoveY。
-    public void SetMoveStrafe(float x, float z, bool instant)
-    {
-        if (Animator == null) return;
-        ResolveMoveParams();
-        if (instant)
-        {
-            Animator.SetFloat(moveXHash, x);
-            Animator.SetFloat(moveForwardHash, z);
-        }
-        else
-        {
-            Animator.SetFloat(moveXHash, x, 0.1f, Time.deltaTime);
-            Animator.SetFloat(moveForwardHash, z, 0.1f, Time.deltaTime);
-        }
-    }
-
-    private void ResolveMoveParams()
-    {
-        if (moveParamsResolved || Animator == null) return;
-        moveXHash = Animator.StringToHash("MoveX");
-        string forwardName = "MoveY";
-        foreach (AnimatorControllerParameter parameter in Animator.parameters)
-        {
-            if (parameter.type == AnimatorControllerParameterType.Float &&
-                parameter.name == "MoveZ")
-            {
-                forwardName = "MoveZ";
-                break;
-            }
-        }
-        moveForwardHash = Animator.StringToHash(forwardName);
-        moveParamsResolved = true;
-    }
+    // 锁定四向移动参数：有 MoveZ 用 MoveZ，否则回退 MoveY。实现已迁入 Locomotion
+    public void SetMoveStrafe(float x, float z, bool instant) => Loco.SetMoveStrafe(x, z, instant);
 
     // 被完美弹反后的硬直入口（M4）：物理强制覆写，不走 Command，直接切顶层状态机。
     // 普通弹反只用于玩家被 Boss 弹开。飞舟互弹时双方都走这里播 Deflected_Boat。
