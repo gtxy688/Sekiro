@@ -14,10 +14,14 @@ namespace ARPG.Editor
         const float NumWidth = 64f;
         const float GradeWidth = 72f;
 
-        BossMoveTable table;
-        Vector2 scroll;
-        string filter = "";
-        int sequenceIndex;
+        // 同 AttackTimelineWindow：domain reload 之后不能丢编辑目标
+        [SerializeField] BossMoveTable table;
+        [SerializeField] Vector2 scroll;
+        [SerializeField] string filter = "";
+        [SerializeField] int sequenceIndex;
+
+        // 折叠状态不持久化：Unity 序列化不了 Dictionary，
+        // 而重载后全展开对用户没有实际损失，不值得为它改数据结构
         readonly System.Collections.Generic.Dictionary<string, bool> fold =
             new System.Collections.Generic.Dictionary<string, bool>();
 

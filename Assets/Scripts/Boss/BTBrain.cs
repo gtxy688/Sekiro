@@ -3,13 +3,14 @@ using System.Collections.Generic;
 
 using ARPG.Audio;
 using ARPG.Boss.BehaviourTree;
+using ARPG.Combat;
 using ARPG.FrameWork.Body;
 using ARPG.Mgr;
 namespace ARPG.Boss
 {
 
     [RequireComponent(typeof(CharacterBody))]
-    public class BTBrain : MonoBehaviour
+    public class BTBrain : MonoBehaviour, ICombatResettable
     {
         [Header("目标")]
         public Transform PlayerTarget;
@@ -43,9 +44,20 @@ namespace ARPG.Boss
         [Header("完整 AI")]
         public BossMoveTable moveTable;
 
+        // MeleeOnly 调试白名单：只放行近战普通挥砍，屏蔽弓/后跳/特殊招。
+        static readonly HashSet<string> MeleeOnlyMoveIds = new HashSet<string>
+        {
+            "Slash_Double", "Slash_Heavy", "Slash_SpinElbow", "Slash_StepTurn", "Kick",
+            "Kengeki_Slash", "Kengeki_Double"
+        };
+
         private CharacterBody body;
         private Node behaviorTreeRoot;
         private Blackboard blackboard;
+
+        // 实例级招式过滤（null = 不过滤）。只影响本 Boss，绝不写回 BossMoveTable 资产——
+        // SO 是共享资产，写回去会串到所有引用该表的 Boss（复战 / 多 Boss 必炸）。
+        private HashSet<string> moveFilter;
 
         private void Awake()
         {
@@ -92,18 +104,37 @@ namespace ARPG.Boss
 
             // 调试：MeleeOnly → 白名单只放行近战普通挥砍（弓/后跳/特殊招全部屏蔽），
             // 弹反后的立即反击抽到的也只会是近战刀招，方便验证"弹反 → 反手刀"。
+            // 过滤器建在本 Boss 实例上（moveFilter），不写 moveTable 资产。
             if (MeleeOnly)
-            {
-                moveTable.moveWhitelist = new System.Collections.Generic.HashSet<string>
-                {
-                    "Slash_Double", "Slash_Heavy", "Slash_SpinElbow", "Slash_StepTurn", "Kick",
-                    "Kengeki_Slash", "Kengeki_Double"
-                };
-            }
+                moveFilter = new HashSet<string>(MeleeOnlyMoveIds);
 
             behaviorTreeRoot = ConstructBehaviorTree();
             behaviorTreeRoot.SetBlackboard(blackboard);
             CombatEventBus.OnRevived += HandlePlayerRevived;
+
+            // 注册进本场战斗的重置清单。用 Ensure() 而非 Current：
+            // 各组件的 Start 顺序不定，谁先跑到谁负责把 Scope 建出来。
+            EncounterScope.Ensure()?.Register(this);
+        }
+
+        // 复战重置：把 AI 的运行时状态清干净。
+        //
+        // 这里每一项漏掉都有明确症状：
+        //   - 黑板不清 → 上一场的招式冷却带进新一场，复战开局 Boss 发呆好几秒
+        //   - 执行器不清 → 上一场被打断的招会在新一场接着播下一段
+        //   - 复活阶段机不清 → Boss 卡在「等玩家起身」，站着不动
+        public void ResetForEncounter()
+        {
+            blackboard?.Clear();
+
+            postRevivePhase = PostRevivePhase.None;
+            postReviveTimer = 0f;
+            circlingIncapacitatedPlayer = false;
+
+            ResetExecutors();
+
+            // 注意：moveFilter 是 MeleeOnly 调试白名单，属于「设定」而不是「状态」，
+            // 复战重开应当保留，不在这里清。
         }
 
         private BT_ExecuteMove activeExecutor;
@@ -194,6 +225,10 @@ namespace ARPG.Boss
         private void OnDisable()
         {
             CombatEventBus.OnRevived -= HandlePlayerRevived;
+
+            if (EncounterScope.Current != null)
+                EncounterScope.Current.Unregister(this);
+
             if (body == null) return;
             body.MoveDirection = Vector3.zero;
             body.MoveUsesWorldDir = false;
@@ -218,11 +253,12 @@ namespace ARPG.Boss
 
             if (!DisableBossAttacks)
             {
-                children.Add(new BT_Kengeki(body, moveTable, PlayerTarget, kengekiExecutor));
+                children.Add(new BT_Kengeki(
+                    body, moveTable, PlayerTarget, kengekiExecutor, PlayerBody, moveFilter));
                 healPunish = new BT_HealPunish(body, moveTable, PlayerBody, interruptExecutor);
                 children.Add(healPunish);
                 children.Add(new BT_PickActive(
-                    body, moveTable, PlayerTarget, activeExecutor,
+                    body, moveTable, PlayerTarget, activeExecutor, PlayerBody, moveFilter,
                     roamAfterAttack, roamAfterAttackJitter));
             }
 

@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 using ARPG.Boss.BehaviourTree;
 using ARPG.Combat;
@@ -10,13 +11,19 @@ namespace ARPG.Boss
     // 按层加权抽招。缺 Animator 状态、冷却中、距离/额外条件不满足 → 权重 0。
     public static class BossMovePicker
     {
+        // opponent：本 Boss 的对手（由调用方传入，不从 CombatManager 单例取）。
+        //   多 Boss / 复战时对手不止一个玩家，选招逻辑不该认识全局单例。
+        // whitelist：招式 id 过滤，null 或空 = 不过滤。由调用方（Boss 实例）持有，
+        //   绝不能挂在 BossMoveTable 上——SO 是共享资产，运行时写它会串到所有引用者。
         public static BossMoveEntry Pick(
             BossMoveTable table,
             BossMoveLayer layer,
             CharacterBody self,
             Animator animator,
             Blackboard blackboard,
-            float distance)
+            float distance,
+            CharacterBody opponent = null,
+            HashSet<string> whitelist = null)
         {
             if (table == null || table.moves == null || self == null) return null;
 
@@ -32,10 +39,8 @@ namespace ARPG.Boss
                 for (int i = 0; i < table.moves.Length; i++)
                 {
                     BossMoveEntry e = table.moves[i];
-                    // 运行时白名单（MeleeOnly 调试）：非空时只放行名单内招式
-                    if (table.moveWhitelist != null && table.moveWhitelist.Count > 0
-                        && !table.moveWhitelist.Contains(e.id)) continue;
-                    float w = Weight(e, layer, self, animator, blackboard, distance, postureLow);
+                    if (whitelist != null && whitelist.Count > 0 && !whitelist.Contains(e.id)) continue;
+                    float w = Weight(e, layer, self, opponent, animator, blackboard, distance, postureLow);
                     if (w <= 0f) continue;
                     if (pass == 0)
                     {
@@ -57,6 +62,7 @@ namespace ARPG.Boss
             BossMoveEntry e,
             BossMoveLayer layer,
             CharacterBody self,
+            CharacterBody opponent,
             Animator animator,
             Blackboard blackboard,
             float distance,
@@ -85,11 +91,8 @@ namespace ARPG.Boss
                     break;
                 case BossMoveExtra.ConsecutiveParry2:
                 {
-                    // 贴身交锋过多才跳：连续被玩家完美弹开未满 2 次，权重为 0。
-                    CharacterBody player = CombatManager.Instance != null
-                        ? CombatManager.Instance.PlayerRef
-                        : null;
-                    if (player != null && player.IsKnockedDown)
+                    // 贴身交锋过多才跳：连续被对手完美弹开未满 2 次，权重为 0。
+                    if (opponent != null && opponent.IsKnockedDown)
                         return 0f;
                     if (self.ConsecutiveTimesParried < 2)
                         return 0f;
@@ -97,10 +100,7 @@ namespace ARPG.Boss
                 }
                 case BossMoveExtra.PlayerKnockedDown:
                 {
-                    CharacterBody player = CombatManager.Instance != null
-                        ? CombatManager.Instance.PlayerRef
-                        : null;
-                    if (player == null || !player.IsKnockedDown)
+                    if (opponent == null || !opponent.IsKnockedDown)
                         return 0f;
                     break;
                 }

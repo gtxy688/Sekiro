@@ -9,14 +9,18 @@ namespace ARPG.Editor
 
     public class AttackTimelineWindow : EditorWindow
     {
-        AttackConfig playerConfig;
-        BossMoveTable bossTable;
-        int moveIndex;
-        int sequenceIndex;
-        int segmentIndex;
-        float scrub;
+        // 编辑目标必须持久化：Unity 每次编译脚本都会 domain reload，
+        // 没标 [SerializeField] 的字段会被清空，改一行代码回来就得重新拖招式表、重选分支。
+        [SerializeField] AttackConfig playerConfig;
+        [SerializeField] BossMoveTable bossTable;
+        [SerializeField] int moveIndex;
+        [SerializeField] int sequenceIndex;
+        [SerializeField] int segmentIndex;
+        [SerializeField] float scrub;
+        [SerializeField] Vector2 scroll;
+
+        // 预览器和工作副本是派生状态，重载后由 ReloadWorkingIfNeeded 重建，不需要持久化
         readonly AttackTimelinePreview preview = new AttackTimelinePreview();
-        Vector2 scroll;
 
         HitPulse[] workingPulses;
         AttackSfxCue[] workingSfx;

@@ -6,7 +6,11 @@ namespace ARPG.Combat
 {
 
     // 箭：匀速直线 + 上一帧→当前帧 SphereCast。不挂 Hitbox / Collider。
-    public class ArrowProjectile : MonoBehaviour
+    //
+    // 实现 ICombatResettable：复战时把自己销毁，不让上一场射出的箭穿过复位继续命中。
+    // 让箭自己负责而不是交给某个管理者扫场——箭本来就管着自己的生命周期，
+    // 再多一个"清理者"去 Find 它们，是凭空多一处会漏的地方。
+    public class ArrowProjectile : MonoBehaviour, ICombatResettable
     {
         [SerializeField] private Transform visualRoot;
         [Tooltip("模型本地轴与飞行 +Z 的偏差。弦一郎箭模沿 +X，默认绕 Y -90°")]
@@ -44,10 +48,25 @@ namespace ARPG.Combat
             EnsureTrail();
         }
 
+        // 注册到本场战斗。箭是运行时生成的，注册/注销次数多，但一场只有个位数，成本可忽略。
+        // 用 Ensure() 而非 Current：箭可能被预置在场景里，那时 Scope 未必已被别人建出来。
+        void Start()
+        {
+            EncounterScope.Ensure()?.Register(this);
+        }
+
         void OnDestroy()
         {
             if (trailMat != null)
                 Destroy(trailMat);
+
+            EncounterScope.Current?.Unregister(this);
+        }
+
+        // 复战重置：直接销毁。箭是"上一场打出去的"，没有复位后继续存在的意义。
+        public void ResetForEncounter()
+        {
+            Destroy(gameObject);
         }
 
         void ApplyVisualPose()

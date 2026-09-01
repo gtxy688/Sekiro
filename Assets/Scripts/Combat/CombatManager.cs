@@ -9,15 +9,33 @@ using ARPG.FrameWork.States.Ground;
 using ARPG.Mgr;
 namespace ARPG.Combat
 {
-
-    // 命中判定中间层（单例）：Hitbox 扫到 Hurtbox → 报告这里 → 统一查全局规则 → 调 target.ReceiveHit
-    // 用户决策：方案 B（低耦合，全局规则集中一处），禁止 Hitbox 直接调 target.ReceiveHit
-    public class CombatManager : MonoBehaviour
+    // 命中判定中间层的门面（Facade）。方案 B 决策不变：Hitbox 扫到 Hurtbox → 报告这里 → 调 target.ReceiveHit。
+    //
+    // 历史：这里曾经同时装着三类互不相关的职责——无状态结算、有状态成对演出、场景装配，
+    // 431 行，外加 8 个瞬时状态字段挂在单例上。
+    //
+    // 现在：
+    //   结算 → CombatResolver（无状态，多 Boss 时一行都不用改）
+    //   演出 → DuelDirector（有状态，但状态属于"一场演出"对象，不再是单例上的散落字段）
+    //   本类 → 只做转发 + 顿帧 + 兼容层
+    //
+    // 为什么保留门面：全项目 41 处 `CombatManager.Instance.X` 调用点，分布在 17 个文件。
+    // 一次性全迁风险过高，也不是这个阶段该做的事。门面保证既有调用点零改动、行为零变化；
+    // 新代码（复战流程）直接依赖 CombatResolver / DuelDirector，老代码按需逐步迁移。
+    //
+    // TODO（后续，不是现在）：
+    //   - HitStop 改的是全局 Time.timeScale，应收敛到独立的时间表现服务
+    //   - IgnoreCharacterPhysics / ArenaBoundary 属场景装配，应移到独立的 ArenaSetup
+    public class CombatManager : MonoBehaviour, ICombatResettable
     {
         public static CombatManager Instance { get; private set; }
 
+        [Header("内部组件（留空则 Awake 自动补齐）")]
+        public CombatResolver resolver;
+        public DuelDirector director;
+
         [Header("拼刀参数")]
-        [Tooltip("拼刀时双方架势增长系数（默认 1 = 按对方招式 PostureDamage 全额涨）")]
+        [Tooltip("过渡期保留：Start 时同步给 CombatResolver，避免 Inspector 上已调过的值丢失。新代码请直接改 CombatResolver 上的值。")]
         public float clashPostureMultiplier = 1f;
 
         [Header("打击感")]
@@ -25,19 +43,38 @@ namespace ARPG.Combat
         public float hitStopDuration = 0.05f;
 
         [Header("处决（M10）")]
-        public float finisherRange = 2f;        // 处决触发距离
-        public CharacterBody PlayerRef;         // 场景里拖玩家；唯一处决发起者
-        public CharacterBody BossRef;           // 场景里拖 Boss（单 Boss 战）
+        [Tooltip("过渡期保留：Start 时同步给 DuelDirector，同上。")]
+        public float finisherRange = 2f;
 
-        private CharacterBody activeFinisherPlayer;
-        private CharacterBody activeFinisherVictim;
-        private bool finisherResolved;
-        private CharacterBody grabThrowAttacker;
-        private CharacterBody grabThrowVictim;
-        private bool grabThrowResolved;
-        private bool grabThrowAttackerDone;
-        private bool grabThrowVictimDone;
+        [Tooltip("场景里拖玩家。若放了 EncounterScope，则以其 Player 为准，本字段自动退为回退值。")]
+        public CharacterBody PlayerRef;
+
+        [Tooltip("场景里拖 Boss。若放了 EncounterScope，则以其主对手为准。多 Boss 请填 EncounterScope.Opponents。")]
+        public CharacterBody BossRef;
+
         private Coroutine hitStopRoutine;
+
+        // 运行时实际参与者：EncounterScope 优先，回退到序列化字段。
+        // 复战换 Boss 时只改 EncounterScope，CombatManager 与 41 处调用点都不用动。
+        public CharacterBody ActivePlayer
+        {
+            get
+            {
+                CharacterBody fromScope = EncounterScope.Current != null
+                    ? EncounterScope.Current.Player : null;
+                return fromScope != null ? fromScope : PlayerRef;
+            }
+        }
+
+        public CharacterBody ActiveBoss
+        {
+            get
+            {
+                CharacterBody fromScope = EncounterScope.Current != null
+                    ? EncounterScope.Current.PrimaryOpponent : null;
+                return fromScope != null ? fromScope : BossRef;
+            }
+        }
 
         private void Awake()
         {
@@ -48,38 +85,57 @@ namespace ARPG.Combat
                 return;
             }
             Instance = this;
-            ValidateFinisherRefs();
+
+            // 自动补齐依赖：旧场景 / prefab 打开即用，不需要手工挂组件
+            if (resolver == null) resolver = GetComponent<CombatResolver>();
+            if (resolver == null) resolver = gameObject.AddComponent<CombatResolver>();
+
+            if (director == null) director = GetComponent<DuelDirector>();
+            if (director == null) director = gameObject.AddComponent<DuelDirector>();
         }
 
         private void Start()
         {
+            // 复位契约的边界对象先就位：下面 ValidateFinisherRefs 与 ActivePlayer/ActiveBoss 都要读它。
+            // 场景里没挂就自动创建一个空的（理由见 EncounterScope.Ensure 注释）。
+            EncounterScope scope = EncounterScope.Ensure();
+
+            // 放在 Start 而非 Awake：它依赖 EncounterScope.Current，
+            // 而跨组件的 Awake 顺序不确定，Start 时所有 Awake 都已跑完。
+            ValidateFinisherRefs();
+
+            // 过渡期参数同步：把 Inspector 上可能已调过的旧值带给新组件
+            if (resolver != null) resolver.clashPostureMultiplier = clashPostureMultiplier;
+            if (director != null) director.finisherRange = finisherRange;
+
+            // 参与者注入：DuelDirector 自己不认识"玩家"，由这里告诉它
+            if (director != null) director.Configure(ActivePlayer, ActiveBoss);
+
+            scope?.Register(this);
+
             // 身体胶囊同时承担 Hurtbox 扫描。互撞冲量会挤开站位，所以忽略 PhysX 互撞；
             // 玩家仍在 CharacterBody.LateUpdate 里做胶囊分离，不会穿过 Boss。
-            IgnoreCharacterPhysics(PlayerRef, BossRef);
+            IgnoreCharacterPhysics(ActivePlayer, ActiveBoss);
 
             // 擂台外圈空气墙：走位/垫步/击退都出不了场（坠落兜底仍在 CharacterBody）
             ArenaBoundary.Ensure();
         }
 
-        private static void IgnoreCharacterPhysics(CharacterBody a, CharacterBody b)
+        private void OnDestroy()
         {
-            if (a == null || b == null) return;
-
-            Collider[] aCols = a.GetComponentsInChildren<Collider>(true);
-            Collider[] bCols = b.GetComponentsInChildren<Collider>(true);
-            for (int i = 0; i < aCols.Length; i++)
-            {
-                if (aCols[i] == null) continue;
-                for (int j = 0; j < bCols.Length; j++)
-                {
-                    if (bCols[j] == null) continue;
-                    Physics.IgnoreCollision(aCols[i], bCols[j], true);
-                }
-            }
+            EncounterScope.Current?.Unregister(this);
+            if (Instance == this)
+                Instance = null;
         }
 
         private void ValidateFinisherRefs()
         {
+            // 参与者由 EncounterScope 负责时，不再要求手工拖引用。
+            // 判 HasParticipants 而非判 Current != null：
+            // 自动兜底出来的是空壳，它不提供参与者，此时仍要按旧路径检查 PlayerRef/BossRef，
+            // 否则「忘了拖引用」这个配置错误会被兜底逻辑一起吞掉。
+            if (EncounterScope.Current != null && EncounterScope.Current.HasParticipants) return;
+
             if (PlayerRef == null)
                 Debug.LogError("CombatManager.PlayerRef 未绑定，处决无法发起。");
             if (BossRef == null)
@@ -88,30 +144,12 @@ namespace ARPG.Combat
                 Debug.LogError("CombatManager.PlayerRef 与 BossRef 指向同一角色，处决已禁用。");
         }
 
-        private void OnDestroy()
-        {
-            if (Instance == this)
-                Instance = null;
-        }
+        // ===== 命中结算：转发 CombatResolver，顿帧留在本层 =====
 
         // A 的武器扫到 B 的 Hurtbox
         public void ReportHit(Hitbox hitbox, Hurtbox hurtbox, Vector3 hitPoint)
         {
-            CharacterBody attacker = hitbox.Owner;
-            CharacterBody target = hurtbox.Owner;
-
-            // 1. 排除打到自己（双保险，Hitbox 侧已过滤）
-            if (attacker == null || target == null || attacker == target) return;
-
-            // 2. 全局规则扩展位（后续：减伤 Buff、全场无敌、友军伤害开关等）
-
-            // 3. 伤害数据来自 AttackConfig（SO），这里只做转发（含危字标记 M17 / 击退 / 受击等级）
-            if (hitbox.Config == null) return;
-            target.ReceiveHit(attacker, hitbox.Config.BaseDamage, hitbox.Config.PostureDamage, hitPoint,
-                              hitbox.Config.Perilous != PerilousType.None, hitbox.Config.Perilous,
-                              hitbox.Config.Knockback, hitbox.Config.HitGrade, false);
-
-            // 命中顿帧（打击感）
+            if (resolver != null) resolver.ReportHit(hitbox, hurtbox, hitPoint);
             HitStop();
         }
 
@@ -125,31 +163,58 @@ namespace ARPG.Combat
             float knockback,
             HitGrade hitGrade)
         {
-            CharacterBody target = hurtbox != null ? hurtbox.Owner : null;
-            if (attacker == null || target == null || attacker == target) return;
-
-            target.ReceiveHit(attacker, healthDmg, postureDmg, hitPoint,
-                false, PerilousType.None, knockback, hitGrade, true);
+            if (resolver != null)
+                resolver.ReportProjectileHit(attacker, hurtbox, hitPoint,
+                    healthDmg, postureDmg, knockback, hitGrade);
             HitStop();
         }
 
         // 双方 Hitbox 相交 → 拼刀：只狼里拼刀双方都涨架势，不打伤害
         public void ReportClash(Hitbox a, Hitbox b, Vector3 point)
         {
-            if (a.Owner == null || b.Owner == null || a.Owner == b.Owner) return;
+            if (resolver != null) resolver.ReportClash(a, b, point);
+        }
 
-            // 各按对方招式的架势伤害涨架势（乘以拼刀系数）
-            if (b.Config != null)
-                a.Owner.AccumulatePosture(b.Config.PostureDamage * clashPostureMultiplier);
-            if (a.Config != null)
-                b.Owner.AccumulatePosture(a.Config.PostureDamage * clashPostureMultiplier);
+        // ===== 成对演出：转发 DuelDirector =====
 
-            // 表现层事件：打铁音效/火花（M13/M15 订阅）
-            CombatEventBus.TriggerWeaponDeflected(
-                CombatFxPoint.BetweenHitboxes(a, b, point), DeflectType.Normal);
+        public bool TryExecuteFinisher(CharacterBody initiator, FinisherKind kind = FinisherKind.Ground)
+        {
+            return director != null && director.TryExecuteFinisher(initiator, kind);
+        }
+
+        public bool TryExecuteAvailableFinisher(CharacterBody initiator)
+        {
+            return director != null && director.TryExecuteAvailableFinisher(initiator);
+        }
+
+        public void ExecuteFinisher(CharacterBody source)
+        {
+            if (director != null) director.ExecuteFinisher(source);
+        }
+
+        public bool IsFinisherResolved(CharacterBody player)
+        {
+            return director != null && director.IsFinisherResolved(player);
+        }
+
+        public void CompleteFinisherSequence(CharacterBody player)
+        {
+            if (director != null) director.CompleteFinisherSequence(player);
+        }
+
+        public bool TryStartGrabThrow(CharacterBody attacker, CharacterBody victim)
+        {
+            return director != null && director.TryStartGrabThrow(attacker, victim);
+        }
+
+        public void CompleteGrabThrow(CharacterBody source)
+        {
+            if (director != null) director.CompleteGrabThrow(source);
         }
 
         // ===== 顿帧（打击感）：短暂减速全局时间，营造命中重量感 =====
+        // TODO：动的是全局 Time.timeScale，与 GamePause 抢同一个变量（见下方回写逻辑）。
+        // 正解是收敛到独立的时间表现服务。属于"缓做"，先保持行为不变。
         public void HitStop(float duration = -1f)
         {
             if (!enableHitStop || GamePause.IsPaused) return;
@@ -175,257 +240,39 @@ namespace ARPG.Combat
             hitStopRoutine = null;
         }
 
-        // ===== 成对忍杀（M10）=====
-        // 正向身份断言：只有玩家能发起，只有 Boss 能被处决，禁止自处决。
-        public bool TryExecuteFinisher(
-            CharacterBody initiator,
-            FinisherKind kind = FinisherKind.Ground)
+        // ===== 复战重置 =====
+        public void ResetForEncounter()
         {
-            if (PlayerRef == null || BossRef == null || initiator == null) return false;
-            if (initiator != PlayerRef) return false;
-            if (initiator == BossRef) return false;
-            if (initiator.IsPostureBroken) return false;
-            if (activeFinisherPlayer != null) return false;
-            if (!BossRef.IsPostureBroken) return false;
-            if (!MatchesBreakSource(kind, BossRef.CurrentPostureBreakSource)) return false;
-
-            string playerAnim = ResolveFinisherAnim(kind, initiator.Animator);
-            string bossAnim = ResolveFinisherAnim(kind, BossRef.Animator);
-            if (string.IsNullOrEmpty(playerAnim) || string.IsNullOrEmpty(bossAnim))
+            // 顿帧协程必须停掉：否则上一场残留的协程会在复战开场把 timeScale 拨回去
+            if (hitStopRoutine != null)
             {
-                Debug.LogError(
-                    $"成对忍杀状态缺失：{kind}。请同时检查 {initiator.name} 与 {BossRef.name} 的 Animator（Mikiri/Miriki 拼写都算）。");
-                return false;
+                StopCoroutine(hitStopRoutine);
+                hitStopRoutine = null;
             }
+            Time.timeScale = GamePause.IsPaused ? 0f : 1f;
 
-            // 弹反/识破确认窗口里双方已经贴身演完反制，不再用 Ground 处决的距离门卡住。
-            if (kind == FinisherKind.Ground)
+            if (director != null)
             {
-                float dist = Vector3.Distance(
-                    initiator.transform.position, BossRef.transform.position);
-                if (dist > finisherRange) return false;
-            }
-
-            AlignFinisherFacing(initiator, BossRef, playerAnim, bossAnim);
-
-            activeFinisherPlayer = initiator;
-            activeFinisherVictim = BossRef;
-            finisherResolved = false;
-            initiator.ActiveAttack = null;
-            initiator.MoveDirection = Vector3.zero;
-            BossRef.MoveDirection = Vector3.zero;
-            initiator.IsFinisherLocked = true;
-            BossRef.IsFinisherLocked = true;
-            initiator.KengekiArmed = false;
-            BossRef.KengekiArmed = false;
-
-            initiator.DisableWeaponHit();
-            BossRef.DisableWeaponHit();
-            CombatEventBus.TriggerFinisherOpportunityChanged(BossRef, false);
-
-            BossRef.MainStateMachine.ChangeState(
-                new GroundedState(BossRef, new FinisherVictimState(BossRef, bossAnim)));
-            initiator.MainStateMachine.ChangeState(
-                new GroundedState(initiator, new FinisherState(initiator, BossRef, playerAnim)));
-
-            CombatEventBus.TriggerFinisherStarted(
-                BossRef.transform.position, initiator, BossRef, kind);
-            CombatEventBus.TriggerCameraShake(1f);
-            return true;
-        }
-
-        // 按当前崩解来源选忍杀类型。连招窗口里再按攻击也走这里，优先于 NextCombo。
-        public bool TryExecuteAvailableFinisher(CharacterBody initiator)
-        {
-            if (BossRef == null || !BossRef.IsPostureBroken) return false;
-
-            FinisherKind kind;
-            switch (BossRef.CurrentPostureBreakSource)
-            {
-                case PostureBreakSource.Deflect:
-                    kind = FinisherKind.Deflect;
-                    break;
-                case PostureBreakSource.Mikiri:
-                    kind = FinisherKind.Mikiri;
-                    break;
-                default:
-                    kind = FinisherKind.Ground;
-                    break;
-            }
-
-            return TryExecuteFinisher(initiator, kind);
-        }
-
-        // 只转朝向、不瞬移。成对 Root 才能对上。双方 Clip 短名可以不同（Mikiri/Miriki）。
-        private static void AlignFinisherFacing(
-            CharacterBody player,
-            CharacterBody boss,
-            string playerAnim,
-            string bossAnim)
-        {
-            if (player == null || boss == null) return;
-
-            Vector3 toBoss = boss.transform.position - player.transform.position;
-            toBoss.y = 0f;
-            if (toBoss.sqrMagnitude < 0.0001f) return;
-
-            player.SnapYaw(toBoss, playerAnim);
-            boss.SnapYaw(-toBoss, bossAnim);
-        }
-
-        // 动画结束由 FinisherState 调用；若 Clip 仍残留事件也不会重复清命。
-        public void ExecuteFinisher(CharacterBody source)
-        {
-            if (source == null || source != activeFinisherPlayer) return;
-            if (activeFinisherVictim == null || finisherResolved) return;
-
-            finisherResolved = true;
-            activeFinisherVictim.ClearLife();
-            CombatEventBus.TriggerFinisherOpportunityChanged(activeFinisherVictim, false);
-        }
-
-        public bool IsFinisherResolved(CharacterBody player)
-        {
-            return player != null &&
-                   player == activeFinisherPlayer &&
-                   finisherResolved;
-        }
-
-        public void CompleteFinisherSequence(CharacterBody player)
-        {
-            if (player == null || player != activeFinisherPlayer) return;
-
-            CharacterBody victim = activeFinisherVictim;
-            if (player != null) player.IsFinisherLocked = false;
-            if (victim != null && victim.LivesRemaining > 0)
-                victim.IsFinisherLocked = false;
-            activeFinisherPlayer = null;
-            activeFinisherVictim = null;
-            finisherResolved = false;
-
-            CombatEventBus.TriggerFinisherEnded(player, victim);
-
-            if (victim != null)
-            {
-                victim.ClearCombatYawFrozen();
-                victim.SetSuppressRootYaw(false);
-            }
-
-            if (victim != null && victim.LivesRemaining > 0)
-            {
-                victim.MainStateMachine.ChangeState(new GroundedState(victim));
-            }
-            player.MainStateMachine.ChangeState(new GroundedState(player));
-        }
-
-        // Elbow 投技：打中玩家后双方播 Elbow_Danger。不瞬移，只水平对视。
-        public bool TryStartGrabThrow(CharacterBody attacker, CharacterBody victim)
-        {
-            if (attacker == null || victim == null || attacker == victim) return false;
-            if (attacker.IsFinisherLocked || victim.IsFinisherLocked) return false;
-            if (activeFinisherPlayer != null) return false;
-            if (grabThrowAttacker != null) return false;
-            if (!AnimUtil.HasState(attacker.Animator, GrabThrowState.AnimName)
-                || !AnimUtil.HasState(victim.Animator, GrabThrowState.AnimName))
-            {
-                Debug.LogError($"投技缺少 {GrabThrowState.AnimName}：请检查 {attacker.name} 与 {victim.name} 的 Animator。");
-                return false;
-            }
-
-            grabThrowAttacker = attacker;
-            grabThrowVictim = victim;
-            grabThrowResolved = false;
-            grabThrowAttackerDone = false;
-            grabThrowVictimDone = false;
-
-            attacker.DisableWeaponHit();
-            victim.DisableWeaponHit();
-            attacker.IsAttacking = false;
-            attacker.AttackUninterruptible = false;
-            attacker.IsAttackRecoveryOpen = false;
-            attacker.ActiveAttack = null;
-            attacker.CurrentMoveEntry = null;
-            attacker.CurrentMoveWindow = null;
-
-            Vector3 toVictim = victim.transform.position - attacker.transform.position;
-            toVictim.y = 0f;
-            if (toVictim.sqrMagnitude > 0.0001f)
-            {
-                attacker.SnapYaw(toVictim, GrabThrowState.AnimName);
-                victim.SnapYaw(-toVictim, GrabThrowState.AnimName);
-            }
-
-            attacker.IsFinisherLocked = true;
-            victim.IsFinisherLocked = true;
-
-            attacker.MainStateMachine.ChangeState(
-                new GroundedState(attacker, new GrabThrowState(attacker)));
-            victim.MainStateMachine.ChangeState(
-                new GroundedState(victim, new GrabThrowState(victim)));
-
-            CombatEventBus.TriggerCameraShake(0.45f);
-            return true;
-        }
-
-        public void CompleteGrabThrow(CharacterBody source)
-        {
-            if (grabThrowResolved) return;
-            if (source == null) return;
-            if (source == grabThrowAttacker)
-                grabThrowAttackerDone = true;
-            else if (source == grabThrowVictim)
-                grabThrowVictimDone = true;
-            else
-                return;
-
-            // 双方 Clip 长度可能不同，等两边都到点再一起回 Idle，避免短的一方把长的掐掉。
-            if (!grabThrowAttackerDone || !grabThrowVictimDone) return;
-
-            grabThrowResolved = true;
-            CharacterBody attacker = grabThrowAttacker;
-            CharacterBody victim = grabThrowVictim;
-            grabThrowAttacker = null;
-            grabThrowVictim = null;
-
-            if (attacker != null)
-            {
-                attacker.IsFinisherLocked = false;
-                attacker.MainStateMachine.ChangeState(new GroundedState(attacker));
-            }
-            if (victim != null && victim.CurrentHP > 0)
-            {
-                victim.IsFinisherLocked = false;
-                victim.MainStateMachine.ChangeState(new GroundedState(victim));
+                director.Configure(ActivePlayer, ActiveBoss);
+                director.ResetForEncounter();
             }
         }
 
-        private static bool MatchesBreakSource(
-            FinisherKind kind,
-            PostureBreakSource source)
+        private static void IgnoreCharacterPhysics(CharacterBody a, CharacterBody b)
         {
-            switch (kind)
-            {
-                case FinisherKind.Deflect:
-                    return source == PostureBreakSource.Deflect;
-                case FinisherKind.Mikiri:
-                    return source == PostureBreakSource.Mikiri;
-                default:
-                    return source == PostureBreakSource.Attack;
-            }
-        }
+            if (a == null || b == null) return;
 
-        private static string ResolveFinisherAnim(FinisherKind kind, Animator animator)
-        {
-            switch (kind)
+            Collider[] aCols = a.GetComponentsInChildren<Collider>(true);
+            Collider[] bCols = b.GetComponentsInChildren<Collider>(true);
+            for (int i = 0; i < aCols.Length; i++)
             {
-                case FinisherKind.Deflect:
-                    return AnimUtil.ResolveState(animator, "Finsher_Deflect");
-                case FinisherKind.Mikiri:
-                    return AnimUtil.ResolveState(animator, "Finsher_Mikiri", "Finsher_Miriki");
-                default:
-                    return AnimUtil.ResolveState(animator, "Finsher_Ground");
+                if (aCols[i] == null) continue;
+                for (int j = 0; j < bCols.Length; j++)
+                {
+                    if (bCols[j] == null) continue;
+                    Physics.IgnoreCollision(aCols[i], bCols[j], true);
+                }
             }
         }
     }
-
 }

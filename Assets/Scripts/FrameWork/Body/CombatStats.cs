@@ -32,6 +32,16 @@ namespace ARPG.FrameWork.Body
             this.onPostureBreak = onPostureBreak;
             this.onDeath = onDeath;
 
+            ResetForEncounter();
+        }
+
+        // 复战重置：把数值恢复到「战斗刚开始」的瞬间。
+        //
+        // 这段原本只写在构造函数里——意味着唯一能调用它的方式是销毁重建，也就是重载场景。
+        // 复战 / 连战要走「原地重开」，不重载场景，所以必须把它抽成可重复调用的方法。
+        // 构造函数现在也走它，保证两条路径的初始状态完全一致，不会哪天改了一处忘了另一处。
+        public void ResetForEncounter()
+        {
             // 原 InitCombat：从 Config 读取初始数值（Awake 时机由 Façade 保证）
             CharacterConfig config = body.Config;
             if (config != null)
@@ -44,6 +54,7 @@ namespace ARPG.FrameWork.Body
             CurrentPosture = 0f;
             IsPostureBroken = false;
             CurrentPostureBreakSource = PostureBreakSource.Attack;
+            lastHitTime = 0f;
         }
 
         // ===== 运行时数值状态（原 CharacterBody 属性迁入）=====

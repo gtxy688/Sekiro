@@ -28,6 +28,19 @@ namespace ARPG.Boss.BehaviourTree
         {
             cooldowns[moveId] = UnityEngine.Time.time;
         }
+
+        // 复战重置：清空全部招式冷却与走位间隔。
+        //
+        // 为什么是 Clear 而不是让 BTBrain 重建一个 Blackboard：
+        // 每个 BT 节点都持有黑板引用，重建需要重新下发到整棵树，漏掉任何一个节点
+        // 它就会继续读旧黑板——这类 bug 极难排查。清空现有实例则不存在这个问题。
+        //
+        // 不清理的后果：上一场用过的招式冷却会带进新一场，复战开局前若干秒 Boss 不出招。
+        public void Clear()
+        {
+            cooldowns.Clear();
+            ActiveGapDuration = 0f;
+        }
     }
 
 }

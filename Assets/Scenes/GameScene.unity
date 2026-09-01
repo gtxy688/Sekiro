@@ -497,6 +497,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 66aa72df22090794ea09e0ff6f33b0cc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  resolver: {fileID: 0}
+  director: {fileID: 0}
   clashPostureMultiplier: 1
   enableHitStop: 1
   hitStopDuration: 0.05
@@ -837,8 +839,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 114928386}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.10249012, y: 0, z: 0, w: 0.99473405}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalRotation: {x: 0.103300065, y: 0, z: 0, w: 0.99465024}
+  m_LocalPosition: {x: 0, y: 0.0054166317, z: -0.0013227463}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -6369,7 +6371,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_BindingMode: 1
-  m_FollowOffset: {x: -0.48, y: -0.05, z: -2.25}
+  m_FollowOffset: {x: -0.48, y: -0.05, z: -2.65}
   m_XDamping: 0
   m_YDamping: 0
   m_ZDamping: 0

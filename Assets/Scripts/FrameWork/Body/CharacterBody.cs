@@ -14,7 +14,7 @@ namespace ARPG.FrameWork.Body
 {
 
     [RequireComponent(typeof(Animator), typeof(Rigidbody))]
-    public class CharacterBody : MonoBehaviour
+    public class CharacterBody : MonoBehaviour, ICombatResettable
     {
         // 1. 状态机
         public StateMachine MainStateMachine { get; private set; }
@@ -229,6 +229,13 @@ namespace ARPG.FrameWork.Body
 
         private Collider bodyCollider;
 
+        // 复战复位用的初始站位。Awake 时记录——此刻 transform 已是场景里摆好的位置。
+        // spawnPoseRecorded 是域重载保护：Play 中改脚本会清空非序列化字段，
+        // 那时 spawnPosition 会退回默认的 (0,0,0)，直接传送等于把角色扔到世界原点。
+        private Vector3 spawnPosition;
+        private Quaternion spawnRotation;
+        private bool spawnPoseRecorded;
+
         private void Awake()
         {
             Animator = GetComponent<Animator>();
@@ -253,6 +260,12 @@ namespace ARPG.FrameWork.Body
 
             // 从 Config 初始化战斗属性（M2，原 InitCombat 已并入 CombatStats 构造）
             _ = Combat;
+
+            // 记录初始站位：复战 / 连战要把角色拉回这里。
+            // 不重载场景的话没有别人会帮它复位，Boss 会死在上一场倒下的地方。
+            spawnPosition = transform.position;
+            spawnRotation = transform.rotation;
+            spawnPoseRecorded = true;
         }
 
         // 地面检测接线：groundCheckPoint/groundLayer 都没赋值时，UpdateEnvironmentalChecks
@@ -292,6 +305,95 @@ namespace ARPG.FrameWork.Body
             Physics.SyncTransforms();
             UpdateEnvironmentalChecks();
             MainStateMachine.ChangeState(SharedGrounded);
+
+            // 注册进本场战斗的重置清单。用 Ensure() 而非 Current：
+            // 各组件的 Start 顺序不定，谁先跑到谁负责把 Scope 建出来。
+            EncounterScope.Ensure()?.Register(this);
+        }
+
+        private void OnDestroy()
+        {
+            if (EncounterScope.Current != null)
+                EncounterScope.Current.Unregister(this);
+        }
+
+        // 复战重置：把角色恢复到「战斗刚开始」的瞬间——数值、锁标志、站位、状态机全部归零。
+        //
+        // 为什么需要：项目此前唯一的重置手段是重载场景（MonoBehaviour 全部重建，状态自然归零），
+        // 所以下面这些状态从没被显式清过，也从没暴露过问题。
+        // 复战 / 连战要走「原地重开」，不重载场景，那时漏掉任何一项都会原样带进下一场。
+        public void ResetForEncounter()
+        {
+            // 1. 数值：HP / 架势 / 葫芦 / 复活次数 / 命数
+            Combat.ResetForEncounter();
+
+            // 2. 战斗内锁标志。漏掉任何一个复战开场都会异常，
+            //    其中 IsFinisherLocked 残留最致命——双方会永久无法操作。
+            IsKnockedDown = false;
+            IsGuarding = false;
+            IsHealing = false;
+            AttackUninterruptible = false;
+            IsAttackRecoveryOpen = false;
+            IsFinisherLocked = false;
+            IsParried = false;
+            KengekiArmed = false;
+            SetReviving(false);
+
+            // 3. 出招残留：出招途中被打断重开，会带着上一刀的判定数据
+            IsAttacking = false;
+            ActiveHitPulseIndex = -1;
+            ActiveAttack = null;
+            CurrentMoveEntry = null;
+            CurrentMoveWindow = null;
+            DisableWeaponHit();
+
+            // 4. 连弹计数：JumpThrust 的抽招条件，跨场累积会让复战开局就放出不该放的招
+            ResetConsecutiveTimesParried();
+            ResetAirJump2();
+
+            // 5. 朝向锁定
+            ClearCombatYawFrozen();
+            SetSuppressRootYaw(false);
+
+            // 6. 位移：不清的话刚体会带着上一场的速度继续滑出去
+            MoveDirection = Vector3.zero;
+            PreferFastWalk = false;
+            if (Rb != null)
+            {
+                Rb.velocity = Vector3.zero;
+                Rb.angularVelocity = Vector3.zero;
+            }
+
+            // 7. 站位与朝向复位。流程层若要把角色放到别处，在 ResetAll() 之后覆盖即可。
+            //
+            //    spawnPoseRecorded 为假只有一种来源：非序列化字段被清空（Play 中改脚本触发域重载）。
+            //    此时 spawnPosition 是默认的 (0,0,0)，直接传送等于把角色扔到世界原点——
+            //    比不复位更糟。所以取「当前位置」兜底当成初始站位：本次不产生位移，
+            //    之后的复战仍能复位，同时打一条日志让人知道发生过。
+            if (!spawnPoseRecorded)
+            {
+                Debug.LogWarning(
+                    $"[CharacterBody] {name} 的初始站位未记录（非序列化字段被域重载清空），" +
+                    "已用当前位置兜底，本次复战不会把角色传送回出生点。", this);
+                spawnPosition = transform.position;
+                spawnRotation = transform.rotation;
+                spawnPoseRecorded = true;
+            }
+            transform.SetPositionAndRotation(spawnPosition, spawnRotation);
+            Physics.SyncTransforms();
+
+            // 8. 状态机回地面待机
+            if (MainStateMachine != null)
+                MainStateMachine.ChangeState(SharedGrounded);
+
+            // 9. 推事件：这些数值是直接改的，不走 TakeDamage 那条结算路径，
+            //    不主动通知的话 UI 会停在上一场的空血条 / 满架势条上
+            if (Config != null)
+            {
+                CombatEventBus.TriggerHPChanged(this, CurrentHP, Config.MaxHP);
+                CombatEventBus.TriggerPostureChanged(this, CurrentPosture, Config.MaxPosture);
+            }
+            CombatEventBus.TriggerFinisherOpportunityChanged(this, false);
         }
 
         private void Update()

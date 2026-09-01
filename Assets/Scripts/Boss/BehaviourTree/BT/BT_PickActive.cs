@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 using ARPG.Boss;
 using ARPG.FrameWork.Body;
@@ -12,17 +13,22 @@ namespace ARPG.Boss.BehaviourTree
         private readonly BossMoveTable table;
         private readonly Transform target;
         private readonly BT_ExecuteMove executor;
+        private readonly CharacterBody opponent;
+        private readonly HashSet<string> whitelist;
         private readonly float roamAfterAttack;
         private readonly float roamAfterAttackJitter;
 
         public BT_PickActive(
             CharacterBody body, BossMoveTable table, Transform target, BT_ExecuteMove executor,
+            CharacterBody opponent = null, HashSet<string> whitelist = null,
             float roamAfterAttack = 2.5f, float roamAfterAttackJitter = 1.2f)
         {
             this.body = body;
             this.table = table;
             this.target = target;
             this.executor = executor;
+            this.opponent = opponent;
+            this.whitelist = whitelist;
             this.roamAfterAttack = roamAfterAttack;
             this.roamAfterAttackJitter = roamAfterAttackJitter;
         }
@@ -64,7 +70,7 @@ namespace ARPG.Boss.BehaviourTree
             // 对齐参考文档：>7m 仍有远程招可抽（Bow_ThenSlash/Bow_Shot/Slash_Rush2，minRange 7/7/5），
             // 距离档完全由 BossMovePicker 的 minRange/maxRange 过滤；全冷却或缺状态抽不到才落回追击。
             BossMoveEntry move = BossMovePicker.Pick(
-                table, BossMoveLayer.Active, body, body.Animator, blackboard, dist);
+                table, BossMoveLayer.Active, body, body.Animator, blackboard, dist, opponent, whitelist);
             if (move == null) return NodeState.Failure;
             return executor.Begin(move);
         }

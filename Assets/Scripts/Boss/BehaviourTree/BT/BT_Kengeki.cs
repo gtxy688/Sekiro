@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 using ARPG.Boss;
 using ARPG.FrameWork.Body;
@@ -12,13 +13,19 @@ namespace ARPG.Boss.BehaviourTree
         private readonly BossMoveTable table;
         private readonly Transform target;
         private readonly BT_ExecuteMove executor;
+        private readonly CharacterBody opponent;
+        private readonly HashSet<string> whitelist;
 
-        public BT_Kengeki(CharacterBody body, BossMoveTable table, Transform target, BT_ExecuteMove executor)
+        public BT_Kengeki(
+            CharacterBody body, BossMoveTable table, Transform target, BT_ExecuteMove executor,
+            CharacterBody opponent = null, HashSet<string> whitelist = null)
         {
             this.body = body;
             this.table = table;
             this.target = target;
             this.executor = executor;
+            this.opponent = opponent;
+            this.whitelist = whitelist;
         }
 
         public override void SetBlackboard(Blackboard bb)
@@ -55,7 +62,7 @@ namespace ARPG.Boss.BehaviourTree
             }
 
             BossMoveEntry move = BossMovePicker.Pick(
-                table, BossMoveLayer.Kengeki, body, body.Animator, blackboard, dist);
+                table, BossMoveLayer.Kengeki, body, body.Animator, blackboard, dist, opponent, whitelist);
             body.KengekiArmed = false;
             if (move == null) return NodeState.Failure;
             return executor.Begin(move);

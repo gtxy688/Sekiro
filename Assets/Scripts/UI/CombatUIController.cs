@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 using ARPG.Audio;
+using ARPG.Combat;
 using ARPG.Configs;
 using ARPG.FrameWork.Body;
 using ARPG.FrameWork.States;
@@ -11,7 +12,11 @@ namespace ARPG.UI
 
     // MVC 之 Controller：订阅 CombatEventBus，把战斗数值转给对应 View
     // 只做"数据 → View"的转发，不持有业务逻辑、不做每帧轮询（表现层红线）
-    public class CombatUIController : MonoBehaviour
+    //
+    // 实现 ICombatResettable：胜利 / 死亡 / 回生这些提示会顺手改全局开关
+    // （CombatInputGate.SetBlocked、PlayerInput.DeactivateInput），
+    // 而它们只在"重开场景"那条路径上被还原。复战不重载场景，不还原就是开局不能动。
+    public class CombatUIController : MonoBehaviour, ICombatResettable
     {
         [Header("角色引用（用于区分玩家/Boss）")]
         [SerializeField] private CharacterBody playerBody;
@@ -105,6 +110,13 @@ namespace ARPG.UI
             revivePromptView?.Hide();
             gameOverView?.Hide();
             victoryView?.Hide();
+
+            EncounterScope.Ensure()?.Register(this);
+        }
+
+        private void OnDestroy()
+        {
+            EncounterScope.Current?.Unregister(this);
         }
 
         private void PushCurrentStats(CharacterBody c, bool isPlayer)
@@ -124,6 +136,45 @@ namespace ARPG.UI
                 bossStatusView?.SetHP(hpRatio);
                 bossPostureBarView?.SetPosture(postureRatio);
             }
+        }
+
+        // 复战重置：把"只由事件驱动"的提示 UI 与全局开关拉回开局状态。
+        //
+        // 这些状态不跟着 CharacterBody 的复位一起回来，因为它们的来源根本不是数值：
+        //   - 胜利时打了 CombatInputGate.SetBlocked(true) 并 DeactivateInput()，
+        //     原本只靠 VictoryView 的"重开场景"按钮还原。复战不重载场景，
+        //     不还原就是开局人物完全不能动——这是这一批里最致命的一项。
+        //   - 回生提示 / Game Over 只由"回生成功"或"真死"关闭，复战两条都不走。
+        //   - 命数点 / 回生点只由 OnLifeCleared、OnRevived 刷新，复战不重发这两个事件。
+        //
+        // 命数点与回生点刻意从 Config 读、不从 body 的当前值读：
+        // ResetAll() 里各组件的执行顺序未定义，UI 可能先于 CharacterBody 复位，
+        // 那时 body 上的还是上一场的残值。Config 是序列化 SO，整局不变，读它没有顺序依赖。
+        public void ResetForEncounter()
+        {
+            revivePromptView?.HidePrompt();
+            revivePromptView?.Hide();
+            gameOverView?.Hide();
+            victoryView?.Hide();
+
+            CombatInputGate.SetBlocked(false);
+            lockOnIndicatorView?.SetFinisherReady(false);
+
+            // 胜利时被 DeactivateInput() 关掉的输入要重新打开。
+            // 暂停中不动它：那时输入归暂停菜单，抢回来会把菜单卡死。
+            if (playerBody != null && !GamePause.IsPaused)
+            {
+                PlayerInput input = playerBody.GetComponent<PlayerInput>();
+                input?.ActivateInput();
+            }
+
+            if (playerBody != null)
+            {
+                playerStatusView?.SetReviveDots(playerBody.Config != null ? playerBody.Config.ReviveCount : 1);
+                itemSlotView?.SetGourdCount(playerBody.Config != null ? playerBody.Config.GourdCount : 0);
+            }
+            if (bossBody != null)
+                bossStatusView?.SetLifeDots(bossBody.Config != null ? bossBody.Config.LifeCount : 2);
         }
 
         // ===== 事件处理 =====

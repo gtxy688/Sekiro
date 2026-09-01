@@ -47,7 +47,7 @@ namespace ARPG.Editor
                 return false;
             }
 
-            PrepareTexture(tex);
+            KanjiTexUtil.Prepare(tex);
 
             Shader shader = Shader.Find("ARPG/FX/HealSprite");
             if (shader == null)
@@ -93,81 +93,10 @@ namespace ARPG.Editor
 
         static Texture2D FindKanjiTex()
         {
-            Texture2D preferred = AssetDatabase.LoadAssetAtPath<Texture2D>(PreferredTexA);
-            if (preferred != null) return preferred;
-            preferred = AssetDatabase.LoadAssetAtPath<Texture2D>(PreferredTexB);
-            if (preferred != null) return preferred;
-
-            string[] folders = { "Assets/Sekrio/FX", "Assets/Sekiro/FX", "Assets/Art/FX", PrefabFolder };
-            for (int f = 0; f < folders.Length; f++)
-            {
-                if (!AssetDatabase.IsValidFolder(folders[f])) continue;
-                string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { folders[f] });
-                for (int i = 0; i < guids.Length; i++)
-                {
-                    string path = AssetDatabase.GUIDToAssetPath(guids[i]);
-                    string name = System.IO.Path.GetFileNameWithoutExtension(path);
-                    if (!name.Contains("治")) continue;
-                    return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-                }
-            }
-
-            return null;
-        }
-
-        static void PrepareTexture(Texture2D tex)
-        {
-            string path = AssetDatabase.GetAssetPath(tex);
-            BakeLuminanceMaskPng(path);
-
-            TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
-            if (importer == null) return;
-
-            importer.textureType = TextureImporterType.Default;
-            importer.sRGBTexture = true;
-            importer.alphaSource = TextureImporterAlphaSource.None;
-            importer.alphaIsTransparency = false;
-            importer.isReadable = true;
-            importer.wrapMode = TextureWrapMode.Clamp;
-            importer.filterMode = FilterMode.Bilinear;
-            importer.mipmapEnabled = false;
-            importer.npotScale = TextureImporterNPOTScale.None;
-            importer.textureCompression = TextureImporterCompression.Uncompressed;
-            TextureImporterPlatformSettings plat = importer.GetDefaultPlatformTextureSettings();
-            plat.format = TextureImporterFormat.RGB24;
-            plat.textureCompression = TextureImporterCompression.Uncompressed;
-            importer.SetPlatformTextureSettings(plat);
-            importer.SaveAndReimport();
-        }
-
-        // 有的治.png 是「白 RGB + Alpha 字形」。看起来像黑底，但 Shader 读亮度会变成实心方块。
-        static void BakeLuminanceMaskPng(string path)
-        {
-            TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
-            if (importer == null) return;
-            importer.isReadable = true;
-            importer.textureCompression = TextureImporterCompression.Uncompressed;
-            importer.SaveAndReimport();
-
-            Texture2D src = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-            if (src == null) return;
-            Color[] px = src.GetPixels();
-            bool changed = false;
-            for (int i = 0; i < px.Length; i++)
-            {
-                float lum = Mathf.Max(px[i].r, Mathf.Max(px[i].g, px[i].b)) * px[i].a;
-                if (Mathf.Abs(px[i].r - lum) > 0.01f || px[i].a < 0.99f)
-                    changed = true;
-                px[i] = new Color(lum, lum, lum, 1f);
-            }
-            if (!changed) return;
-
-            Texture2D dst = new Texture2D(src.width, src.height, TextureFormat.RGBA32, false);
-            dst.SetPixels(px);
-            dst.Apply();
-            System.IO.File.WriteAllBytes(path, dst.EncodeToPNG());
-            Object.DestroyImmediate(dst);
-            AssetDatabase.ImportAsset(path);
+            return KanjiTexUtil.Find(
+                new[] { PreferredTexA, PreferredTexB },
+                new[] { "Assets/Sekrio/FX", "Assets/Sekiro/FX", "Assets/Art/FX", PrefabFolder },
+                "治");
         }
 
         static Material CreateMat(string path, Shader shader, Texture2D tex, Color tint)
