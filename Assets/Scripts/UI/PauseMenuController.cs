@@ -11,6 +11,8 @@ using UnityEngine.UI;
 using ARPG.Audio;
 using ARPG.Mgr;
 using ARPG.Player;
+using static ARPG.UI.PauseMenuStyle;
+
 namespace ARPG.UI
 {
 
@@ -70,32 +72,7 @@ namespace ARPG.UI
         private TextMeshProUGUI bgmValueLabel;
         private TextMeshProUGUI sfxValueLabel;
         private readonly List<Button> rebindRowButtons = new List<Button>();
-        private readonly List<Texture2D> generatedTextures = new List<Texture2D>();
-        private Sprite diamondSprite;
-        private Sprite fillBarSprite;
-
-        private const string KitTrackPath =
-            "Assets/Space_Exploration_GUI_Kit/Settings_&_Menu_Components/Large/sound-bar-container-large.png";
-        private const string KitDividerPath =
-            "Assets/Space_Exploration_GUI_Kit/Settings_&_Menu_Components/Large/settings-divider-large.png";
-        private const string KitClosePath =
-            "Assets/Space_Exploration_GUI_Kit/Picto_Icons/White/cross-128.png";
-
-        private static readonly Color PanelColor = new Color(0.07f, 0.07f, 0.07f, 0.96f);
-        private static readonly Color ButtonColor = new Color(0.18f, 0.18f, 0.18f, 1f);
-        private static readonly Color TabActive = new Color(0.38f, 0.3f, 0.14f, 1f);
-        private static readonly Color SelectedFill = new Color(0.95f, 0.78f, 0.22f, 1f);
-        private static readonly Color TextColor = new Color(0.92f, 0.88f, 0.78f, 1f);
-        private static readonly Color SelectedTextColor = new Color(0.12f, 0.1f, 0.05f, 1f);
-        private static readonly Color AccentColor = new Color(0.89f, 0.64f, 0.22f, 1f);
-        private static readonly Color HandleIdle = new Color(0.86f, 0.6f, 0.18f, 1f);
-        private static readonly Color HandleSelected = new Color(1f, 0.82f, 0.38f, 1f);
-        private static readonly Color FillIdle = new Color(0.9f, 0.68f, 0.24f, 1f);
-        private static readonly Color FillSelected = new Color(1f, 0.82f, 0.4f, 1f);
-        // 套件槽是深紫，乘暖色压掉青紫，只留暗槽形
-        private static readonly Color TrackTint = new Color(0.92f, 0.78f, 0.48f, 1f);
-        private static readonly Color DividerColor = new Color(0.89f, 0.64f, 0.22f, 0.4f);
-        private static readonly Color SliderLabelIdle = new Color(0.93f, 0.93f, 0.93f, 1f);
+        private readonly PauseMenuBuilder builder = new PauseMenuBuilder();
 
         private void Start()
         {
@@ -142,12 +119,7 @@ namespace ARPG.UI
             SetGameplayInput(true);
             if (GamePause.IsPaused) GamePause.SetPaused(false);
             CursorController.Refresh();
-            for (int i = 0; i < generatedTextures.Count; i++)
-            {
-                if (generatedTextures[i] != null)
-                    Destroy(generatedTextures[i]);
-            }
-            generatedTextures.Clear();
+            builder.DestroyGenerated();
         }
 
         private void Update()
@@ -345,72 +317,6 @@ namespace ARPG.UI
             ApplySliderVisual(sfxSlider, sfxHandle, sfxFill, sfxTick, sfxTitleLabel, sfxValueLabel);
         }
 
-        private static bool IsUiSelected(Button button)
-        {
-            GameObject selected = EventSystem.current != null
-                ? EventSystem.current.currentSelectedGameObject
-                : null;
-            return IsUiSelected(button, selected);
-        }
-
-        private static bool IsUiSelected(Button button, GameObject selected)
-        {
-            return button != null && selected != null && button.gameObject == selected;
-        }
-
-        private static void ApplyButtonVisual(Button button, bool schemeActive, bool uiSelected)
-        {
-            if (button == null) return;
-            Image image = button.GetComponent<Image>();
-            TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>();
-            if (uiSelected)
-            {
-                if (image != null) image.color = SelectedFill;
-                if (label != null) label.color = SelectedTextColor;
-                return;
-            }
-
-            if (image != null) image.color = schemeActive ? TabActive : ButtonColor;
-            if (label != null) label.color = TextColor;
-        }
-
-        private static void ApplyToggleVisual(Button button, TextMeshProUGUI valueLabel, GameObject selected)
-        {
-            if (button == null) return;
-            bool uiSelected = IsUiSelected(button, selected);
-            ApplyButtonVisual(button, false, uiSelected);
-            Transform titleTf = button.transform.Find("Title");
-            TextMeshProUGUI titleLabel = titleTf != null ? titleTf.GetComponent<TextMeshProUGUI>() : null;
-            Color text = uiSelected ? SelectedTextColor : TextColor;
-            if (titleLabel != null) titleLabel.color = text;
-            if (valueLabel != null) valueLabel.color = text;
-        }
-
-        private static void ApplyCloseVisual(Button button, Image icon, GameObject selected)
-        {
-            if (icon == null) return;
-            icon.color = IsUiSelected(button, selected) ? AccentColor : TextColor;
-        }
-
-        private void ApplySliderVisual(
-            Slider slider,
-            Image handle,
-            Image fill,
-            Image tick,
-            TextMeshProUGUI titleLabel,
-            TextMeshProUGUI valueLabel)
-        {
-            if (slider == null) return;
-            bool selected = EventSystem.current != null
-                            && EventSystem.current.currentSelectedGameObject == slider.gameObject;
-            Color text = selected ? AccentColor : SliderLabelIdle;
-            if (titleLabel != null) titleLabel.color = text;
-            if (valueLabel != null) valueLabel.color = text;
-            if (handle != null) handle.color = selected ? HandleSelected : HandleIdle;
-            if (fill != null) fill.color = selected ? FillSelected : FillIdle;
-            if (tick != null) tick.enabled = selected;
-        }
-
         private void RefreshBindingLabels()
         {
             for (int i = 0; i < InputRebindService.RemappableActions.Length; i++)
@@ -573,7 +479,7 @@ namespace ARPG.UI
             Transform parent = canvas != null ? canvas : transform;
             GameObject panel = new GameObject("SettingPanel", typeof(RectTransform));
             panel.transform.SetParent(parent, false);
-            StretchFull(panel.GetComponent<RectTransform>());
+            builder.StretchFull(panel.GetComponent<RectTransform>());
             panel.transform.SetAsLastSibling();
             return panel;
         }
@@ -746,18 +652,19 @@ namespace ARPG.UI
 
         private void EnsurePauseCloseButtons()
         {
-            EnsureSliderSprites();
+            EnsureKitSprites();
+            builder.EnsureGeneratedSprites();
             if (rootPanel != null && rootCloseButton == null)
-                rootCloseButton = CreateCloseButton(rootPanel.transform, Resume);
+                rootCloseButton = builder.CreateCloseButton(rootPanel.transform, closeIconSprite, Resume);
             if (hubPanel != null && hubCloseButton == null)
             {
-                hubCloseButton = CreateCloseButton(hubPanel.transform, ShowRoot);
+                hubCloseButton = builder.CreateCloseButton(hubPanel.transform, closeIconSprite, ShowRoot);
                 Transform icon = hubCloseButton.transform.Find("Icon");
                 if (icon != null) hubCloseIcon = icon.GetComponent<Image>();
             }
 
             if (settingsPanel != null && settingsCloseButton == null)
-                settingsCloseButton = CreateCloseButton(settingsPanel.transform, ShowHub);
+                settingsCloseButton = builder.CreateCloseButton(settingsPanel.transform, closeIconSprite, ShowHub);
 
             BindClick(rootCloseButton, Resume);
             BindClick(hubCloseButton, ShowRoot);
@@ -779,9 +686,9 @@ namespace ARPG.UI
             RemoveLegacyGameplayToggle(rootTf, "一击破防Row");
 
             if (FindButton(rootTf, "无限生命") == null)
-                CreateGameplayToggleButton(rootTf, "无限生命", new Vector2(0f, 74f), ToggleInfiniteHealth, out infiniteHealthValueLabel);
+                builder.CreateGameplayToggleButton(rootTf, "无限生命", new Vector2(0f, 74f), ToggleInfiniteHealth, out infiniteHealthValueLabel);
             if (FindButton(rootTf, "一击破防") == null)
-                CreateGameplayToggleButton(rootTf, "一击破防", new Vector2(0f, 12f), ToggleOneHitPostureBreak, out oneHitPostureBreakValueLabel);
+                builder.CreateGameplayToggleButton(rootTf, "一击破防", new Vector2(0f, 12f), ToggleOneHitPostureBreak, out oneHitPostureBreakValueLabel);
 
             BindGameplayToggleButtons(rootTf);
             BindClick(infiniteHealthToggle, ToggleInfiniteHealth);
@@ -796,7 +703,7 @@ namespace ARPG.UI
             Transform rootTf = rootPanel.transform;
             exitGameButton = FindButton(rootTf, "退出游戏");
             if (exitGameButton == null)
-                exitGameButton = CreateMenuButton(rootTf, "退出游戏", new Vector2(0f, -180f), QuitGame);
+                exitGameButton = builder.CreateMenuButton(rootTf, "退出游戏", new Vector2(0f, -180f), QuitGame);
             BindClick(exitGameButton, QuitGame);
         }
 
@@ -878,46 +785,6 @@ namespace ARPG.UI
             }
         }
 
-        private static void ResetPanelPose(GameObject panel)
-        {
-            SetPanelPose(panel, Vector2.zero);
-        }
-
-        private static void SetPanelPose(GameObject panel, Vector2 position)
-        {
-            if (panel == null) return;
-            RectTransform rect = panel.GetComponent<RectTransform>();
-            if (rect != null)
-                rect.anchoredPosition = position;
-        }
-
-        private static void BindClick(Button button, UnityEngine.Events.UnityAction action)
-        {
-            if (button == null) return;
-            button.onClick.RemoveAllListeners();
-            button.onClick.AddListener(action);
-        }
-
-        private static Button FindButton(Transform root, string name)
-        {
-            Transform t = root != null ? root.Find(name) : null;
-            return t != null ? t.GetComponent<Button>() : null;
-        }
-
-        private static void EnsureButtonLabel(Button button, string text)
-        {
-            if (button == null || string.IsNullOrEmpty(text)) return;
-            TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>();
-            if (label != null)
-                label.text = text;
-        }
-
-        private static TextMeshProUGUI FindTmp(Transform root, string name)
-        {
-            Transform t = root != null ? root.Find(name) : null;
-            return t != null ? t.GetComponent<TextMeshProUGUI>() : null;
-        }
-
         public void EditorRebuildSettingPanel()
         {
             pauseCanvas = EnsureSettingPanelRoot();
@@ -939,42 +806,43 @@ namespace ARPG.UI
 
         private void BuildUIInto(Transform canvasRoot)
         {
-            EnsureSliderSprites();
+            EnsureKitSprites();
+            builder.EnsureGeneratedSprites();
             pauseCanvas = canvasRoot.gameObject;
 
-            Image dimmer = CreateImage(canvasRoot, "Dimmer", new Color(0f, 0f, 0f, 0.72f));
+            Image dimmer = builder.CreateImage(canvasRoot, "Dimmer", DimmerColor);
             dimmer.raycastTarget = false;
-            StretchFull(dimmer.rectTransform);
+            builder.StretchFull(dimmer.rectTransform);
 
-            rootPanel = CreatePanel(canvasRoot, "RootPanel", new Vector2(460f, 600f));
-            CreateLabel(rootPanel.transform, "暂停", 42f, TextAlignmentOptions.Center, new Vector2(0f, 250f), new Vector2(400f, 60f));
-            resumeButton = CreateMenuButton(rootPanel.transform, "继续战斗", new Vector2(0f, 170f), Resume);
-            infiniteHealthToggle = CreateGameplayToggleButton(
+            rootPanel = builder.CreatePanel(canvasRoot, "RootPanel", new Vector2(460f, 600f));
+            builder.CreateLabel(rootPanel.transform, "暂停", 42f, TextAlignmentOptions.Center, new Vector2(0f, 250f), new Vector2(400f, 60f));
+            resumeButton = builder.CreateMenuButton(rootPanel.transform, "继续战斗", new Vector2(0f, 170f), Resume);
+            infiniteHealthToggle = builder.CreateGameplayToggleButton(
                 rootPanel.transform, "无限生命", new Vector2(0f, 104f), ToggleInfiniteHealth, out infiniteHealthValueLabel);
-            oneHitPostureBreakToggle = CreateGameplayToggleButton(
+            oneHitPostureBreakToggle = builder.CreateGameplayToggleButton(
                 rootPanel.transform, "一击破防", new Vector2(0f, 42f), ToggleOneHitPostureBreak, out oneHitPostureBreakValueLabel);
-            openSettingsButton = CreateMenuButton(rootPanel.transform, "设置", new Vector2(0f, -22f), ShowHub);
-            quitButton = CreateMenuButton(rootPanel.transform, "重新开始", new Vector2(0f, -86f), RestartScene);
-            exitGameButton = CreateMenuButton(rootPanel.transform, "退出游戏", new Vector2(0f, -150f), QuitGame);
-            rootCloseButton = CreateCloseButton(rootPanel.transform, Resume);
+            openSettingsButton = builder.CreateMenuButton(rootPanel.transform, "设置", new Vector2(0f, -22f), ShowHub);
+            quitButton = builder.CreateMenuButton(rootPanel.transform, "重新开始", new Vector2(0f, -86f), RestartScene);
+            exitGameButton = builder.CreateMenuButton(rootPanel.transform, "退出游戏", new Vector2(0f, -150f), QuitGame);
+            rootCloseButton = builder.CreateCloseButton(rootPanel.transform, closeIconSprite, Resume);
 
-            hubPanel = CreatePanel(canvasRoot, "HubPanel", new Vector2(560f, 500f));
-            CreateLabel(hubPanel.transform, "设置", 42f, TextAlignmentOptions.Center,
+            hubPanel = builder.CreatePanel(canvasRoot, "HubPanel", new Vector2(560f, 500f));
+            builder.CreateLabel(hubPanel.transform, "设置", 42f, TextAlignmentOptions.Center,
                 new Vector2(0f, 190f), new Vector2(500f, 60f));
-            hubCloseButton = CreateCloseButton(hubPanel.transform, ShowRoot);
+            hubCloseButton = builder.CreateCloseButton(hubPanel.transform, closeIconSprite, ShowRoot);
             hubCloseIcon = hubCloseButton.transform.Find("Icon").GetComponent<Image>();
             CreateSliderRow(hubPanel.transform, "音乐音量", new Vector2(0f, 100f), true);
             CreateSliderRow(hubPanel.transform, "音效音量", new Vector2(0f, 36f), false);
-            hubKeybindButton = CreateMenuButton(hubPanel.transform, "键位设置", new Vector2(0f, -50f), ShowSettings);
-            hubBackButton = CreateMenuButton(hubPanel.transform, "返回", new Vector2(0f, -118f), ShowRoot);
+            hubKeybindButton = builder.CreateMenuButton(hubPanel.transform, "键位设置", new Vector2(0f, -50f), ShowSettings);
+            hubBackButton = builder.CreateMenuButton(hubPanel.transform, "返回", new Vector2(0f, -118f), ShowRoot);
 
-            settingsPanel = CreatePanel(canvasRoot, "SettingsPanel", new Vector2(640f, 720f));
-            CreateLabel(settingsPanel.transform, "键位设置", 36f, TextAlignmentOptions.Center, new Vector2(0f, 310f), new Vector2(560f, 50f));
-            settingsCloseButton = CreateCloseButton(settingsPanel.transform, ShowHub);
+            settingsPanel = builder.CreatePanel(canvasRoot, "SettingsPanel", new Vector2(640f, 720f));
+            builder.CreateLabel(settingsPanel.transform, "键位设置", 36f, TextAlignmentOptions.Center, new Vector2(0f, 310f), new Vector2(560f, 50f));
+            settingsCloseButton = builder.CreateCloseButton(settingsPanel.transform, closeIconSprite, ShowHub);
 
-            keyboardTabButton = CreateMenuButton(settingsPanel.transform, "键盘鼠标", new Vector2(-140f, 250f),
+            keyboardTabButton = builder.CreateMenuButton(settingsPanel.transform, "键盘鼠标", new Vector2(-140f, 250f),
                 () => SwitchGroup(InputRebindService.KeyboardMouseGroup), new Vector2(240f, 44f));
-            gamepadTabButton = CreateMenuButton(settingsPanel.transform, "手柄", new Vector2(140f, 250f),
+            gamepadTabButton = builder.CreateMenuButton(settingsPanel.transform, "手柄", new Vector2(140f, 250f),
                 () => SwitchGroup(InputRebindService.GamepadGroup), new Vector2(240f, 44f));
 
             bindingLabels.Clear();
@@ -985,12 +853,12 @@ namespace ARPG.UI
                 CreateRebindRow(settingsPanel.transform, i, y);
             }
 
-            waitingHint = CreateLabel(settingsPanel.transform, string.Empty, 22f, TextAlignmentOptions.Center,
+            waitingHint = builder.CreateLabel(settingsPanel.transform, string.Empty, 22f, TextAlignmentOptions.Center,
                 new Vector2(0f, -200f), new Vector2(560f, 36f), "WaitingHint");
             waitingHint.color = AccentColor;
 
-            resetButton = CreateMenuButton(settingsPanel.transform, "恢复默认", new Vector2(-140f, -270f), ResetCurrentGroup, new Vector2(240f, 44f));
-            backButton = CreateMenuButton(settingsPanel.transform, "返回", new Vector2(140f, -270f), ShowHub, new Vector2(240f, 44f));
+            resetButton = builder.CreateMenuButton(settingsPanel.transform, "恢复默认", new Vector2(-140f, -270f), ResetCurrentGroup, new Vector2(240f, 44f));
+            backButton = builder.CreateMenuButton(settingsPanel.transform, "返回", new Vector2(140f, -270f), ShowHub, new Vector2(240f, 44f));
         }
 
         private void CreateRebindRow(Transform parent, int rowIndex, float y)
@@ -1002,44 +870,20 @@ namespace ARPG.UI
             rect.sizeDelta = new Vector2(560f, 50f);
             rect.anchoredPosition = new Vector2(0f, y);
 
-            CreateLabel(row.transform, InputRebindService.RemappableLabels[rowIndex], 26f, TextAlignmentOptions.Left,
+            builder.CreateLabel(row.transform, InputRebindService.RemappableLabels[rowIndex], 26f, TextAlignmentOptions.Left,
                 new Vector2(-150f, 0f), new Vector2(200f, 44f));
 
-            Button rowButton = CreateMenuButton(row.transform, "—", new Vector2(140f, 0f),
+            Button rowButton = builder.CreateMenuButton(row.transform, "—", new Vector2(140f, 0f),
                 () => OnRowClicked(rowIndex), new Vector2(260f, 44f));
             TextMeshProUGUI label = rowButton.GetComponentInChildren<TextMeshProUGUI>();
             bindingLabels.Add(label);
             rebindRowButtons.Add(rowButton);
         }
 
-        private Button CreateGameplayToggleButton(
-            Transform parent,
-            string title,
-            Vector2 position,
-            UnityEngine.Events.UnityAction onClick,
-            out TextMeshProUGUI valueLabel)
-        {
-            Image image = CreateImage(parent, title, ButtonColor);
-            RectTransform rect = image.rectTransform;
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(320f, 50f);
-            rect.anchoredPosition = position;
-
-            Button button = image.gameObject.AddComponent<Button>();
-            button.transition = Selectable.Transition.None;
-            button.navigation = new Navigation { mode = Navigation.Mode.Explicit };
-            button.onClick.AddListener(onClick);
-
-            CreateLabel(image.transform, title, 24f, TextAlignmentOptions.Left,
-                new Vector2(-62f, 0f), new Vector2(170f, 44f), "Title");
-            valueLabel = CreateLabel(image.transform, "关", 24f, TextAlignmentOptions.Right,
-                new Vector2(98f, 0f), new Vector2(56f, 44f), "Value");
-            return button;
-        }
-
         private void CreateSliderRow(Transform parent, string title, Vector2 position, bool isBgm)
         {
-            EnsureSliderSprites();
+            EnsureKitSprites();
+            builder.EnsureGeneratedSprites();
 
             GameObject row = new GameObject(title + "Row", typeof(RectTransform));
             row.transform.SetParent(parent, false);
@@ -1048,7 +892,7 @@ namespace ARPG.UI
             rowRect.sizeDelta = new Vector2(500f, 56f);
             rowRect.anchoredPosition = position;
 
-            Image tick = CreateImage(row.transform, "Tick", AccentColor);
+            Image tick = builder.CreateImage(row.transform, "Tick", AccentColor);
             RectTransform tickRect = tick.rectTransform;
             tickRect.anchorMin = tickRect.anchorMax = tickRect.pivot = new Vector2(0f, 0.5f);
             tickRect.sizeDelta = new Vector2(3f, 22f);
@@ -1056,21 +900,21 @@ namespace ARPG.UI
             tick.raycastTarget = false;
             tick.enabled = false;
 
-            TextMeshProUGUI titleLabel = CreateLabel(row.transform, title, 24f, TextAlignmentOptions.Left,
+            TextMeshProUGUI titleLabel = builder.CreateLabel(row.transform, title, 24f, TextAlignmentOptions.Left,
                 new Vector2(-175f, 0f), new Vector2(130f, 36f));
             titleLabel.color = SliderLabelIdle;
 
-            TextMeshProUGUI valueLabel = CreateLabel(row.transform, "80%", 24f, TextAlignmentOptions.Right,
+            TextMeshProUGUI valueLabel = builder.CreateLabel(row.transform, "80%", 24f, TextAlignmentOptions.Right,
                 new Vector2(-78f, 0f), new Vector2(60f, 36f), "Value");
             valueLabel.color = SliderLabelIdle;
 
-            Image hit = CreateImage(row.transform, "Slider", new Color(1f, 1f, 1f, 0f));
+            Image hit = builder.CreateImage(row.transform, "Slider", new Color(1f, 1f, 1f, 0f));
             RectTransform hitRect = hit.rectTransform;
             hitRect.anchorMin = hitRect.anchorMax = hitRect.pivot = new Vector2(0.5f, 0.5f);
             hitRect.sizeDelta = new Vector2(236f, 40f);
             hitRect.anchoredPosition = new Vector2(138f, 0f);
 
-            Image track = CreateImage(hit.transform, "Track", TrackTint);
+            Image track = builder.CreateImage(hit.transform, "Track", TrackTint);
             track.sprite = volumeTrackSprite;
             track.preserveAspect = false;
             track.raycastTarget = false;
@@ -1092,8 +936,8 @@ namespace ARPG.UI
             fillAreaRect.sizeDelta = new Vector2(-16f, 16f);
             fillAreaRect.anchoredPosition = Vector2.zero;
 
-            Image fill = CreateImage(fillArea.transform, "Fill", FillIdle);
-            fill.sprite = fillBarSprite;
+            Image fill = builder.CreateImage(fillArea.transform, "Fill", FillIdle);
+            fill.sprite = builder.FillBarSprite;
             fill.type = Image.Type.Simple;
             fill.raycastTarget = false;
             RectTransform fillRect = fill.rectTransform;
@@ -1118,8 +962,8 @@ namespace ARPG.UI
             handleRect.anchorMin = handleRect.anchorMax = handleRect.pivot = new Vector2(0.5f, 0.5f);
             handleRect.sizeDelta = Vector2.zero;
 
-            Image handle = CreateImage(handleRoot.transform, "HandleGraphic", HandleIdle);
-            handle.sprite = diamondSprite;
+            Image handle = builder.CreateImage(handleRoot.transform, "HandleGraphic", HandleIdle);
+            handle.sprite = builder.DiamondSprite;
             handle.preserveAspect = true;
             handle.raycastTarget = false;
             RectTransform handleGraphicRect = handle.rectTransform;
@@ -1137,7 +981,7 @@ namespace ARPG.UI
             slider.direction = Slider.Direction.LeftToRight;
             slider.navigation = new Navigation { mode = Navigation.Mode.Explicit };
 
-            Image divider = CreateImage(row.transform, "Divider", DividerColor);
+            Image divider = builder.CreateImage(row.transform, "Divider", DividerColor);
             divider.sprite = settingsDividerSprite;
             divider.preserveAspect = false;
             divider.raycastTarget = false;
@@ -1178,12 +1022,10 @@ namespace ARPG.UI
             }
         }
 
-        private void EnsureSliderSprites()
+        // 三个套件贴图是 [SerializeField]：允许在 Inspector 里预先拖好，没拖才回退到 Kit 路径。
+        // 程序生成的那两张（填充条、菱形手柄）归 PauseMenuBuilder 管，这里不碰。
+        private void EnsureKitSprites()
         {
-            if (diamondSprite == null)
-                diamondSprite = CreateDiamondSprite();
-            if (fillBarSprite == null)
-                fillBarSprite = CreateFillBarSprite();
             if (volumeTrackSprite == null)
                 volumeTrackSprite = LoadKitSprite(KitTrackPath);
             if (settingsDividerSprite == null)
@@ -1204,148 +1046,6 @@ namespace ARPG.UI
             }
     #endif
             return null;
-        }
-
-        private Sprite CreateFillBarSprite()
-        {
-            const int size = 8;
-            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            tex.wrapMode = TextureWrapMode.Clamp;
-            tex.filterMode = FilterMode.Bilinear;
-            Color[] pixels = new Color[size * size];
-            for (int i = 0; i < pixels.Length; i++)
-                pixels[i] = Color.white;
-            tex.SetPixels(pixels);
-            tex.Apply(false, false);
-            generatedTextures.Add(tex);
-            return Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
-        }
-
-        private Sprite CreateDiamondSprite()
-        {
-            const int size = 64;
-            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            tex.wrapMode = TextureWrapMode.Clamp;
-            tex.filterMode = FilterMode.Bilinear;
-            Color[] pixels = new Color[size * size];
-            float cx = (size - 1) * 0.5f;
-            float cy = (size - 1) * 0.5f;
-            float hw = 15.5f;
-            float hh = 26.5f;
-            for (int y = 0; y < size; y++)
-            {
-                for (int x = 0; x < size; x++)
-                {
-                    float d = Mathf.Abs(x - cx) / hw + Mathf.Abs(y - cy) / hh;
-                    float alpha = Mathf.Clamp01((1.08f - d) / 0.12f);
-                    pixels[y * size + x] = new Color(1f, 1f, 1f, alpha * alpha);
-                }
-            }
-
-            tex.SetPixels(pixels);
-            tex.Apply(false, false);
-            generatedTextures.Add(tex);
-            return Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 64f);
-        }
-
-        private GameObject CreatePanel(Transform parent, string name, Vector2 size)
-        {
-            Image image = CreateImage(parent, name, PanelColor);
-            RectTransform rect = image.rectTransform;
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = size;
-            rect.anchoredPosition = Vector2.zero;
-            return image.gameObject;
-        }
-
-        private Button CreateMenuButton(Transform parent, string text, Vector2 position, UnityEngine.Events.UnityAction onClick, Vector2? size = null)
-        {
-            Image image = CreateImage(parent, text, ButtonColor);
-            RectTransform rect = image.rectTransform;
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = size ?? new Vector2(320f, 56f);
-            rect.anchoredPosition = position;
-
-            Button button = image.gameObject.AddComponent<Button>();
-            // ColorTint 会每帧盖掉 Image.color，选中态必须自己画
-            button.transition = Selectable.Transition.None;
-            button.navigation = new Navigation { mode = Navigation.Mode.Explicit };
-            button.onClick.AddListener(onClick);
-
-            CreateLabel(image.transform, text, 26f, TextAlignmentOptions.Center, Vector2.zero, rect.sizeDelta);
-            return button;
-        }
-
-        private Button CreateCloseButton(Transform parent, UnityEngine.Events.UnityAction onClick)
-        {
-            Image hit = CreateImage(parent, "Close", new Color(1f, 1f, 1f, 0f));
-            RectTransform rect = hit.rectTransform;
-            rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
-            rect.pivot = new Vector2(1f, 1f);
-            rect.sizeDelta = new Vector2(48f, 48f);
-            rect.anchoredPosition = new Vector2(-8f, -8f);
-
-            Image icon = CreateImage(hit.transform, "Icon", TextColor);
-            icon.sprite = closeIconSprite;
-            icon.preserveAspect = true;
-            icon.raycastTarget = false;
-            RectTransform iconRect = icon.rectTransform;
-            iconRect.anchorMin = iconRect.anchorMax = iconRect.pivot = new Vector2(0.5f, 0.5f);
-            iconRect.sizeDelta = new Vector2(28f, 28f);
-            iconRect.anchoredPosition = Vector2.zero;
-
-            Button button = hit.gameObject.AddComponent<Button>();
-            button.transition = Selectable.Transition.None;
-            button.navigation = new Navigation { mode = Navigation.Mode.None };
-            button.targetGraphic = icon;
-            button.onClick.AddListener(onClick);
-            return button;
-        }
-
-        private static Image CreateImage(Transform parent, string name, Color color)
-        {
-            GameObject go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            go.transform.SetParent(parent, false);
-            Image image = go.GetComponent<Image>();
-            image.color = color;
-            image.raycastTarget = true;
-            return image;
-        }
-
-        private static TextMeshProUGUI CreateLabel(
-            Transform parent,
-            string text,
-            float fontSize,
-            TextAlignmentOptions align,
-            Vector2 position,
-            Vector2 size,
-            string goName = null)
-        {
-            GameObject go = new GameObject(
-                string.IsNullOrEmpty(goName) ? (string.IsNullOrEmpty(text) ? "Label" : text) : goName,
-                typeof(RectTransform), typeof(CanvasRenderer));
-            go.transform.SetParent(parent, false);
-
-            TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
-            tmp.text = text;
-            tmp.fontSize = fontSize;
-            tmp.color = TextColor;
-            tmp.alignment = align;
-            tmp.raycastTarget = false;
-
-            RectTransform rect = tmp.rectTransform;
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = size;
-            rect.anchoredPosition = position;
-            return tmp;
-        }
-
-        private static void StretchFull(RectTransform rect)
-        {
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
         }
 
         private void WireNavigation()
