@@ -236,6 +236,24 @@ namespace ARPG.FrameWork.Body
         private Quaternion spawnRotation;
         private bool spawnPoseRecorded;
 
+        // ===== 阵营 =====
+        // 「这是谁」的唯一真相源。判断身份一律查 Faction 属性，
+        // 不要写 body == CombatManager.Instance.PlayerRef 这种对象身份比较。
+        //
+        // 注意：这里刻意不自动推导。推导要么靠 GetComponent<PlayerBrain>()——
+        // 那会让框架层反过来依赖玩家层（PlayerBrain 在 ARPG.Player），方向是错的；
+        // 要么靠 CombatManager 在 Start 里回填——但各组件 Start 顺序不定，
+        // 谁先查谁就拿到未推导的错值。字段是序列化的，Awake 时就已就位，两条坑都绕开。
+        // 本类内部一律写 Configs.Faction 而不是 Faction：
+        // 属性名与枚举类型名完全同名（Faction Faction），虽然 C# 的 "Color Color" 规则
+        // 允许这种写法，但读起来容易绕，索性写全，一眼看得出哪个是类型。
+        [Header("阵营")]
+        [Tooltip("玩家角色必须选 Player。选错不会崩，但会静默退化——" +
+                 "玩家会失去专属受击表现、无敌血等，且很难察觉。启动时会有报错提醒。")]
+        [SerializeField] private Faction faction = Configs.Faction.Enemy;
+
+        public Faction Faction => faction;
+
         private void Awake()
         {
             Animator = GetComponent<Animator>();
@@ -464,11 +482,14 @@ namespace ARPG.FrameWork.Body
         // 玩家/Boss 忽略物理互撞后，用分离把玩家挡在 Boss 体外。Boss 不被胶囊挤走。
         private void ResolveOpponentOverlap()
         {
-            if (CombatManager.Instance == null) return;
-            if (this != CombatManager.Instance.PlayerRef) return;
+            // 只有玩家会被胶囊挤开，Boss 不被挤走。查阵营，不再比 PlayerRef 引用。
+            if (faction != Configs.Faction.Player) return;
             // 忍杀成对 Root 会短暂重叠，挤开会对不齐。
             if (IsFinisherLocked) return;
 
+            if (CombatManager.Instance == null) return;
+            // TODO(多 Boss)：这里取的是「主对手」。多 Boss 时应改为遍历所有对手或取最近的那个。
+            // 这属于「找对象」而非「判身份」，不在本次阵营改造范围内。
             CharacterBody other = CombatManager.Instance.BossRef;
             if (other == null || other.IsFinisherLocked) return;
 

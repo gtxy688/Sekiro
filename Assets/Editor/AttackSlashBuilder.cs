@@ -10,8 +10,9 @@ namespace ARPG.Editor
     // 用法：Tools/战斗/生成挥刀刀光
     public static class AttackSlashBuilder
     {
+        // 「Sekrio」是资源目录的实际拼写（原名如此，不是笔误修正项）。
+        // 别再补一个 "Assets/Sekiro/FX" 的 fallback——那个目录不存在，搜它只是白跑一趟。
         const string SekrioFx = "Assets/Sekrio/FX";
-        const string SekiroFx = SekrioFx;
         const string OutFolder = "Assets/Prefabs/FX/Slash";
         const string TrailMatPath = OutFolder + "/PlayerSwingTrail.mat";
 

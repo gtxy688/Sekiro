@@ -1,5 +1,6 @@
 using UnityEngine;
 
+using ARPG.Combat;
 using ARPG.FrameWork.Body;
 using ARPG.Player;
 namespace ARPG.Mgr
@@ -71,10 +72,9 @@ namespace ARPG.Mgr
             return pos;
         }
 
-        static bool IsPlayer(CharacterBody body)
-        {
-            return body != null && body.GetComponent<PlayerBrain>() != null;
-        }
+        // 原本这里有一份自己的实现（查 PlayerBrain 组件），与 HitReactionUtil 那套
+        // （比 PlayerRef 引用）标准不同，两者可能给出矛盾答案。已统一到阵营字段。
+        static bool IsPlayer(CharacterBody body) => HitReactionUtil.IsPlayer(body);
 
         void HandleSwingStart(CharacterBody attacker)
         {

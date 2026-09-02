@@ -6,7 +6,7 @@ namespace ARPG.Editor
 
     // 工具：多选 FBX → 把其下的动画 clip 统一重命名为 fbx 文件名
     // （clip 名由 ModelImporter 管理，Inspector 里改不了，必须走这个）
-    // 多个 clip 时：第一个 = fbx 名，后续 = fbx名_N（避免重名）
+    // 多个 clip 时：只有第一个改成 fbx 名，其余保留各自的原名（唯一性由原名保证）
     // 用法：Project 多选 fbx → 菜单 Tools/动画/Clip 重命名为 fbx 文件名
     public static class ClipRenamer
     {
@@ -49,10 +49,6 @@ namespace ARPG.Editor
                 // 若一个 fbx 里还有更多 clip（罕见），保留它们各自的原名，不强行加后缀
                 string firstOriginal = clips[0].name;
                 clips[0].name = fbxName;
-                for (int i = 1; i < clips.Length; i++)
-                {
-                    // 保持原名不动（唯一性由原名保证）
-                }
 
                 // 把改过的数组写回并重新导入（clip 名由 importer 持久化，不能直接 RenameAsset）
                 importer.clipAnimations = clips;

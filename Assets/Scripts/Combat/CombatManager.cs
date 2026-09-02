@@ -103,6 +103,7 @@ namespace ARPG.Combat
             // 放在 Start 而非 Awake：它依赖 EncounterScope.Current，
             // 而跨组件的 Awake 顺序不确定，Start 时所有 Awake 都已跑完。
             ValidateFinisherRefs();
+            ValidateFaction();
 
             // 过渡期参数同步：把 Inspector 上可能已调过的旧值带给新组件
             if (resolver != null) resolver.clashPostureMultiplier = clashPostureMultiplier;
@@ -142,6 +143,23 @@ namespace ARPG.Combat
                 Debug.LogError("CombatManager.BossRef 未绑定，处决无法发起。");
             if (PlayerRef != null && PlayerRef == BossRef)
                 Debug.LogError("CombatManager.PlayerRef 与 BossRef 指向同一角色，处决已禁用。");
+        }
+
+        // 阵营校验。Faction 是新增字段，旧 prefab / 旧场景对象会落到默认值 Enemy，
+        // 而玩家被当成敌人的后果是**静默**的：不崩、不报错，只是悄悄失去
+        // 专属受击表现、无敌血、玩家侧音效与特效等一整批按身份分支的逻辑。
+        // 这类错误最难查，所以开局就喊出来。
+        private void ValidateFaction()
+        {
+            CharacterBody player = ActivePlayer;
+            if (player == null) return; // PlayerRef 没拖的情况已由 ValidateFinisherRefs 报过
+            if (player.Faction == Faction.Player) return;
+
+            Debug.LogError(
+                $"[CombatManager] 玩家角色「{player.name}」的 Faction 是 {player.Faction}，应当是 Player。\n" +
+                "修法：选中它，在 Inspector 的 CharacterBody 组件上把 Faction 改成 Player。\n" +
+                "不改不会崩，但玩家会静默失去专属受击表现、无敌血、玩家侧音效与特效等按身份分支的逻辑。",
+                player);
         }
 
         // ===== 命中结算：转发 CombatResolver，顿帧留在本层 =====

@@ -214,8 +214,9 @@ namespace ARPG.FrameWork.States.Base
             }
 
             // 崩解窗口把攻击键留给处决，不能接 NextCombo。
-            if (CombatManager.Instance != null &&
-                body == CombatManager.Instance.PlayerRef &&
+            // 「是不是玩家」查阵营；「当前对手崩没崩」仍是找对象，多 Boss 时要改为查任一对手。
+            if (body.Faction == Faction.Player &&
+                CombatManager.Instance != null &&
                 CombatManager.Instance.BossRef != null &&
                 CombatManager.Instance.BossRef.IsPostureBroken)
             {

@@ -9,9 +9,17 @@ namespace ARPG.Combat
     // 玩家挨 Boss 时的受击/格挡/弹反选动画。Boss 被打不走这里。
     public static class HitReactionUtil
     {
+        // 判断身份一律查阵营字段，不再比对象引用。
+        //
+        // 旧实现是 body == CombatManager.Instance.PlayerRef，意思是：
+        // 除 PlayerRef 那一个对象外，世界上没有任何东西能是「玩家」。
+        // 加第二个 Boss、加友方 NPC、复战换角色，它一律判错。
+        //
+        // 全项目只有这一份 IsPlayer。AudioManager 与 FXManager 里各有一份私有副本，
+        // 判定标准还不一样（它们查 PlayerBrain 组件），已统一改成调这里。
         public static bool IsPlayer(CharacterBody body)
         {
-            return CombatManager.Instance != null && body != null && body == CombatManager.Instance.PlayerRef;
+            return body != null && body.Faction == Faction.Player;
         }
 
         public static string PerfectParryAnim(HitData hit)

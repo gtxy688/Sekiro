@@ -478,6 +478,7 @@ GameObject:
   - component: {fileID: 66526826}
   - component: {fileID: 66526828}
   - component: {fileID: 66526829}
+  - component: {fileID: 66526830}
   m_Layer: 0
   m_Name: Mgr
   m_TagString: Untagged
@@ -559,6 +560,19 @@ MonoBehaviour:
   playerTrailEnd: {r: 0.65, g: 0.85, b: 1, a: 1}
   offset: {x: 0, y: 0, z: 0}
   pullTowardCamera: 0.08
+--- !u!114 &66526830
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 66526825}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1f167a53f9f011442bec334e05e0d57b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  resetKey: 101
 --- !u!1 &83678996
 GameObject:
   m_ObjectHideFlags: 0
@@ -839,8 +853,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 114928386}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.103300065, y: 0, z: 0, w: 0.99465024}
-  m_LocalPosition: {x: 0, y: 0.0054166317, z: -0.0013227463}
+  m_LocalRotation: {x: 0.10249012, y: 0, z: 0, w: 0.99473405}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:

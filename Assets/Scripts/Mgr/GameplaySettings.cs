@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 
 using ARPG.Combat;
+using ARPG.Configs;
 using ARPG.FrameWork.Body;
 using ARPG.FrameWork.States;
 namespace ARPG.Mgr
@@ -55,9 +56,13 @@ namespace ARPG.Mgr
             CharacterBody instigator = null)
         {
             Load();
-            if (!OneHitPostureBreak || target == null || CombatManager.Instance == null)
+            // 不再需要判 CombatManager.Instance == null：判断只依赖 target 自己的阵营字段。
+            if (!OneHitPostureBreak || target == null)
                 return false;
-            if (target != CombatManager.Instance.BossRef)
+            // 只有敌人吃一键崩防。改判阵营而非比 BossRef：
+            // 多 Boss 时这条对所有敌人生效，而不是只对「列表里那一个」生效。
+            // 下面已限定只有玩家打出来才算，所以语义是对的。
+            if (target.Faction != Faction.Enemy)
                 return false;
 
             if (source == PostureBreakSource.Deflect || source == PostureBreakSource.Mikiri)

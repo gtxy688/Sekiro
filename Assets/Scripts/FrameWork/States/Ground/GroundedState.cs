@@ -1,6 +1,7 @@
 using UnityEngine;
 
 using ARPG.Combat;
+using ARPG.Configs;
 using ARPG.FrameWork.Body;
 using ARPG.FrameWork.States;
 using ARPG.FrameWork.States.Air;
@@ -101,8 +102,8 @@ namespace ARPG.FrameWork.States.Ground
             // M10：玩家攻击指令优先查处决。Boss 崩解窗口内，连招后摇里再按攻击也走忍杀，
             // 不进 NextCombo。崩解那一刀本身不会再发 AttackCommand，所以不会被这刀直接处决。
             if (cmd is AttackCommand &&
+                body.Faction == Faction.Player &&
                 CombatManager.Instance != null &&
-                body == CombatManager.Instance.PlayerRef &&
                 CombatManager.Instance.TryExecuteAvailableFinisher(body))
             {
                 return true;

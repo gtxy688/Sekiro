@@ -1,6 +1,7 @@
 using UnityEngine;
 
 using ARPG.Boss;
+using ARPG.Combat;
 using ARPG.Configs;
 using ARPG.FrameWork.Body;
 using ARPG.Mgr;
@@ -195,10 +196,9 @@ namespace ARPG.Audio
             return pool[i];
         }
 
-        private static bool IsPlayer(CharacterBody body)
-        {
-            return body != null && body.GetComponent<PlayerBrain>() != null;
-        }
+        // 原本这里有一份自己的实现（查 PlayerBrain 组件），与 HitReactionUtil 那套
+        // （比 PlayerRef 引用）标准不同，两者可能给出矛盾答案。已统一到阵营字段。
+        private static bool IsPlayer(CharacterBody body) => HitReactionUtil.IsPlayer(body);
 
         private void HandleWeaponDeflected(Vector3 hitPoint, DeflectType type)
         {

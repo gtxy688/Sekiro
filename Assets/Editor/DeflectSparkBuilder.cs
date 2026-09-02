@@ -10,8 +10,9 @@ namespace ARPG.Editor
     // 用法：Tools/战斗/生成格挡火花
     public static class DeflectSparkBuilder
     {
+        // 「Sekrio」是资源目录的实际拼写（原名如此，不是笔误修正项）。
+        // 别再补一个 "Assets/Sekiro/FX" 的 fallback——那个目录不存在，搜它只是白跑一趟。
         const string SekrioFx = "Assets/Sekrio/FX";
-        const string SekiroFx = SekrioFx;
         const string OutFolder = "Assets/Prefabs/FX";
         const string NormalPath = OutFolder + "/BlockSparks_Normal.prefab";
         const string PerfectPath = OutFolder + "/BlockSparks_Perfect.prefab";
