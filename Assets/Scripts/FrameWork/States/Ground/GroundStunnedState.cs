@@ -173,9 +173,9 @@ namespace ARPG.FrameWork.States.Ground
             body.IsKnockedDown = false;
             bool knockdown = useHitGrade && IsKnockdown;
             if (knockdown)
-                body.MainStateMachine.ChangeState(new GroundedState(body, new StandingState(body)));
+                body.EnterGrounded(new StandingState(body), "stunned: knockdown animation finished");
             else
-                body.MainStateMachine.ChangeState(new GroundedState(body));
+                body.EnterGrounded("stunned: light animation finished");
         }
 
         public override void OnExit()

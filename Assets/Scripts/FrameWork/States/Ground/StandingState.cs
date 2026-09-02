@@ -80,8 +80,11 @@ namespace ARPG.FrameWork.States.Ground
         void GoIdle()
         {
             // 地面上换 Idle 子状态；非地面态回退重建地面父状态
-            if (!body.TryChangeGroundedSubState(g => new IdleState(body, g)))
-                body.MainStateMachine.ChangeState(new GroundedState(body));
+            if (!body.TryChangeGroundedSubState(
+                    g => new IdleState(body, g), "standing: animation finished"))
+            {
+                body.EnterGrounded("standing: fallback to grounded idle");
+            }
         }
     }
 

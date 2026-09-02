@@ -7,9 +7,15 @@ namespace ARPG.FrameWork.States.Base
     public abstract class HierarchicalState : BaseState
     {
         // 父状态内部自己养的“子状态机”
-        public StateMachine SubStateMachine { get; private set; } = new StateMachine();
+        public StateMachine SubStateMachine { get; private set; }
 
-        public HierarchicalState(CharacterBody body) : base(body) { }
+        public HierarchicalState(CharacterBody body) : base(body)
+        {
+            // 子状态切换也回报给 CharacterBody，这样调试快照能显示完整路径。
+            SubStateMachine = new StateMachine(
+                (previous, current, reason) => body.NotifyStateChanged(this, previous, current, reason),
+                state => body.GetStatePathForDebug(this, state));
+        }
 
         // 要求子类必须提供一个默认进入的子状态
         protected abstract BaseState GetInitialSubState();
@@ -20,7 +26,7 @@ namespace ARPG.FrameWork.States.Base
             BaseState initial = GetInitialSubState();
             if (initial != null)
             {
-                SubStateMachine.ChangeState(initial);
+                SubStateMachine.ChangeState(initial, "parent: enter initial child");
             }
         }
 
@@ -33,7 +39,7 @@ namespace ARPG.FrameWork.States.Base
         public override void OnExit()
         {
             // 强制退出当前正在运行的子状态
-            SubStateMachine.ChangeState(null);
+            SubStateMachine.ChangeState(null, "parent: exit child");
         }
 
         // 命令的路由转发 (父类 -> 子类)

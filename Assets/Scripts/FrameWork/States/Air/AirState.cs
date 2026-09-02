@@ -50,12 +50,11 @@ namespace ARPG.FrameWork.States.Air
         {
             if (body.IsPostureBroken)
             {
-                body.MainStateMachine.ChangeState(
-                    new GroundedState(body, new StaggerBrokenState(body)));
+                body.EnterGrounded(new StaggerBrokenState(body), "air: landed while posture broken");
             }
             else
             {
-                body.MainStateMachine.ChangeState(new GroundedState(body));
+                body.EnterGrounded("air: landed");
             }
         }
     }

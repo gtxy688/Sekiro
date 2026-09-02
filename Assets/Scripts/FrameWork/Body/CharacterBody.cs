@@ -9,6 +9,7 @@ using ARPG.FrameWork.States;
 using ARPG.FrameWork.States.Base;
 using ARPG.FrameWork.States.Dead;
 using ARPG.FrameWork.States.Ground;
+using ARPG.FrameWork.States.Air;
 using ARPG.Mgr;
 namespace ARPG.FrameWork.Body
 {
@@ -18,6 +19,13 @@ namespace ARPG.FrameWork.Body
     {
         // 1. 状态机
         public StateMachine MainStateMachine { get; private set; }
+
+        // HFSM 调试快照：逻辑状态和动画状态分开看，避免只看 Animator 猜状态机。
+        public string CurrentStatePath { get; private set; } = "<uninitialized>";
+        public string PreviousStatePath { get; private set; } = "<none>";
+        public string LastStateChangeReason { get; private set; } = "<none>";
+        public int StateTransitionCount { get; private set; }
+        public bool EnableStateDebugLog;
 
         // 2. 组件引用
         public Animator Animator { get; private set; }
@@ -109,7 +117,7 @@ namespace ARPG.FrameWork.Body
         private CombatStats Combat => combat ??= new CombatStats(
             this,
             source => ForcePostureBroken(source),
-            revive => MainStateMachine.ChangeState(new DeadState(this, revive)));
+            revive => EnterDead(revive, reason: revive ? "death: enter revive pending" : "death: enter game over"));
 
         public int CurrentHP => Combat.CurrentHP;
         public float CurrentPosture => Combat.CurrentPosture;
@@ -121,6 +129,10 @@ namespace ARPG.FrameWork.Body
         // 剩余命数（Boss 一阶段 2 条命；玩家 1 条）
         public int LivesRemaining => Combat.LivesRemaining;
         public bool IsDefeated => Combat.IsDefeated;
+
+        // ===== 跨模块战斗事实 =====
+        // 这些不是用来替代 HFSM 当前状态的调试显示，而是给战斗数值、AI、表现层读取的
+        // 低成本事实快照。状态进入/退出时负责维护；跨模块不要直接判 CurrentState 类型。
 
         // 是否正在格挡姿态（DeflectState 长按中）——架势回复 ×5 用
         public bool IsGuarding { get; set; }
@@ -271,7 +283,7 @@ namespace ARPG.FrameWork.Body
             EnsureGroundDetectionWired();
 
             // 实例化纯 C# 的状态机引擎
-            MainStateMachine = new StateMachine();
+            MainStateMachine = new StateMachine(NotifyStateChanged, GetStatePathForDebug);
 
             // 武器模块构造（原 InitHitboxes：解析默认刀 + Initialize）
             _ = WeaponCtrl;
@@ -322,7 +334,7 @@ namespace ARPG.FrameWork.Body
             // GroundedState 会当成踩空切 AirState，进场播 Jump/Fall。
             Physics.SyncTransforms();
             UpdateEnvironmentalChecks();
-            MainStateMachine.ChangeState(SharedGrounded);
+            EnterGrounded("lifecycle: initial grounded");
 
             // 注册进本场战斗的重置清单。用 Ensure() 而非 Current：
             // 各组件的 Start 顺序不定，谁先跑到谁负责把 Scope 建出来。
@@ -402,7 +414,7 @@ namespace ARPG.FrameWork.Body
 
             // 8. 状态机回地面待机
             if (MainStateMachine != null)
-                MainStateMachine.ChangeState(SharedGrounded);
+                EnterGrounded("encounter reset: grounded idle");
 
             // 9. 推事件：这些数值是直接改的，不走 TakeDamage 那条结算路径，
             //    不主动通知的话 UI 会停在上一场的空血条 / 满架势条上
@@ -462,20 +474,19 @@ namespace ARPG.FrameWork.Body
 
             if (MainStateMachine == null)
             {
-                MainStateMachine = new StateMachine();
+                MainStateMachine = new StateMachine(NotifyStateChanged, GetStatePathForDebug);
             }
 
             if (MainStateMachine.CurrentState == null)
             {
-                if (IsPostureBroken)
-                {
-                    MainStateMachine.ChangeState(
-                        new GroundedState(this, new StaggerBrokenState(this)));
-                }
-                else
-                {
-                    MainStateMachine.ChangeState(SharedGrounded);
-                }
+                BaseState initial = IsPostureBroken
+                    ? new StaggerBrokenState(this)
+                    : null;
+                MainStateMachine.ChangeState(
+                    initial == null ? SharedGrounded : new GroundedState(this, initial),
+                    IsPostureBroken
+                        ? "runtime recovery: restore posture broken"
+                        : "runtime recovery: restore grounded idle");
             }
         }
 
@@ -558,11 +569,122 @@ namespace ARPG.FrameWork.Body
             return MainStateMachine.HandleCommand(cmd);
         }
 
-        // ===== 顶层地面态查询 / 切入（架构红线：业务代码禁止直接判顶层状态类型，
-        // 统一走这里的封装，叶子永远在父状态 SubStateMachine 内）=====
+        // ===== 状态查询 / 切入 =====
+        // 业务代码不要直接判顶层状态类型；顶层类型判定集中在这里。
 
         // 当前顶层是否为地面态（只读查询）
         public bool IsGroundedTop => MainStateMachine?.CurrentState is GroundedState;
+
+        // ===== 顶层状态切换门面 =====
+        // 跨顶层的切换统一经过这里；父状态内部的叶子切换仍由父状态负责。
+        public void EnterGrounded(string reason = "enter grounded")
+        {
+            EnsureRuntimeReady();
+            MainStateMachine.ChangeState(SharedGrounded, reason);
+        }
+
+        public void EnterGrounded(BaseState initialSubState, string reason = "enter grounded sub-state")
+        {
+            EnsureRuntimeReady();
+            MainStateMachine.ChangeState(
+                initialSubState == null ? SharedGrounded : new GroundedState(this, initialSubState),
+                reason);
+        }
+
+        public void EnterAirborne(string reason = "enter air")
+        {
+            EnsureRuntimeReady();
+            MainStateMachine.ChangeState(new AirState(this), reason);
+        }
+
+        public void EnterStunned(HitGrade grade, string reason = "hit: player reaction")
+        {
+            EnsureRuntimeReady();
+            MainStateMachine.ChangeState(new StunnedState(this, grade), reason);
+        }
+
+        public void EnterStunned(HurtContext context, string reason = "hit: reaction")
+        {
+            EnsureRuntimeReady();
+            MainStateMachine.ChangeState(new StunnedState(this, context), reason);
+        }
+
+        public void EnterDead(bool canRevive, bool alreadyDowned = false,
+            string reason = "death: enter dead")
+        {
+            EnsureRuntimeReady();
+            MainStateMachine.ChangeState(new DeadState(this, canRevive, alreadyDowned), reason);
+        }
+
+        // 状态调试回调：顶层和子状态都通过这里留下同一份可读快照。
+        public void NotifyStateChanged(
+            BaseState previous, BaseState current, string reason)
+        {
+            string previousPath = MainStateMachine?.PreviousStatePath
+                ?? (previous == null ? "<none>" : previous.GetType().Name);
+            string currentPath = MainStateMachine?.CurrentStatePath
+                ?? (current == null ? "<none>" : current.GetType().Name);
+            PreviousStatePath = previousPath;
+            CurrentStatePath = currentPath;
+            LastStateChangeReason = string.IsNullOrEmpty(reason) ? "unspecified" : reason;
+            StateTransitionCount++;
+
+            if (EnableStateDebugLog)
+            {
+                Debug.Log(
+                    $"[HFSM] {name}: {previousPath} -> {currentPath} " +
+                    $"({LastStateChangeReason})", this);
+            }
+        }
+
+        // 父状态的子状态机在切换时调用。这里不递归向下查找，
+        // 因为当前项目的 HFSM 深度固定为两层，显示父/子已经足够排错。
+        public void NotifyStateChanged(
+            HierarchicalState parent, BaseState previous, BaseState current, string reason)
+        {
+            string previousPath = parent.SubStateMachine?.PreviousStatePath
+                ?? parent.GetType().Name + "/<none>";
+            string currentPath = parent.SubStateMachine?.CurrentStatePath
+                ?? parent.GetType().Name + "/<none>";
+            PreviousStatePath = previousPath;
+            CurrentStatePath = currentPath;
+            LastStateChangeReason = string.IsNullOrEmpty(reason) ? "unspecified" : reason;
+            StateTransitionCount++;
+
+            if (EnableStateDebugLog)
+            {
+                Debug.Log(
+                    $"[HFSM] {name}: {previousPath} -> {currentPath} " +
+                    $"({LastStateChangeReason})", this);
+            }
+        }
+
+        public string GetStatePathForDebug(BaseState state)
+        {
+            return ResolveStatePath(null, state);
+        }
+
+        public string GetStatePathForDebug(HierarchicalState parent, BaseState state)
+        {
+            return ResolveStatePath(parent, state);
+        }
+
+        private string ResolveStatePath(HierarchicalState parent, BaseState state)
+        {
+            if (state == null) return "<none>";
+            if (parent != null)
+                return parent.GetType().Name + "/" + state.GetType().Name;
+
+            if (state is HierarchicalState hierarchical)
+            {
+                BaseState child = hierarchical.SubStateMachine?.CurrentState;
+                return child == null
+                    ? hierarchical.GetType().Name + "/<none>"
+                    : hierarchical.GetType().Name + "/" + child.GetType().Name;
+            }
+
+            return state.GetType().Name;
+        }
 
         // 当前地面子状态是否为指定类型（语义查询，不暴露状态引用）
         public bool IsInGroundedSubState<T>() where T : BaseState
@@ -572,24 +694,28 @@ namespace ARPG.FrameWork.Body
         }
 
         // 地面上换子状态：只在顶层确为地面态时执行，否则返回 false（不改动）
-        public bool TryChangeGroundedSubState(Func<GroundedState, BaseState> factory)
+        public bool TryChangeGroundedSubState(
+            Func<GroundedState, BaseState> factory,
+            string reason = "grounded child transition")
         {
             if (MainStateMachine?.CurrentState is not GroundedState g) return false;
-            g.SubStateMachine.ChangeState(factory(g));
+            g.SubStateMachine.ChangeState(factory(g), reason);
             return true;
         }
 
         // 地面态换子状态；顶层非地面态（空中/受击/死亡）则重建地面父状态切入该叶子
-        public void ForceChangeGroundedSubState(Func<GroundedState, BaseState> factory)
+        public void ForceChangeGroundedSubState(
+            Func<GroundedState, BaseState> factory,
+            string reason = "force grounded child transition")
         {
             EnsureRuntimeReady();
             if (MainStateMachine?.CurrentState is GroundedState g)
             {
-                g.SubStateMachine.ChangeState(factory(g));
+                g.SubStateMachine.ChangeState(factory(g), reason);
                 return;
             }
             // 重建时叶子以 null 父级创建：与旧直接重建语义一致（见 BossReviveBackoffState）
-            MainStateMachine.ChangeState(new GroundedState(this, factory(null)));
+            EnterGrounded(factory(null), reason + ": rebuild parent");
         }
 
         // 换到"格挡 / 垫步"叶子：三个受击/起身状态（MidToGuard / Standing / StaggerBroken）
@@ -709,7 +835,7 @@ namespace ARPG.FrameWork.Body
             ActiveHitPulseIndex = -1;
             if (armKengeki)
                 KengekiArmed = true;
-            MainStateMachine.ChangeState(new GroundedState(this, new ParriedState(this, animName)));
+            EnterGrounded(new ParriedState(this, animName), "combat: parried");
         }
 
         public void ForceParryStun()
@@ -732,7 +858,8 @@ namespace ARPG.FrameWork.Body
             }
 
             FreezeCombatYaw();
-            MainStateMachine.ChangeState(new GroundedState(this, new ParriedState(this, anim, freezeYawAfterExit: true)));
+            EnterGrounded(new ParriedState(this, anim, freezeYawAfterExit: true),
+                "combat: mikiri stun");
         }
 
         // ===== M7 Boss 被动防御（只狼攻防转换）=====
@@ -779,7 +906,7 @@ namespace ARPG.FrameWork.Body
                     break;
             }
 
-            MainStateMachine.ChangeState(new GroundedState(this, brokenState));
+            EnterGrounded(brokenState, "combat: posture broken");
         }
 
         // ===== 武器接口：实现已迁入 WeaponController，签名不变，全项目调用方零改动 =====
@@ -830,7 +957,7 @@ namespace ARPG.FrameWork.Body
             DisableWeaponHit();
             ClearSteerYaw();
             SetSuppressRootYaw(false);
-            MainStateMachine.ChangeState(SharedGrounded);
+            EnterGrounded("boss: cancel attack to idle");
         }
 
         // 死亡判定（M14）：判定与事件已迁入 CombatStats.HandleDeath，
@@ -853,7 +980,7 @@ namespace ARPG.FrameWork.Body
         public void RecoverFromBreak(float remainingRatio = 0f)
         {
             ClearPostureBreak(remainingRatio);
-            MainStateMachine.ChangeState(SharedGrounded);
+            EnterGrounded("combat: recover from posture break");
         }
 
         // 动画事件可选入口：正常结算改由 FinisherState 在动画结束时驱动。
@@ -924,7 +1051,7 @@ namespace ARPG.FrameWork.Body
                 if (HitReactionUtil.IsPlayer(this))
                 {
                     ClearPostureBreak();
-                    MainStateMachine.ChangeState(new StunnedState(this, HitGrade.Heavy));
+                    EnterStunned(HitGrade.Heavy, "hit: player knocked down follow-up");
                 }
                 return;
             }
@@ -938,9 +1065,9 @@ namespace ARPG.FrameWork.Body
 
             // 3. 强制打断当前行为，切入受击父状态。玩家按招式等级，Boss 仍按击退。
             if (HitReactionUtil.IsPlayer(this))
-                MainStateMachine.ChangeState(new StunnedState(this, hit.hitGrade));
+                EnterStunned(hit.hitGrade);
             else
-                MainStateMachine.ChangeState(new StunnedState(this, ctx));
+                EnterStunned(ctx);
         }
     }
 

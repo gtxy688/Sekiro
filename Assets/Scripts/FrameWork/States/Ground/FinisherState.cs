@@ -83,7 +83,7 @@ namespace ARPG.FrameWork.States.Ground
             else
             {
                 Debug.LogError("处决动画结束时找不到 CombatManager。");
-                body.MainStateMachine.ChangeState(new GroundedState(body));
+                body.EnterGrounded("finisher: director missing fallback");
             }
         }
 

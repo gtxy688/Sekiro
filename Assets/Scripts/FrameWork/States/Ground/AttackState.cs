@@ -16,7 +16,7 @@ namespace ARPG.FrameWork.States.Ground
 
         protected override void ExitToIdle()
         {
-            parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+            parent.SubStateMachine.ChangeState(new IdleState(body, parent), "attack: finished");
         }
 
         protected override BaseState NewSelf(AttackConfig next)
@@ -28,7 +28,7 @@ namespace ARPG.FrameWork.States.Ground
         protected override bool CancelToDeflect(bool canCancel)
         {
             if (!canCancel) return false;
-            parent.SubStateMachine.ChangeState(new DeflectState(body, parent));
+            parent.SubStateMachine.ChangeState(new DeflectState(body, parent), "attack: cancel to deflect");
             return true;
         }
 
@@ -36,7 +36,7 @@ namespace ARPG.FrameWork.States.Ground
         protected override bool CancelToDodge(bool canCancel)
         {
             if (!canCancel) return false;
-            parent.SubStateMachine.ChangeState(new DodgeState(body, parent));
+            parent.SubStateMachine.ChangeState(new DodgeState(body, parent), "attack: cancel to dodge");
             return true;
         }
 
@@ -50,7 +50,8 @@ namespace ARPG.FrameWork.States.Ground
                 // 锁定攻击接移动时直接进入四向循环。
                 // 若走默认 IdleToWalk，其前向根运动会让角色额外朝目标冲出一段。
                 string enterAnim = HasCombatTarget() ? null : "IdleToWalk";
-                parent.SubStateMachine.ChangeState(new MoveState(body, parent, enterAnim));
+                parent.SubStateMachine.ChangeState(new MoveState(body, parent, enterAnim),
+                    "attack: recovery to move");
             }
             return true;
         }

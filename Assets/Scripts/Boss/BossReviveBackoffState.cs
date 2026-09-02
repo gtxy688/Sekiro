@@ -68,7 +68,7 @@ namespace ARPG.Boss
             if (parent != null)
                 parent.SubStateMachine.ChangeState(new IdleState(body, parent));
             else
-                body.MainStateMachine.ChangeState(new GroundedState(body));
+                body.EnterGrounded("boss revive backoff: finished without parent");
         }
     }
 

@@ -77,13 +77,13 @@ namespace ARPG.FrameWork.States.Ground
             // 硬直 = max(动画, 配置下限)：ParriedDuration 是最小硬直。
             if (animDone && timer >= duration)
             {
-                body.MainStateMachine.ChangeState(new GroundedState(body));
+                body.EnterGrounded("parried: animation finished");
                 return;
             }
 
             if (!hasSeenAnim && timer >= duration)
             {
-                body.MainStateMachine.ChangeState(new GroundedState(body));
+                body.EnterGrounded("parried: fallback duration reached");
             }
         }
 

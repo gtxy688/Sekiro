@@ -130,10 +130,10 @@ namespace ARPG.Combat
             victim.DisableWeaponHit();
             CombatEventBus.TriggerFinisherOpportunityChanged(victim, false);
 
-            victim.MainStateMachine.ChangeState(
-                new GroundedState(victim, new FinisherVictimState(victim, bossAnim)));
-            initiator.MainStateMachine.ChangeState(
-                new GroundedState(initiator, new FinisherState(initiator, victim, playerAnim)));
+            victim.EnterGrounded(new FinisherVictimState(victim, bossAnim),
+                "duel: finisher victim");
+            initiator.EnterGrounded(new FinisherState(initiator, victim, playerAnim),
+                "duel: finisher initiator");
 
             CombatEventBus.TriggerFinisherStarted(
                 victim.transform.position, initiator, victim, kind);
@@ -246,9 +246,9 @@ namespace ARPG.Combat
             }
 
             if (victim != null && victim.LivesRemaining > 0)
-                victim.MainStateMachine.ChangeState(new GroundedState(victim));
+                victim.EnterGrounded("duel: finisher sequence complete");
 
-            player.MainStateMachine.ChangeState(new GroundedState(player));
+            player.EnterGrounded("duel: finisher sequence complete");
         }
 
         // ===== Elbow 投技 =====
@@ -287,10 +287,10 @@ namespace ARPG.Combat
             attacker.IsFinisherLocked = true;
             victim.IsFinisherLocked = true;
 
-            attacker.MainStateMachine.ChangeState(
-                new GroundedState(attacker, new GrabThrowState(attacker)));
-            victim.MainStateMachine.ChangeState(
-                new GroundedState(victim, new GrabThrowState(victim)));
+            attacker.EnterGrounded(new GrabThrowState(attacker),
+                "duel: grab throw attacker");
+            victim.EnterGrounded(new GrabThrowState(victim),
+                "duel: grab throw victim");
 
             CombatEventBus.TriggerCameraShake(0.45f);
             return true;
@@ -319,12 +319,12 @@ namespace ARPG.Combat
             if (attacker != null)
             {
                 attacker.IsFinisherLocked = false;
-                attacker.MainStateMachine.ChangeState(new GroundedState(attacker));
+                attacker.EnterGrounded("duel: grab throw complete");
             }
             if (victim != null && victim.CurrentHP > 0)
             {
                 victim.IsFinisherLocked = false;
-                victim.MainStateMachine.ChangeState(new GroundedState(victim));
+                victim.EnterGrounded("duel: grab throw complete");
             }
         }
 

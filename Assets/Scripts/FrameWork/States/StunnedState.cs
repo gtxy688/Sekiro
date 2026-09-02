@@ -43,8 +43,8 @@ namespace ARPG.FrameWork.States
                 if (ground != null && ground.CanDodgeCancel)
                 {
                     body.IsKnockedDown = false;
-                    body.MainStateMachine.ChangeState(
-                        new GroundedState(body, new DodgeState(body, null)));
+                    body.EnterGrounded(new DodgeState(body, null),
+                        "stunned: dodge cancel opened");
                     return true;
                 }
                 // 后摇未到：不消耗，留缓冲重试（对齐 StaggerBroken / MidToGuard）
@@ -54,14 +54,14 @@ namespace ARPG.FrameWork.States
             {
                 if (ground != null && ground.CanMidToGuard)
                 {
-                    body.MainStateMachine.ChangeState(
-                        new GroundedState(body, new MidToGuardState(body)));
+                    body.EnterGrounded(new MidToGuardState(body),
+                        "stunned: mid to guard cancel");
                     return true;
                 }
                 if (ground != null && ground.CanLightGuardCancel)
                 {
-                    body.MainStateMachine.ChangeState(
-                        new GroundedState(body, new DeflectState(body, null)));
+                    body.EnterGrounded(new DeflectState(body, null),
+                        "stunned: light guard cancel");
                     return true;
                 }
             }

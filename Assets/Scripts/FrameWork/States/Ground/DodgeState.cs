@@ -67,7 +67,7 @@ namespace ARPG.FrameWork.States.Ground
             {
                 if (parent == null)
                 {
-                    body.MainStateMachine.ChangeState(new GroundedState(body));
+                    body.EnterGrounded("dodge: finished without parent");
                     return;
                 }
                 if (body.MoveDirection.sqrMagnitude > 0.01f)

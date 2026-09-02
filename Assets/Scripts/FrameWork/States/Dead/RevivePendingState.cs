@@ -45,7 +45,7 @@ namespace ARPG.FrameWork.States.Dead
                 if (reviveTimer >= reviveDuration)
                 {
                     body.SetReviving(false);
-                    body.MainStateMachine.ChangeState(new GroundedState(body));
+                    body.EnterGrounded("revive: animation finished");
                 }
                 return;
             }
@@ -103,7 +103,7 @@ namespace ARPG.FrameWork.States.Dead
         private void GiveUp()
         {
             CombatEventBus.TriggerDeath(body);
-            body.MainStateMachine.ChangeState(new DeadState(body, false, alreadyDowned: true));
+            body.EnterDead(false, alreadyDowned: true, reason: "revive: give up");
         }
 
         private bool IsFallFinished()

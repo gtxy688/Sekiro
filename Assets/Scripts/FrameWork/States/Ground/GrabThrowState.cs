@@ -87,7 +87,7 @@ namespace ARPG.FrameWork.States.Ground
             if (CombatManager.Instance != null)
                 CombatManager.Instance.CompleteGrabThrow(body);
             else
-                body.MainStateMachine.ChangeState(new GroundedState(body));
+                body.EnterGrounded("grab throw: director missing fallback");
         }
 
         public override bool HandleCommand(ICommand cmd)

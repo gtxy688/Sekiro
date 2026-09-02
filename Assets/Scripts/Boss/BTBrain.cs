@@ -326,7 +326,9 @@ namespace ARPG.Boss
         private void BeginReviveBackoff()
         {
             // 走 CharacterBody 统一 API：地面态换子状态，非地面态重建地面父状态（禁止直接判顶层类型）
-            body.ForceChangeGroundedSubState(g => new BossReviveBackoffState(body, g));
+            body.ForceChangeGroundedSubState(
+                g => new BossReviveBackoffState(body, g),
+                "boss: revive backoff");
         }
 
         private bool IsInReviveBackoff()

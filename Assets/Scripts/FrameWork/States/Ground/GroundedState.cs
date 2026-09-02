@@ -37,7 +37,7 @@ namespace ARPG.FrameWork.States.Ground
             // 被弹开硬直（含 Deflected_Boat）不能因根运动短暂离地被切走。
             if (!body.IsGrounded && !body.IsPostureBroken && !body.IsParried && !body.IsFinisherLocked && body.UsesAirState)
             {
-                body.MainStateMachine.ChangeState(new AirState(body));
+                body.EnterAirborne("grounded: left ground");
                 return;
             }
 
@@ -88,7 +88,7 @@ namespace ARPG.FrameWork.States.Ground
                 }
 
                 body.QueueJump();
-                body.MainStateMachine.ChangeState(new AirState(body));
+                body.EnterAirborne("command: jump");
                 return true;
             }
 
