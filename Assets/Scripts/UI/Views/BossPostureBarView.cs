@@ -37,6 +37,18 @@ namespace ARPG.UI
             if (zeroTimer <= 0f) HideBar();
         }
 
+        // 连战：新 Boss 开局必须是"从没涨过架势"的状态。
+        //
+        // everHadPosture 不清 → 上一场打满过架势，新 Boss 一上来条就常驻挂在屏幕顶部；
+        // zeroTimer 不清 → 切场瞬间可能残留一个倒计时，条平白淡出一次。
+        // 这两个字段都是"上一场的历史"，不属于任何角色，Controller 推值时推不到。
+        public override void ResetForEncounter()
+        {
+            everHadPosture = false;
+            zeroTimer = 0f;
+            HideBar();
+        }
+
         public void SetPosture(float ratio)
         {
             ratio = Mathf.Clamp01(ratio);

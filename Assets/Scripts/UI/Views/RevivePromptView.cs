@@ -53,6 +53,16 @@ namespace ARPG.UI
             SetPlayerInput(input);
         }
 
+        // 倒地提示是"一段流程的中间态"：只由「回生成功」或「真死」收尾。
+        // 连战切场两条都不走，不主动收尾的话上一场的「死」字和选项会挂在新一场画面上，
+        // 而且光标还被 PushUi 占着，玩家动不了鼠标。
+        //
+        // HidePrompt 里重复 PopUi 是安全的：CursorController 的计数有 >0 保护。
+        public override void ResetForEncounter()
+        {
+            HidePrompt();
+        }
+
         // 倒地开始：只铺暗红压暗，不显示「死」和选项
         public void BeginDeathFade(PlayerInput input = null)
         {

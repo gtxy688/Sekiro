@@ -57,6 +57,27 @@ namespace ARPG.Audio
             PlaceAbovePlayerPosture();
         }
 
+        // 复战 / 连战切场：台词是一场之内的演出，跨场不能留。
+        //
+        // 刻意不动 IsOpeningHold。它是"组件刚 Awake、开场词还没播完"的一次性锁，
+        // BTBrain 读它来决定 Boss 几时出手。连战不重建组件，Awake 不会再跑一次，
+        // 若在这里把它设回 true、而流程层新一场又没播开场词，Boss 就永远不出手——
+        // 表现是"AI 卡死"，实际是 UI 重置越了界。这种错极难定位，宁可让它保持松开。
+        public void ResetForEncounter()
+        {
+            if (playing != null)
+            {
+                StopCoroutine(playing);
+                playing = null;
+            }
+            if (source != null)
+                source.Stop();
+
+            // 倒地台词"这场已经念过了"的标志；不清的话新一场真死时会被判定为已播而静音
+            playerDownLinePlayed = false;
+            view?.ResetForEncounter();
+        }
+
         private void Awake()
         {
             Instance = this;

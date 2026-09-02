@@ -24,6 +24,15 @@ namespace ARPG.UI
             }
         }
 
+        // 连战：真死面板必须在切场时收掉。
+        // 走 Hide 而不是直接 SetActive(false)，是为了让 OnDisable 里的 PopUi 配平
+        // ShowGameOver 时 Push 的那一次——直接关物体同样会触发 OnDisable，
+        // 但显式写在这里，读者不必去翻 Unity 的生命周期才知道光标是谁放开的。
+        public override void ResetForEncounter()
+        {
+            Hide();
+        }
+
         public void ShowGameOver()
         {
             CursorController.PushUi();

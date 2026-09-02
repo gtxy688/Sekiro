@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -36,11 +37,21 @@ namespace ARPG.UI
         [SerializeField] private GameOverView gameOverView;             // 死亡提示（M14）
         [SerializeField] private VictoryView victoryView;               // 胜利提示（M10）
 
+        // 台词不归 Controller 管：VoiceLineView 是 BossVoiceDirector 的私有引用，
+        // 这里再持一份就变成两个组件抢同一个 View，改哪边都会觉得另一边是脏的。
+        private BossVoiceDirector voiceDirector;
+
+        // 连战重置要遍历的 View。手工登记而不是 GetComponentsInChildren，
+        // 是因为锁定点被搬到世界空间、三个汉字挂在各自的物体下，
+        // 它们根本不在本 Controller 的子层级里，靠层级查找一个都捞不着。
+        private readonly List<UIView> managedViews = new List<UIView>();
+
         private void Awake()
         {
             // 旧 HUD 没挂组件也能播台词，不必手改预制体
-            if (GetComponent<BossVoiceDirector>() == null)
-                gameObject.AddComponent<BossVoiceDirector>();
+            voiceDirector = GetComponent<BossVoiceDirector>();
+            if (voiceDirector == null)
+                voiceDirector = gameObject.AddComponent<BossVoiceDirector>();
         }
 
         // ===== 生命周期：订阅 / 取消订阅 =====
@@ -86,16 +97,19 @@ namespace ARPG.UI
             playerPostureBarView?.OnViewInit();
             playerStatusView?.OnViewInit();
             itemSlotView?.OnViewInit();
-            BindLockOnView();
-            BindPerilousView();
-            BindHealKanjiView();
-            BindReviveKanjiView();
+            BindFollowView(ref lockOnIndicatorView, "LockOnIndicator", bossBody);
+            BindFollowView(ref perilousWarningView, "PerilousWarning", playerBody);
+            BindFollowView(ref healKanjiView, "HealKanji", playerBody);
+            BindFollowView(ref reviveKanjiView, "ReviveKanji", playerBody);
             revivePromptView?.OnViewInit();
             gameOverView?.OnViewInit();
             victoryView?.OnViewInit();
 
-            BossVoiceDirector voice = GetComponent<BossVoiceDirector>();
-            voice?.Bind(playerBody, bossBody, playerPostureBarView != null ? playerPostureBarView.transform as RectTransform : null);
+            // 登记放在所有 Bind 之后：Bind 可能刚把场景里找回来的 View 填进字段，
+            // 先登记就会漏掉这些"迟到"的引用。
+            CollectManagedViews();
+
+            voiceDirector?.Bind(playerBody, bossBody, playerPostureBarView != null ? playerPostureBarView.transform as RectTransform : null);
 
             // 初始状态（Awake 里 InitCombat 不会发事件，这里把当前数值推到条上，否则开局血条/葫芦是空的）
             bossStatusView?.SetName("苇名弦一郎");
@@ -152,10 +166,19 @@ namespace ARPG.UI
         // 那时 body 上的还是上一场的残值。Config 是序列化 SO，整局不变，读它没有顺序依赖。
         public void ResetForEncounter()
         {
-            revivePromptView?.HidePrompt();
-            revivePromptView?.Hide();
-            gameOverView?.Hide();
-            victoryView?.Hide();
+            // 分两步，职责不同：
+            //   第一步让每个 View 清掉自己的临时状态（tween、倒计时、跟随目标、一次性标志）。
+            //   第二步由本方法把战斗初始值推一遍。
+            //
+            // 这两类东西不能混：View 清的是"上一场的历史"，没有外部数据源，只能自己清；
+            // 而这里推的值必须从 Config 读——各组件复位顺序未定义，
+            // 读 body 的当前值可能读到还没复位的残值。
+            for (int i = 0; i < managedViews.Count; i++)
+            {
+                if (managedViews[i] == null) continue;
+                managedViews[i].ResetForEncounter();
+            }
+            voiceDirector?.ResetForEncounter();
 
             CombatInputGate.SetBlocked(false);
             lockOnIndicatorView?.SetFinisherReady(false);
@@ -175,6 +198,68 @@ namespace ARPG.UI
             }
             if (bossBody != null)
                 bossStatusView?.SetLifeDots(bossBody.Config != null ? bossBody.Config.LifeCount : 2);
+
+            // 锁定点在 View 自己的 Reset 里清掉了跟随目标，这里按当前 bossBody 重新钉上。
+            // 放在数值推送之后，保证连战换 Boss 时它钉的是新 Boss 而不是上一场那个。
+            if (lockOnIndicatorView != null)
+                lockOnIndicatorView.BindFollowTarget(bossBody);
+        }
+
+        // 登记所有托管的 View。新增 View 时在这里加一行——
+        // 这是唯一需要同步的地方，比让每个 View 各自去 EncounterScope 注册容易核对得多。
+        private void CollectManagedViews()
+        {
+            managedViews.Clear();
+            AddManaged(bossStatusView);
+            AddManaged(bossPostureBarView);
+            AddManaged(playerPostureBarView);
+            AddManaged(playerStatusView);
+            AddManaged(itemSlotView);
+            AddManaged(lockOnIndicatorView);
+            AddManaged(perilousWarningView);
+            AddManaged(healKanjiView);
+            AddManaged(reviveKanjiView);
+            AddManaged(revivePromptView);
+            AddManaged(gameOverView);
+            AddManaged(victoryView);
+        }
+
+        private void AddManaged(UIView view)
+        {
+            if (view == null) return;
+            if (managedViews.Contains(view)) return;
+            managedViews.Add(view);
+        }
+
+        // 连战接缝：换 Boss / 换玩家时由流程层调用。当前无人调用。
+        //
+        // 为什么现在就留：HandleHPChanged 这一串判断全靠 `c == bossBody` 比对身份。
+        // 连战不重载场景，bossBody 这个序列化引用不会自己指向新 Boss；
+        // 引用不更新 = 新 Boss 的所有事件被静默丢弃，血条一动不动且不报错。
+        // 这类"不报错的静默失效"正是连战最难查的一类，入口提前留在这，
+        // 流程层接进来时不必再翻一遍本类的字段去猜该改哪几处。
+        public void Rebind(CharacterBody player, CharacterBody boss)
+        {
+            if (player != null) playerBody = player;
+            if (boss != null) bossBody = boss;
+
+            if (bossBody != null)
+                BindFollowView(ref lockOnIndicatorView, "LockOnIndicator", bossBody);
+            if (playerBody != null)
+            {
+                BindFollowView(ref perilousWarningView, "PerilousWarning", playerBody);
+                BindFollowView(ref healKanjiView, "HealKanji", playerBody);
+                BindFollowView(ref reviveKanjiView, "ReviveKanji", playerBody);
+            }
+            CollectManagedViews();
+        }
+
+        // Boss 名没有数据源：CharacterConfig 里没有任何名字字段，
+        // 所以连战换 Boss 时由流程层自己传。这里不臆造 config.BossName——
+        // 名字该挂在哪（Config / Boss 定义 SO / 流程层写死）是连战设计时才说得清的事。
+        public void SetBossName(string name)
+        {
+            bossStatusView?.SetName(name);
         }
 
         // ===== 事件处理 =====
@@ -232,7 +317,7 @@ namespace ARPG.UI
             if (c != playerBody) return;
             itemSlotView?.SetGourdCount(remaining);
             if (healKanjiView == null)
-                BindHealKanjiView();
+                BindFollowView(ref healKanjiView, "HealKanji", playerBody);
             healKanjiView?.BindFollowTarget(playerBody);
             healKanjiView?.ShowHeal();
         }
@@ -260,7 +345,7 @@ namespace ARPG.UI
                 revivePromptView?.HidePrompt();
                 playerStatusView?.SetReviveDots(playerBody.ReviveRemaining);
                 if (reviveKanjiView == null)
-                    BindReviveKanjiView();
+                    BindFollowView(ref reviveKanjiView, "ReviveKanji", playerBody);
                 reviveKanjiView?.BindFollowTarget(playerBody);
                 reviveKanjiView?.ShowRevive();
             }
@@ -317,130 +402,54 @@ namespace ARPG.UI
         private void HandlePerilousAttack(PerilousType type)
         {
             if (perilousWarningView == null)
-                BindPerilousView();
+                BindFollowView(ref perilousWarningView, "PerilousWarning", playerBody);
             perilousWarningView?.BindFollowTarget(playerBody);
-            perilousWarningView?.ShowWarning(type);
+            perilousWarningView?.ShowWarning();
         }
 
         private void HandleLockOnChanged(bool isLocked)
         {
             if (lockOnIndicatorView == null)
-                BindLockOnView();
+                BindFollowView(ref lockOnIndicatorView, "LockOnIndicator", bossBody);
             lockOnIndicatorView?.SetLocked(isLocked);
         }
 
-        // 场景里引用常被清空/脚本被关掉，运行时自己找并打开
-        private void BindLockOnView()
+        // 场景里引用常被清空（脚本被关掉、Prefab 覆盖丢失、合并场景丢引用），
+        // 所以跟随型 View 都要能在事件首次到达时自己找回来并打开。
+        //
+        // 这四个 Bind 方法原本逐行相同，只差类型名与物体名。
+        // 公共上界刻意用 IFollowTargetView 而不是 UIView：UIView 太宽，
+        // 传进来一个不跟随的 View（比如血条）编译器也只会默许，
+        // 到运行时才发现它根本没有 BindFollowTarget。
+        private void BindFollowView<T>(ref T view, string objectName, CharacterBody target)
+            where T : UIView, IFollowTargetView
         {
-            if (lockOnIndicatorView == null)
+            if (view == null)
             {
-                GameObject named = GameObject.Find("LockOnIndicator");
+                GameObject named = GameObject.Find(objectName);
                 if (named != null)
-                    lockOnIndicatorView = named.GetComponent<LockOnIndicatorView>();
+                    view = named.GetComponent<T>();
             }
 
-            if (lockOnIndicatorView == null)
+            if (view == null)
             {
-                LockOnIndicatorView[] views = FindObjectsOfType<LockOnIndicatorView>(true);
-                for (int i = 0; i < views.Length; i++)
+                T[] found = FindObjectsOfType<T>(true);
+                for (int i = 0; i < found.Length; i++)
                 {
-                    if (views[i] != null && views[i].gameObject.scene.IsValid())
+                    // 只认场景里的实例，跳过 Prefab 资源里那份
+                    if (found[i] != null && found[i].gameObject.scene.IsValid())
                     {
-                        lockOnIndicatorView = views[i];
+                        view = found[i];
                         break;
                     }
                 }
             }
 
-            if (lockOnIndicatorView == null) return;
-            lockOnIndicatorView.enabled = true;
-            lockOnIndicatorView.gameObject.SetActive(true);
-            lockOnIndicatorView.BindFollowTarget(bossBody);
-            lockOnIndicatorView.OnViewInit();
-        }
-
-        private void BindPerilousView()
-        {
-            if (perilousWarningView == null)
-            {
-                GameObject named = GameObject.Find("PerilousWarning");
-                if (named != null)
-                    perilousWarningView = named.GetComponent<PerilousWarningView>();
-            }
-
-            if (perilousWarningView == null)
-            {
-                PerilousWarningView[] views = FindObjectsOfType<PerilousWarningView>(true);
-                for (int i = 0; i < views.Length; i++)
-                {
-                    if (views[i] != null && views[i].gameObject.scene.IsValid())
-                    {
-                        perilousWarningView = views[i];
-                        break;
-                    }
-                }
-            }
-
-            if (perilousWarningView == null) return;
-            perilousWarningView.enabled = true;
-            perilousWarningView.BindFollowTarget(playerBody);
-            perilousWarningView.OnViewInit();
-        }
-
-        private void BindHealKanjiView()
-        {
-            if (healKanjiView == null)
-            {
-                GameObject named = GameObject.Find("HealKanji");
-                if (named != null)
-                    healKanjiView = named.GetComponent<HealKanjiView>();
-            }
-
-            if (healKanjiView == null)
-            {
-                HealKanjiView[] views = FindObjectsOfType<HealKanjiView>(true);
-                for (int i = 0; i < views.Length; i++)
-                {
-                    if (views[i] != null && views[i].gameObject.scene.IsValid())
-                    {
-                        healKanjiView = views[i];
-                        break;
-                    }
-                }
-            }
-
-            if (healKanjiView == null) return;
-            healKanjiView.enabled = true;
-            healKanjiView.BindFollowTarget(playerBody);
-            healKanjiView.OnViewInit();
-        }
-
-        private void BindReviveKanjiView()
-        {
-            if (reviveKanjiView == null)
-            {
-                GameObject named = GameObject.Find("ReviveKanji");
-                if (named != null)
-                    reviveKanjiView = named.GetComponent<ReviveKanjiView>();
-            }
-
-            if (reviveKanjiView == null)
-            {
-                ReviveKanjiView[] views = FindObjectsOfType<ReviveKanjiView>(true);
-                for (int i = 0; i < views.Length; i++)
-                {
-                    if (views[i] != null && views[i].gameObject.scene.IsValid())
-                    {
-                        reviveKanjiView = views[i];
-                        break;
-                    }
-                }
-            }
-
-            if (reviveKanjiView == null) return;
-            reviveKanjiView.enabled = true;
-            reviveKanjiView.BindFollowTarget(playerBody);
-            reviveKanjiView.OnViewInit();
+            if (view == null) return;
+            view.enabled = true;
+            view.gameObject.SetActive(true);
+            view.BindFollowTarget(target);
+            view.OnViewInit();
         }
     }
 

@@ -9,7 +9,7 @@ namespace ARPG.UI
 
     // 世界空间锁定点：钉在 Spine1 上，Overlay 相机画在最前，不被模型挡住
     [ExecuteAlways]
-    public class LockOnIndicatorView : UIView
+    public class LockOnIndicatorView : UIView, IFollowTargetView
     {
         private const string MarkerLayerName = "LockOnMarker";
         private const float WorldScale = 0.01f;
@@ -45,6 +45,20 @@ namespace ARPG.UI
                 AutoBindFollowTarget();
                 Refresh();
             }
+        }
+
+        // 连战换 Boss 必须清目标。
+        //
+        // AutoBindFollowTarget 的开头是 `if (followTarget != null) return;`——
+        // 平时的语义是对的（绑上了就别乱换），但连战时旧 Boss 已随上一场销毁或停用，
+        // 不清就会让锁定点一直钉在一根已销毁的骨头上：位置卡死在原地，且没有任何报错。
+        // 清掉之后，LateUpdate 会重新走自动兜底；Controller 那边也会立刻重绑新 Boss。
+        public override void ResetForEncounter()
+        {
+            followTarget = null;
+            isLocked = false;
+            isFinisherReady = false;
+            Refresh();
         }
 
         public void BindFollowTarget(CharacterBody boss)
