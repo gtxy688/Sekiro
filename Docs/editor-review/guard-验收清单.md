@@ -18,6 +18,10 @@
 | `AttackSlashBuilder.cs` / `DeflectSparkBuilder.cs` | 修改 | 删除死常量 `SekiroFx` |
 | `ClipRenamer.cs` | 修改 | 删空 for 循环；修正与实现不符的注释 |
 | `AttackTimelineWindow.cs` / `BossMoveDamageWindow.cs` | 修改 | 编辑目标字段加 `[SerializeField]` |
+| 8 个一次性脚本 | **删除** | `CombatHUDBuilder` `DeflectSparkBuilder` `LockOnCameraBuilder` `AttackSlashBuilder` 三个 KanjiBuilder `KanjiTexUtil`（KanjiTexUtil 被三个 KanjiBuilder 独占引用，跟着删），共 2236 行 |
+| `Assets/Editor/InPlaceClipGenerator.cs` | **删除** | 115 行。每加一个新动画都跑一次的工序工具，**用户最新指令**删了 |
+| `Assets/Editor/ClipRenamer.cs` | **删除** | 65 行。工序工具，**用户最新指令**删了 |
+| `Assets/Editor/BatchRootTransformSettings.cs` | **恢复** | 92 行。从 HEAD 恢复（之前我误判为冗余删了，用户最新指令**保留**） |
 
 ---
 
@@ -132,6 +136,58 @@
 | `ClipRenamer.cs` | 删空 for 循环；头部注释改为「只有第一个改成 fbx 名，其余保留原名」 | `Tools/动画/Clip 重命名为 fbx 文件名` 行为不变 |
 
 **背景**：`Assets/Sekiro/` 目录**根本不存在**（只有拼错的 `Assets/Sekrio/`），所以那个"正确拼写 fallback"天然失效——它跟 `SekrioFx` 是同一个值，等于没写。已加注释防止后人再补。
+
+---
+
+## 第 5 项：代码清理（全删，无归档）
+
+### 5.1 先确认编译过了
+
+回 Unity 等编译完成。**预期**：Console **无红色错误**。
+
+报错了就把信息发我。
+
+### 5.2 菜单项核对
+
+**9 个生成式菜单**（用户 11:15 截图）**全部消失**：
+
+| 菜单 | 预期 |
+|------|------|
+| `Tools/战斗/生成战斗 HUD` | **消失** |
+| `Tools/战斗/生成 SettingPanel` | **消失** |
+| `Tools/战斗/整理 CombatCanvas 面板` | **消失** |
+| `Tools/战斗/预览全部 UI` / `预览暂停菜单` | **消失** |
+| `Tools/战斗/同步回生倒地屏到场景` | **消失** |
+| `Tools/战斗/生成危字特效` / `生成治愈特效` / `生成回生特效` | **消失** |
+| `Tools/战斗/生成战斗相机` / `生成锁定相机` | **消失** |
+| `Tools/战斗/生成挥刀刀光` / `生成格挡火花` | **消失** |
+
+**3 个动画类菜单**（用户 11:23 最新指令：只保留批量设置）：
+
+| 菜单 | 预期 | 对应脚本 |
+|------|------|---------|
+| `Tools/动画/批量设置 Root Transform` | **还在** | `BatchRootTransformSettings`（已从 HEAD 恢复） |
+| `Tools/动画/Clip 重命名为 fbx 文件名` | **消失** | `ClipRenamer`（删了） |
+| `Tools/动画/生成原地版动画（剔除根骨骼曲线）` | **消失** | `InPlaceClipGenerator`（删了） |
+
+### 5.3 目录核对
+
+`Assets/Editor/` 下应有 **13 个 .cs**（**没有** `Archive/` 子目录）。
+
+主目录 13 个应该是：
+
+- Guard 四件套：`ArpgValidationRules` `ArpgValidatorWindow` `ArpgBuildValidator` `ArpgModelImportEnforcer`
+- 时间轴四件套：`AttackTimelineWindow` `AttackTimelinePreview` `AttackTimelineClipFinder` `AttackTimelinePrefs`
+- 动画工具：`BatchRootTransformSettings`（11:23 恢复）
+- 其余：`BossMoveDamageWindow` `BossMoveTableEditor` `AttackConfigEditor` `GenichiroMoveCatalogExporter`
+
+### ⚠️ 5.4 meta 后遗症（这次事故留下的）
+
+清理过程中 `Assets/Editor/` 被整个清空过一次，靠 `git checkout` 恢复。**但 `.meta` 不在版本控制里**（`.gitignore` 第 70 行 `*.meta`），恢复不了，得靠 Unity 重新生成。
+
+Editor 脚本不挂 prefab，meta 重建**基本无害**。但请顺手扫一眼 Console，确认没有出现 `The referenced script is missing` 之类的警告。
+
+**这条建议单独处理一次**：整个项目的 `.meta` 都没入库，等于项目完全依赖本机磁盘状态。把 `.gitignore` 第 70 行的 `*.meta` 删掉、`git add` 一次即可，成本极低。
 
 ---
 

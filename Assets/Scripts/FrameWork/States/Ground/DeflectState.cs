@@ -427,7 +427,7 @@ namespace ARPG.FrameWork.States.Ground
                 CombatFxPoint.ForDeflect(hit.attacker, body, hit.hitPoint, hit.isProjectile),
                 DeflectType.Perfect);
             CombatEventBus.TriggerCameraShake(0.3f);
-            CombatManager.Instance?.HitStop();
+            TimeScaleController.HitStop();
             body.MarkCombatTime();
 
             // 重箭弹反：弹开箭矢威力太大，玩家会借力后滑，镜头跟随下压后拉（普通近战弹反不动）
@@ -491,7 +491,7 @@ namespace ARPG.FrameWork.States.Ground
                 CombatFxPoint.ForDeflect(attacker, body, hit.hitPoint, hit.isProjectile),
                 DeflectType.Perfect);
             CombatEventBus.TriggerCameraShake(0.3f);
-            CombatManager.Instance?.HitStop();
+            TimeScaleController.HitStop();
             body.MarkCombatTime();
 
             if (HitReactionUtil.IsPlayer(body) && attacker != null && !hit.isProjectile)

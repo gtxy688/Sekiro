@@ -35,9 +35,11 @@ namespace ARPG.Combat
 
         private PairedPerformance active;
 
-        // 本场战斗的参与者，由外部注入（CombatManager 门面或复战流程层）。
-        // DuelDirector 自己不认识"玩家"这个概念——谁有资格处决谁，由注入者决定。
-        private CharacterBody playerRef;
+        // 本场战斗的对手，由外部注入（CombatManager 门面或复战流程层）。
+        // 只作为「找谁可以被处决」的回退路径；首选路径是 EncounterScope.Opponents。
+        //
+        // 这里刻意不保存玩家引用：一旦存了，判断「谁能发起处决」就会退化成
+        // `initiator == playerRef` 这种对象身份比较——那等于把游戏规则焊死在具体实例上。
         private CharacterBody bossRef;
 
         // 注册进本场战斗的重置清单：复战时 EncounterScope.ResetAll() 才能丢掉残留演出。
@@ -52,10 +54,9 @@ namespace ARPG.Combat
                 EncounterScope.Current.Unregister(this);
         }
 
-        // 注入参与者。复战换 Boss / 连战切场时重新调一次即可，不用动编排逻辑。
-        public void Configure(CharacterBody player, CharacterBody boss)
+        // 注入本场对手。复战换 Boss / 连战切场时重新调一次即可，不用动编排逻辑。
+        public void Configure(CharacterBody boss)
         {
-            playerRef = player;
             bossRef = boss;
         }
 
@@ -69,13 +70,27 @@ namespace ARPG.Combat
             active = null;
         }
 
+        // 处决资格。当前规则：只有玩家阵营能发起。
+        //
+        // 为什么单独提出来、而不是内联成一条 if：
+        // 旧代码写的是 `if (initiator != playerRef)`——拿对象引用当规则使。
+        // 那等于「判断这是不是班长，靠看这是不是张三本人」。后果是加第二个敌人、
+        // 想让杂兵也能处决，都得回来改这条分支。改成查阵营字段后这两种场景自动成立。
+        //
+        // ⚠️ 已知边界：Boss 反杀（敌对阵营发起处决）这条规则表达不了。
+        // 真要做时，这里的判断要从「查发起者资格」换成「查一对关系」——
+        // 例如在 CharacterConfig 上加「能否发起处决」开关，按角色配置而不是按阵营。
+        // 那属于新增需求，不是重构，别提前做。
+        private static bool CanInitiateFinisher(CharacterBody initiator)
+        {
+            return HitReactionUtil.IsPlayer(initiator);
+        }
+
         // ===== 成对忍杀（M10）=====
-        // 正向身份断言：只有被配置的玩家能发起，禁止自处决。
         public bool TryExecuteFinisher(CharacterBody initiator, FinisherKind kind = FinisherKind.Ground)
         {
-            if (playerRef == null || initiator == null) return false;
-            if (initiator != playerRef) return false;
-            if (initiator == bossRef) return false;
+            if (initiator == null) return false;
+            if (!CanInitiateFinisher(initiator)) return false;
             if (initiator.IsPostureBroken) return false;
             if (active != null) return false;
 

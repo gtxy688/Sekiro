@@ -14,7 +14,8 @@ namespace ARPG.Combat
     // 所以多 Boss / 复战对它没有任何影响，一行都不用改。
     //
     // 明确不做：不触发顿帧。顿帧改的是全局 Time.timeScale，属于时间表现层，
-    // 结算器不该有这个权力（详见 CombatManager.HitStop 上的注释）。
+    // 结算器不该有这个权力。现在顿帧由 TimeScaleController 独占执行，
+    // 连 CombatManager 都只剩"申报"权，这里更不该碰。
     public class CombatResolver : MonoBehaviour
     {
         public static CombatResolver Instance { get; private set; }

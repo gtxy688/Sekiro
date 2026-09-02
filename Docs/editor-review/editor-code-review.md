@@ -23,6 +23,7 @@
 | P1-1~6 | 规范与性能 | ❌ 全部未修 |
 | P2-1~3 | 可选改进 | ❌ 全部未修 |
 | 死代码 ×3 | `SekiroFx` 死常量、空 for 循环、注释与实现不符 | ✅ **已修** |
+| 清理 | 一次性 Builder 归档 + 冗余工具删除 | ✅ **已做** — 见第七节 |
 
 **关于 P0-4 只修了一半**：完整重构（合并三个 Builder）**没做，也不该做**——它们是一次性脚本，已跑完、产物已固化为 prefab，重构零收益还担着把 prefab 搞坏的风险。
 但**修 `isReadable` 必须同时改三个文件里的同一段代码**，不改一处漏两处是迟早的事，所以把重复最狠的两个方法（`PrepareTexture` / `BakeLuminanceMaskPng`）抽成了 `KanjiTexUtil`。三个 Builder 剩下的重复（`CreateMat` / `CreateQuad` / `PlaceInScene`）**原样留着**。
@@ -120,7 +121,7 @@
 
 | # | 问题 | 说明 |
 |---|------|------|
-| 1 | `GenichiroMoveCatalog` 双真值源 | SO 是权威数据又导出成硬编码 C#，`Apply()` 会覆盖手调数值。`BossMoveTableEditor` 已挂 Warning HelpBox 说明作者意识到了，根本解法是砍掉 C# 那份 |
+| 1 | `GenichiroMoveCatalog` 双真值源 | **⚠️ 原判断已修正，见第七节**。运行时只读 SO，Catalog 在运行时**零调用点**，不构成双真值源。原建议「砍掉 C# 那份」**作废**——它是招式表的唯一备份 |
 | 2 | `AttackConfigEditor` 只有 19 行 | 只放了跳转按钮，可加判定窗口可视化条、时序校验、动画名校验 |
 | 3 | Builder 未防 Play 模式 | `AttackSlashBuilder` / `DeflectSparkBuilder` 在 Play 模式下跑，退出后一切消失，用户以为配好了 |
 
@@ -146,3 +147,70 @@
 1. **验收尚未完成** —— 见 `guard-验收清单.md`。代码已编译通过（小金反馈"没报错"），但体检菜单是否出现、窗口行为是否正确，未确认。
 2. **P1/P2 全部未动** —— 都是"不好看但不咬人"的类别。若继续做多 Boss，建议至少处理 P1-3（菜单入口混乱）和 P1-4（两 Window 间重复方法）。
 3. **编辑器模块在架构文档体系中仍无条目** —— `CLAUDE.md` 的文档加载指引表（01-07）没有编辑器项。目前编辑器规范写在 `CLAUDE.md` 的「代码规范 → 编辑器扩展」章节（6 条），是否要单开 `08-editor-tools.md` 待定。
+
+---
+
+## 七、编辑器代码清理（2026-09-02）
+
+### 做了什么
+
+| 动作 | 文件 | 行数 |
+|------|------|------|
+| **删除** | `CombatHUDBuilder` `DeflectSparkBuilder` `LockOnCameraBuilder` `AttackSlashBuilder` `ReviveKanjiBuilder` `HealKanjiBuilder` `PerilousKanjiBuilder` `KanjiTexUtil` | 2236 |
+| **删除** | `InPlaceClipGenerator` `ClipRenamer` | 180 |
+| **恢复** | `BatchRootTransformSettings` | 92（11:23 从 HEAD 恢复） |
+
+**为什么直接删而不是归档**：用户原话（11:15 截图）——「生成一遍就行了，留着干啥」。这 6 个生成式 Builder（产出 HUD/相机/特效 prefab 已固化）和 1 个被它们独占依赖的工具类 `KanjiTexUtil`，跑完就废，留着只会让人怀疑"是不是还得跑一次"。
+
+**为什么删 `InPlaceClipGenerator` / `ClipRenamer`**：用户 11:23 最新指令——三个动画类菜单「只保留批量设置」。这两个虽然在原 9 个生成式截图之外，但既然用户的判断标准是"工序工具也用不上几次"，就一起删了。**代价**：下次加新攻击动画，得手写原地 clip 处理流程（剔除 RootT/RootQ 根骨骼曲线）或重写工具。
+
+**为什么删 `KanjiTexUtil`**：grep 确认它的 5 处引用全在三个 KanjiBuilder 里。三个 KanjiBuilder 删了，它就成了孤儿工具类。
+
+**为什么恢复 `BatchRootTransformSettings`**：用户 11:23 明确指定「只保留批量设置」。我之前误判它为冗余（数值与 Enforcer 逐行一致），但用户实际期望**保留手动入口作为 Enforcer 的补充**——已改回 `ArpgModelImportEnforcer` 里两处引用它的注释。
+
+清理后：主目录 **13 个脚本 / 2951 行**（原 23 个 / 5367 行；删 9 个共 2416 行，恢复 1 个 92 行）。
+
+### 没删的，以及为什么
+
+| 文件 | 保留理由 |
+|------|---------|
+| `GenichiroMoveCatalogExporter`(459) + `GenichiroMoveCatalog`(299，运行时) | **招式表的唯一备份**，见下 |
+| `BatchRootTransformSettings`(92) | **11:23 用户最终指令保留**。手动入口作为 Enforcer 自动接管的补充，已恢复 |
+| Guard 四件套 + 两个 Window + 2 个 CustomEditor | 持续使用 |
+
+### ⚠️ 关键发现：`GenichiroMoveCatalog` 是招式表的唯一备份
+
+原 P2-1 把它判成「双真值源」，建议砍掉 C# 那份。**这个判断错了**，实证如下：
+
+```
+BossMoveTable.asset   ← 运行时唯一数据源（BT 节点全部引用它）
+   │
+   ├─(菜单 ARPG/Sync GenichiroMoveCatalog)──►  GenichiroMoveCatalog.cs（299 行硬编码快照）
+   │
+   └─(Inspector「填入弦一郎默认招式表」/ 新建 asset)◄── GenichiroMoveCatalog.Apply()
+```
+
+- 在 `Assets/Scripts/` 里 grep `GenichiroMoveCatalog`，**运行时零调用点**，只有 `BossMoveTableEditor` 在用
+- 所以它不是"第二份真值"，而是 **Editor 侧的默认值快照**
+- 而这份快照，是当前招式表**唯一的冗余副本**——`BossMoveTable.asset` 只有一份，没有别的备份
+
+那几十个小时一帧帧对出来的判定时间，全压在这一份 asset 上。删 Catalog = 拆掉保险。
+
+**建议动作**：跑一次 `ARPG/Sync GenichiroMoveCatalog from Move Table`，然后 `git diff`。如果 Catalog.cs 有变化，说明你后来调过的数值还没进备份。
+
+### 事故记录：文件系统三次清空（根因未查明）
+
+本次清理过程中文件反复被清空，是拖慢进度的主要原因：
+
+| 时间 | 现象 | 恢复方式 |
+|------|------|---------|
+| 09-01 18:50 | `Docs/` 整体消失 | 未跟踪文件，git 救不回来，三份文档全部重建 |
+| 09-02 09:46 | 3 个 Docs 文件消失 | 已跟踪，`git checkout HEAD --` 恢复 |
+| 09-02 09:52 | `Assets/Editor/` **整个目录**被清空 | 已跟踪，`git checkout HEAD --` 恢复 |
+
+**同期线索**：`.git/index.lock` 反复出现（有并发 git 进程）；我的 `git` 命令两次被 SIGTERM 中断，**每次中断后都紧跟着发生文件删除**。
+
+**两条硬结论**：
+
+1. **开工前先提交** —— 这次能 100% 恢复，全靠清理前那次「安全提交」。没有它，5367 行编辑器代码就没了。
+2. **`.gitignore` 第 70 行 `*.meta` 是错的** —— 整个项目的 `.meta` 都没入库。Unity 的引用全靠 `.meta` 里的 GUID，不入库意味着项目完全依赖本机磁盘状态。Editor 脚本的 meta 丢了影响小（不挂 prefab），但**贴图 / prefab / 场景 / 动画 clip 的 meta 一旦丢失或重建，引用会全崩**。建议把这条从 gitignore 删掉并提交一次。

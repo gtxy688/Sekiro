@@ -5,7 +5,11 @@ namespace ARPG.Mgr
 {
 
     // 全局暂停开关。菜单用未缩放时间，战斗靠 timeScale=0 冻结。
-    // 顿帧也会改 timeScale，结束时必须看这里，避免把暂停冲掉。
+    //
+    // 这里只负责记录「暂停状态」，不再自己写 Time.timeScale——
+    // 顿帧也在动同一个变量，两边各写一次必然互相冲掉（旧代码里顿帧结束时要回读 IsPaused
+    // 就是那条裂缝的证据）。现在统一由 TimeScaleController 唯一求值，
+    // 暂停优先级高于顿帧，谁先谁后都不会出错。
     public static class GamePause
     {
         public static bool IsPaused { get; private set; }
@@ -17,7 +21,7 @@ namespace ARPG.Mgr
             if (IsPaused == paused) return;
 
             IsPaused = paused;
-            Time.timeScale = paused ? 0f : 1f;
+            TimeScaleController.Refresh(); // 申报状态变化，由它决定最终 timeScale
             OnChanged?.Invoke(paused);
             CursorController.Refresh();
         }
