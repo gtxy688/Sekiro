@@ -1,0 +1,64 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e9815758365f6ab428173662293a47f6, type: 3}
+  m_Name: BossConfig
+  m_EditorClassIdentifier: 
+  MaxHP: 500
+  HealAmount: 300
+  MaxPosture: 100
+  PostureDecayRate: 5
+  PostureDecayDelay: 3
+  StunDuration: 0.5
+  KnockdownStunDuration: 1.2
+  HeavyStunDuration: 1.2
+  HurtAnim_Normal: Hurt_Ground
+  HurtAnim_Light2: Hurt_Light2
+  HurtAnim_Mid: Hurt_Mid
+  HurtAnim_Heavy: 
+  HurtAnim_HeavyRepeat: Hurt_HeavyRepeat
+  HurtAnim_Standing: Standing
+  HurtAnim_MidToGuard: MidToGuard
+  HurtAnim_Guard: Hurt_Guard
+  HurtAnim_GuardHeavy: Hurt_GuardHeavy
+  HurtAnim_Deflected: Deflected
+  HurtAnim_Broken: Stagger_Broken
+  HurtMidFallEndTime: 0.4
+  DeflectWindow: 0.3
+  DeflectPostureGain: 10
+  GuardPostureFactor: 0.5
+  ParriedDuration: 0.35
+  ParryCounterHitDelay: 0.5
+  DeflectMashLimit: 3
+  DeflectMashWindow: 0.5
+  DeflectMashPenalty: 0.75
+  DeflectWindowMin: 0.1
+  GuardPostureRecoveryMultiplier: 5
+  PostureDecayInverse: 1
+  LifeCount: 2
+  DodgeDuration: 0.5
+  DodgeIFrame: 0.3
+  MikiriDuration: 0.8
+  MikiriPostureGain: 30
+  RotationSpeed: 1200
+  UseAirState: 0
+  JumpSpeed: 0
+  SweepStompRadius: 0.6
+  SweepStompHeight: 1.2
+  JumpToJumpingNormalized: 0.55
+  SwitchJumpingAtApex: 1
+  LandEarlyHeight: 0.35
+  JumpAnimBlend: 0.08
+  LandAnimBlend: 0.05
+  AttackHoldDuration: 0.3
+  GourdCount: 0
+  ReviveCount: 1
+  HealPunishDelay: 0.5

@@ -115,3 +115,9 @@ grep 后 8 个调用点全在编辑器链路（`GenichiroMoveCatalog` / `Genichi
 
 数据现状：10 份 AttackConfig 已注入 `hitPulses = [{HitStartTime, RecoveryWindowStart}]`；
 招式表 41 段未动（25 段有 pulses、16 段 NoHit 跨度 0，新规则下行为一致）。
+
+**`AttackWindowSync` 命名不副实，但不要改。** 它实际干的是「判定规则守卫 +
+写入口 + 自洽修正」，主要体积是 `CoverDuration` 那条约束链
+（pulses.end → Recovery → ComboEnd → StateDuration → RotationEnd），
+跟「同步两套表示」无关——统一之后它依然 205 行，没缩水。
+改名要动 15 处调用点、功能零收益、还会打乱 git blame，留到秋招后再说。
