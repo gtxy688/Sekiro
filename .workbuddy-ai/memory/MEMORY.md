@@ -16,8 +16,25 @@
 
 ## 🔴 项目配置问题（待用户修）
 
-**`.gitignore` 第 70 行 `*.meta` 是错的。** 整个项目的 `.meta` 都没入库。Unity 引用全靠 `.meta` 里的 GUID，不入库 = 项目完全依赖本机磁盘状态；贴图 / prefab / 场景 / 动画 clip 的 meta 一旦丢失或重建，**引用会全崩**。
-修法：删掉这一行 → `git add` 一次。
+> 09-03 实测核实。**此前笔记写的「第 70 行 `*.meta`」是错的**，真实情况如下，勿再引用旧说法。
+
+`.gitignore` 有三行会吞掉项目资产：
+
+| 行号 | 规则 | 后果 |
+|---|---|---|
+| 70 | `*.asset` | 新建的 ScriptableObject 配置一律不入库 |
+| 105 | `/Assets/Sekrio` | 整个只狼资源目录不入库（体积大 + 版权考量，**可接受**） |
+| 106 | `/Assets/Prefabs` | 480 个 prefab 只有 2 个入库，其余裸奔 |
+
+**`.meta` 没有被忽略。** 入库 274 / 磁盘 6371 的巨大缺口全部来自上面两个目录规则。
+
+后果量化（09-03 实测）：`.meta` 入库 274/6371、`.asset` 31/32、`.prefab` 2/480。
+招式表 `GenichiroMoveTable.asset` 曾是唯一未入库的资产——它是几十小时调出来的判定时间的唯一载体，
+除 `GenichiroMoveCatalog.cs` 外无冗余副本。
+
+已做缓解：09-03 用 `git add -f` 把 11 份关键资产（10 份 AttackConfig + 招式表）强制纳入版本库。
+**待用户决策**：是否删除 `*.asset` 与 `/Assets/Prefabs` 两行。`git add -f` 只是绕过，
+以后新建的配置资产仍会被漏掉。
 
 ## 架构约定：不要删的东西
 
@@ -81,20 +98,20 @@ grep 后 8 个调用点全在编辑器链路（`GenichiroMoveCatalog` / `Genichi
 它是**创建招式表条目时填初始值的工厂函数**，不是运行时兜底。定性错了，危害评估也跟着错。
 修正结论：它是模板常量，值已烘焙进资产，改它对现有资产零影响 → 危害比「运行时兜底」更小，不必动。
 
-## 架构事实：招式时间轴有两套表示（09-03 确认）
+## 架构事实：判定窗已统一为 hitPulses（09-03 重构完成）
 
-**双重表示只发生在「判定窗」这一件事上，不是整条时间轴都有双份。**（09-03 小金追问后澄清）
+**唯一规则：`hitPulses` 非空且跨度 >= 0.02s → 按段出判定；为空 → 无判定（NoHit / 弓段 / 位移段）。**
+不再回退到单窗字段。`AttackWindowSync.CanMeleeHit(HitPulse[])` 只接受 pulses 一个参数。
 
-`AttackConfig` 上「什么时候有判定」这个事实同时存在两种写法：
-- **A 单窗字段**：`HitStartTime` / `RecoveryWindowStart`（玩家用）
-- **B 脉冲数组**：`hitPulses[] {start, end}`（Boss 一招多刀用）
+`HitStartTime` / `RecoveryWindowStart` **降级为纯招式级字段**，只管四件事：
+前摇可取消的截止（`AttackStateBase.HandleCommand`）、连招开放起点（`HandleAttackCommand`）、
+后摇开放标志（`IsAttackRecoveryOpen`）、反击发起时刻倒推（`DeflectState` 把 HitStartTime 当前摇长度）。
 
-其余字段是**招式级**时间，pulses 表达不了、也从来只有一份，不存在双表示问题：
-`ComboWindowEnd` / `StateDuration` / `RotationWindowEnd` / `sfxCues` / `arrowCues`。
-`AttackWindowSync.ApplyPulses` 只回写 A 的两个字段，`CoverDuration` 只修正 `StateDuration` / `RotationWindowEnd`。
+**这两个字段不可删除**——上述四处都依赖它们，且它们与 pulses 首尾值可以不同（Boss 段尤其如此）。
+其余 `ComboWindowEnd` / `StateDuration` / `RotationWindowEnd` / `sfxCues` / `arrowCues` 从来只有一份，无双表示问题。
 
-**优先级（`AttackWindowSync.CanMeleeHit` / `Hitbox.cs:61`）：pulses 非空 → 只信 pulses，此时改 A 字段无效；pulses 为空 → 才信 A。**
-最小判定跨度 `MinMeleeHitSpan = 0.02f`（短于一帧的红条视为假窗）。
+- `AttackConfig.OnValidate()`：编辑器里把 pulses 首尾反向同步到这两个字段（只补不削）
+- `BossAttackBaker` **刻意不同步**：招式表 window 的 `hitStartTime`/`recoverStart` 带 Boss 自己的连招节奏，不能被 pulses 覆盖
 
-`AttackWindowSync`（205 行）存在的唯一理由就是在 A、B 之间搬运同步 + 保证 `StateDuration` 盖住所有窗口。
-**调 Boss 招式时的踩坑点：只在 Inspector 改 `HitStartTime` 而 pulses 有元素 → 改动无声失效。**
+数据现状：10 份 AttackConfig 已注入 `hitPulses = [{HitStartTime, RecoveryWindowStart}]`；
+招式表 41 段未动（25 段有 pulses、16 段 NoHit 跨度 0，新规则下行为一致）。
