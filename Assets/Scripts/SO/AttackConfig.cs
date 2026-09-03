@@ -93,14 +93,14 @@ namespace ARPG.Configs
         public AttackHitboxSlot HitboxSlot = AttackHitboxSlot.Weapon;
 
         [Header("取消窗口")]
-        [Tooltip("进招后多少秒内可用格挡/垫步取消。武器判定也从这一刻开启。0 = 进招即开判定且不可取消")]
+        [Tooltip("前摇结束时刻：进招后多少秒内可用格挡/垫步取消。只管招式节奏，不开判定——判定一律由下方 hitPulses 决定")]
         public float HitStartTime = 0.2f;
 
         [Header("连招窗口期")]
         public float StateDuration = 1.633f;  // 这个动作总共持续多久
         [FormerlySerializedAs("ComboWindowStart")]
-        [Tooltip("判定结束并开放连招/取消：关 Hitbox，到 ComboWindowEnd 可接 NextCombo，也可格挡/垫步/移动。动画仍播到 StateDuration")]
-        public float RecoveryWindowStart = 0f; // 判定结束 + 开放连招/取消
+        [Tooltip("开放连招/取消：到 ComboWindowEnd 可接 NextCombo，也可格挡/垫步/移动。动画仍播到 StateDuration。只管招式节奏，判定结束时刻由 hitPulses 末段决定")]
+        public float RecoveryWindowStart = 0f; // 连招/取消开放时刻（不再兼作判定结束）
         public float ComboWindowEnd = 0.33f;   // 多久之后按键无效（错过连招）
 
         [Header("攻击转向")]
@@ -126,5 +126,27 @@ namespace ARPG.Configs
         [Header("出箭（可选）")]
         [Tooltip("相对本招动画 0 点的秒。到点调 SpawnArrow。空 = 不出箭")]
         public ArrowSpawnCue[] arrowCues;
+
+        // 判定窗的唯一真相是 hitPulses。HitStartTime / RecoveryWindowStart 已降级为招式级字段
+        // （前摇可取消的截止、连招开放的起点），这里从 pulses 反向同步，避免两套数值各说各话。
+        //
+        // 只做「补」不做「削」：ComboWindowEnd 只会往上抬到 RecoveryWindowStart，
+        // 不会往回压，免得手工调好的连招窗口被自动同步吃掉。
+        //
+        // 生效范围只有磁盘上的 AttackConfig 资产（玩家 10 份 + bossAtk 模板）。
+        // BossAttackBaker 运行时烤出来的实例不触发 OnValidate，而且那边是刻意不同步的：
+        // 招式表 window 的 hitStartTime / recoverStart 带着 Boss 自己的连招节奏，不能被 pulses 覆盖。
+        private void OnValidate()
+        {
+            if (hitPulses == null || hitPulses.Length == 0) return;
+            HitPulse first = hitPulses[0];
+            HitPulse last = hitPulses[hitPulses.Length - 1];
+            if (first == null || last == null) return;
+
+            HitStartTime = first.start;
+            RecoveryWindowStart = last.end;
+            if (ComboWindowEnd < RecoveryWindowStart)
+                ComboWindowEnd = RecoveryWindowStart;
+        }
     }
 }

@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a549f4c63d4375439a9aa247f7211fa, type: 3}
+  m_Name: atk5
+  m_EditorClassIdentifier: 
+  AnimName: Attack5
+  TransitionDuration: 0.1
+  BaseDamage: 10
+  PostureDamage: 3
+  Knockback: 0
+  Perilous: 0
+  HitStartTime: 0.33
+  StateDuration: 1.5
+  RecoveryWindowStart: 0.66
+  ComboWindowEnd: 1
+  AllowRotation: 1
+  RotationSpeed: 720
+  RotationWindowEnd: 0.3
+  NextCombo: {fileID: 11400000, guid: 16797f3eb33fad440ad5ad542e34a080, type: 2}
+  hitPulses:
+  - start: 0.33
+    end: 0.66
+    overrideCombat: 0
+    baseDamage: 0
+    postureDamage: 0
+    knockback: 0
+    hitGrade: 0

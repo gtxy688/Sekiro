@@ -385,7 +385,7 @@ namespace ARPG.Editor
             loadedMove = moveIndex;
             loadedSeq = sequenceIndex;
             loadedSeg = segmentIndex;
-            workingPulses = ClonePulses(CurrentStoredPulses(), CurrentHitStart(), CurrentRecover());
+            workingPulses = ClonePulses(CurrentStoredPulses());
             workingSfx = CloneSfx(CurrentStoredSfx());
             workingArrows = CloneArrows(CurrentStoredArrows());
             forceNoHit = false;
@@ -704,7 +704,7 @@ namespace ARPG.Editor
                 AttackWindowSync.CoverDuration(playerConfig);
                 EditorUtility.SetDirty(playerConfig);
                 forceNoHit = false;
-                workingPulses = ClonePulses(playerConfig.hitPulses, playerConfig.HitStartTime, playerConfig.RecoveryWindowStart);
+                workingPulses = ClonePulses(playerConfig.hitPulses);
                 return;
             }
 
@@ -717,12 +717,12 @@ namespace ARPG.Editor
             AttackWindowSync.CoverDuration(w);
             EditorUtility.SetDirty(bossTable);
             forceNoHit = false;
-            workingPulses = ClonePulses(w.hitPulses, w.hitStartTime, w.recoverStart);
+            workingPulses = ClonePulses(w.hitPulses);
         }
 
         static void SaveMeleeWindow(AttackConfig cfg, HitPulse[] clamped, bool noHit)
         {
-            if (noHit || !AttackWindowSync.CanMeleeHit(cfg.HitStartTime, cfg.RecoveryWindowStart, clamped))
+            if (noHit || !AttackWindowSync.CanMeleeHit(clamped))
                 AttackWindowSync.ApplyNoHit(cfg);
             else
                 AttackWindowSync.ApplyPulses(cfg, clamped);
@@ -730,7 +730,7 @@ namespace ARPG.Editor
 
         static void SaveMeleeWindow(BossMoveWindow w, HitPulse[] clamped, bool noHit)
         {
-            if (noHit || !AttackWindowSync.CanMeleeHit(w.hitStartTime, w.recoverStart, clamped))
+            if (noHit || !AttackWindowSync.CanMeleeHit(clamped))
                 AttackWindowSync.ApplyNoHit(w);
             else
                 AttackWindowSync.ApplyPulses(w, clamped);
@@ -858,32 +858,18 @@ namespace ARPG.Editor
             return w != null ? w.arrowCues : null;
         }
 
-        float CurrentHitStart()
+        // hitPulses 就是判定窗本身：没有就是没有，不再从单窗字段凭空补一段出来。
+        // （原来这里会在 stored 为空时用 hitStart/recover 造一段，那正是两套表示互相打架的源头。）
+        static HitPulse[] DisplayPulses(HitPulse[] stored)
         {
-            if (playerConfig != null) return playerConfig.HitStartTime;
-            BossMoveWindow w = CurrentWindow();
-            return w != null ? w.hitStartTime : 0.2f;
-        }
-
-        float CurrentRecover()
-        {
-            if (playerConfig != null) return playerConfig.RecoveryWindowStart;
-            BossMoveWindow w = CurrentWindow();
-            return w != null ? w.recoverStart : 0.8f;
-        }
-
-        static HitPulse[] DisplayPulses(HitPulse[] stored, float hitStart, float recover)
-        {
-            if (!AttackWindowSync.CanMeleeHit(hitStart, recover, stored))
+            if (!AttackWindowSync.CanMeleeHit(stored))
                 return new HitPulse[0];
-            if (stored != null && stored.Length > 0)
-                return stored;
-            return new[] { new HitPulse { start = hitStart, end = recover } };
+            return stored ?? new HitPulse[0];
         }
 
-        static HitPulse[] ClonePulses(HitPulse[] stored, float hitStart, float recover)
+        static HitPulse[] ClonePulses(HitPulse[] stored)
         {
-            HitPulse[] src = DisplayPulses(stored, hitStart, recover);
+            HitPulse[] src = DisplayPulses(stored);
             HitPulse[] copy = new HitPulse[src.Length];
             for (int i = 0; i < src.Length; i++)
             {

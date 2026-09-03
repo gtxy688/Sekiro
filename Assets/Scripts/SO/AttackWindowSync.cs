@@ -9,27 +9,30 @@ namespace ARPG.Configs
         // 短于约一帧的红条是时间轴「缩到最小」的假窗，进招第 0 帧仍会开刀。
         public const float MinMeleeHitSpan = 0.02f;
 
-        public static bool CanMeleeHit(float hitStart, float recover, HitPulse[] pulses)
+        // 判定窗的唯一真相：只看 hitPulses。空数组 = 本段无判定（NoHit / 弓段 / 位移段）。
+        //
+        // 原来这里还有一条「pulses 为空就回退到 HitStartTime ~ RecoveryWindowStart」的分支，
+        // 于是同一个事实存在两种写法，改了单窗字段却因为 pulses 非空而静默失效。
+        // 统一后规则只剩一条：有 pulses 且跨度够 = 能出刀，否则 = 不出刀。
+        // HitStartTime / RecoveryWindowStart 退化为纯招式级字段（连招开放 / 可取消窗口）。
+        public static bool CanMeleeHit(HitPulse[] pulses)
         {
-            if (pulses != null && pulses.Length > 0)
+            if (pulses == null || pulses.Length == 0) return false;
+            for (int i = 0; i < pulses.Length; i++)
             {
-                for (int i = 0; i < pulses.Length; i++)
-                {
-                    HitPulse p = pulses[i];
-                    if (p == null) continue;
-                    if (p.end - p.start >= MinMeleeHitSpan)
-                        return true;
-                }
-                return false;
+                HitPulse p = pulses[i];
+                if (p == null) continue;
+                if (p.end - p.start >= MinMeleeHitSpan)
+                    return true;
             }
-            return recover - hitStart >= MinMeleeHitSpan;
+            return false;
         }
 
         public static bool IsArrowWindow(BossMoveWindow w)
         {
             if (w == null) return false;
             if (w.arrowCues != null && w.arrowCues.Length > 0) return true;
-            return !CanMeleeHit(w.hitStartTime, w.recoverStart, w.hitPulses) && w.stateDuration >= 0.8f;
+            return !CanMeleeHit(w.hitPulses) && w.stateDuration >= 0.8f;
         }
 
         public static bool EntryUsesArrowNums(BossMoveEntry entry)
@@ -41,7 +44,7 @@ namespace ARPG.Configs
             {
                 BossMoveWindow w = entry.windows[i];
                 if (w == null) continue;
-                if (CanMeleeHit(w.hitStartTime, w.recoverStart, w.hitPulses))
+                if (CanMeleeHit(w.hitPulses))
                     anyMelee = true;
                 else if (IsArrowWindow(w))
                     anyArrow = true;

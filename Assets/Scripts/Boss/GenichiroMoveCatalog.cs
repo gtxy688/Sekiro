@@ -255,7 +255,7 @@ namespace ARPG.Boss
             {
                 BossMoveWindow w = windows[i];
                 if (w == null) continue;
-                bool melee = AttackWindowSync.CanMeleeHit(w.hitStartTime, w.recoverStart, w.hitPulses);
+                bool melee = AttackWindowSync.CanMeleeHit(w.hitPulses);
                 bool arrow = AttackWindowSync.IsArrowWindow(w);
                 if (!melee && !arrow) continue;
 

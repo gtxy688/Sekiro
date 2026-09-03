@@ -1,0 +1,1588 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 30a2128c298d04a43b3cc0900f8d16c6, type: 3}
+  m_Name: GenichiroMoveTable
+  m_EditorClassIdentifier: 
+  kengekiMaxRange: 2.5
+  postureLowThreshold: 0
+  air5HeavyInterruptChance: 0.5
+  jumpThrustLife2SweepWeight: 7
+  jumpThrustLife2ThrustWeight: 3
+  moves:
+  - id: Bow_ThenSlash
+    layer: 0
+    sequences:
+    - states:
+      - Bow_Shot
+      - 3015
+      windows: []
+    windows:
+    - hitStartTime: 1.6
+      recoverStart: 1.6
+      comboWindowEnd: 1.6
+      stateDuration: 1.6
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses: []
+      sfxCues: []
+      arrowCues:
+      - time: 0.7491985
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      overrideCombat: 1
+      baseDamage: 15
+      postureDamage: 15
+      knockback: 0
+      hitGrade: 1
+      waitAnimEnd: 0
+    - hitStartTime: 1.0820183
+      recoverStart: 1.2035457
+      comboWindowEnd: 1.2035457
+      stateDuration: 1.8
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 1.0820183
+        end: 1.2035457
+        overrideCombat: 0
+        baseDamage: 10
+        postureDamage: 10
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 10
+      postureDamage: 10
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 7
+    maxRange: 99
+    weight: 600
+    cooldown: 6
+    extra: 0
+  - id: Bow_Shot
+    layer: 0
+    sequences:
+    - states:
+      - Bow_Shot
+      windows: []
+    windows:
+    - hitStartTime: 1.6
+      recoverStart: 1.6
+      comboWindowEnd: 1.6
+      stateDuration: 1.6
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses: []
+      sfxCues: []
+      arrowCues:
+      - time: 0.7455411
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 15
+    postureDamage: 15
+    knockback: 0
+    hitGrade: 1
+    perilous: 0
+    minRange: 7
+    maxRange: 99
+    weight: 200
+    cooldown: 5
+    extra: 0
+  - id: Slash_Rush2
+    layer: 0
+    sequences:
+    - states:
+      - Slash_Rush2
+      windows: []
+    windows:
+    - hitStartTime: 0.75000054
+      recoverStart: 1.2811115
+      comboWindowEnd: 1.36
+      stateDuration: 2.9333334
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 0.75000054
+        end: 0.9248136
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - start: 1.0551845
+        end: 1.2811115
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 5
+    maxRange: 99
+    weight: 300
+    cooldown: 6
+    extra: 0
+  - id: Slash_RushThenBow
+    layer: 0
+    sequences:
+    - states:
+      - Kengeki_Heavy
+      - 3011
+      windows: []
+    windows:
+    - hitStartTime: 1.288518
+      recoverStart: 1.8520359
+      comboWindowEnd: 1.8520359
+      stateDuration: 2.1
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 1.288518
+        end: 1.8520359
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    - hitStartTime: 1.6
+      recoverStart: 1.6
+      comboWindowEnd: 1.6
+      stateDuration: 1.6
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses: []
+      sfxCues: []
+      arrowCues:
+      - time: 1.0510972
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      overrideCombat: 1
+      baseDamage: 15
+      postureDamage: 15
+      knockback: 0
+      hitGrade: 1
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 5
+    maxRange: 7
+    weight: 100
+    cooldown: 8
+    extra: 0
+  - id: Boat
+    layer: 0
+    sequences:
+    - states:
+      - Boat1
+      - Boat2
+      windows: []
+    windows:
+    - hitStartTime: 1.8537953
+      recoverStart: 3.394523
+      comboWindowEnd: 3.394523
+      stateDuration: 3.394523
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 1.8537953
+        end: 2.118609
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - start: 2.2149043
+        end: 2.4386997
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - start: 2.7625844
+        end: 2.9973044
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - start: 3.1545274
+        end: 3.394523
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    - hitStartTime: 0.15717596
+      recoverStart: 1.5150914
+      comboWindowEnd: 1.5150914
+      stateDuration: 2.4
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 0.15717596
+        end: 0.30958363
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - start: 0.4535649
+        end: 0.5867594
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - start: 1.261897
+        end: 1.5150914
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 1
+      baseDamage: 15
+      postureDamage: 15
+      knockback: 0
+      hitGrade: 1
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 3
+    maxRange: 7
+    weight: 700
+    cooldown: 6
+    extra: 2
+  - id: Slash_Double
+    layer: 0
+    sequences:
+    - states:
+      - Slash_Double
+      windows: []
+    windows:
+    - hitStartTime: 0.8066667
+      recoverStart: 1.3194427
+      comboWindowEnd: 1.3194427
+      stateDuration: 1.8
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 0.8066667
+        end: 0.9394445
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - start: 1.2030542
+        end: 1.3194427
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 3
+    maxRange: 5
+    weight: 10
+    cooldown: 4
+    extra: 0
+  - id: Slash_Heavy
+    layer: 0
+    sequences:
+    - states:
+      - Slash_Heavy
+      windows: []
+    windows:
+    - hitStartTime: 0.9875006
+      recoverStart: 1.1259255
+      comboWindowEnd: 1.25
+      stateDuration: 2
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 0.9875006
+        end: 1.1259255
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 15
+    postureDamage: 15
+    knockback: 0
+    hitGrade: 1
+    perilous: 0
+    minRange: 3
+    maxRange: 5
+    weight: 30
+    cooldown: 5
+    extra: 0
+  - id: Slash_SpinElbow
+    layer: 0
+    sequences:
+    - states:
+      - Slash_Spin
+      - Elbow
+      windows: []
+    windows:
+    - hitStartTime: 0.56037045
+      recoverStart: 0.9129629
+      comboWindowEnd: 1.0300001
+      stateDuration: 1.6
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 0.56037045
+        end: 0.9129629
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 1
+      baseDamage: 15
+      postureDamage: 15
+      knockback: 0
+      hitGrade: 1
+      waitAnimEnd: 0
+    - hitStartTime: 1.1158785
+      recoverStart: 1.2292604
+      comboWindowEnd: 1.2292604
+      stateDuration: 1.4
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 3
+      hitboxSlot: 1
+      hitPulses:
+      - start: 1.1158785
+        end: 1.2292604
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 1
+      baseDamage: 25
+      postureDamage: 25
+      knockback: 0
+      hitGrade: 2
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 0
+    maxRange: 5
+    weight: 15
+    cooldown: 6
+    extra: 0
+  - id: Slash_StepTurn
+    layer: 0
+    sequences:
+    - states:
+      - Slash_StepTurn
+      windows: []
+    windows:
+    - hitStartTime: 0.9033328
+      recoverStart: 1.2358283
+      comboWindowEnd: 1.2366664
+      stateDuration: 1.8
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 0.9033328
+        end: 1.2358283
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 0
+    maxRange: 3
+    weight: 15
+    cooldown: 4
+    extra: 0
+  - id: Kick
+    layer: 0
+    sequences:
+    - states:
+      - Attack_Slash
+      - Kick
+      windows: []
+    windows:
+    - hitStartTime: 0.88175905
+      recoverStart: 1.0816699
+      comboWindowEnd: 1.0816699
+      stateDuration: 1.2
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 0.88175905
+        end: 1.0816699
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 10
+      postureDamage: 10
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    - hitStartTime: 0.43222204
+      recoverStart: 0.5958335
+      comboWindowEnd: 0.91999996
+      stateDuration: 1.4
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 2
+      hitPulses:
+      - start: 0.43222204
+        end: 0.5958335
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 1
+      baseDamage: 25
+      postureDamage: 25
+      knockback: 0
+      hitGrade: 2
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 0
+    maxRange: 3
+    weight: 30
+    cooldown: 5
+    extra: 0
+  - id: JumpThrust
+    layer: 0
+    sequences:
+    - states:
+      - JumpThrust
+      - Thrust
+      windows: []
+    windows:
+    - hitStartTime: 1.1256675
+      recoverStart: 1.2575663
+      comboWindowEnd: 1.2575663
+      stateDuration: 1.5
+      rotateEnd: 1
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 1.1256675
+        end: 1.2575663
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    - hitStartTime: 1.034959
+      recoverStart: 1.2893054
+      comboWindowEnd: 1.4499999
+      stateDuration: 2
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 1
+      hitboxSlot: 0
+      hitPulses:
+      - start: 1.034959
+        end: 1.2893054
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 25
+    postureDamage: 25
+    knockback: 0
+    hitGrade: 2
+    perilous: 0
+    minRange: 0
+    maxRange: 5
+    weight: 100
+    cooldown: 8
+    extra: 3
+  - id: Jump_Danger
+    layer: 0
+    sequences:
+    - states:
+      - Jump_Danger
+      windows: []
+    windows:
+    - hitStartTime: 0.9012096
+      recoverStart: 1.0940335
+      comboWindowEnd: 1.45
+      stateDuration: 4
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 1
+      hitboxSlot: 0
+      hitPulses:
+      - start: 0.9012096
+        end: 1.0940335
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 1
+    baseDamage: 25
+    postureDamage: 25
+    knockback: 0
+    hitGrade: 2
+    perilous: 1
+    minRange: 0
+    maxRange: 5
+    weight: 100
+    cooldown: 8
+    extra: 4
+  - id: Perilous_Sweep
+    layer: 0
+    sequences:
+    - states:
+      - Sweep
+      windows: []
+    windows:
+    - hitStartTime: 1.0624994
+      recoverStart: 1.2986106
+      comboWindowEnd: 1.75
+      stateDuration: 2.4
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 1.0624994
+        end: 1.2986106
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 0
+    maxRange: 5
+    weight: 10
+    cooldown: 8
+    extra: 0
+  - id: Bow_Air5
+    layer: 0
+    sequences:
+    - states:
+      - Dodge_Back
+      - Bow_Air5
+      windows: []
+    windows:
+    - hitStartTime: 0.55
+      recoverStart: 0.55
+      comboWindowEnd: 0.55
+      stateDuration: 0.55
+      rotateEnd: 0.15
+      transitionDuration: 0.08
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses: []
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    - hitStartTime: 4.5
+      recoverStart: 4.5
+      comboWindowEnd: 4.5
+      stateDuration: 4.5
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses: []
+      sfxCues: []
+      arrowCues:
+      - time: 0.61111164
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - time: 0.8486117
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - time: 1.0773154
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - time: 1.5577377
+        overrideCombat: 1
+        baseDamage: 15
+        postureDamage: 15
+        knockback: 0
+        hitGrade: 1
+      overrideCombat: 0
+      baseDamage: 10
+      postureDamage: 25
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 0
+    maxRange: 3
+    weight: 30
+    cooldown: 10
+    extra: 0
+  - id: Bow_Heavy
+    layer: 2
+    sequences:
+    - states:
+      - Bow_Heavy
+      windows: []
+    windows:
+    - hitStartTime: 3
+      recoverStart: 3
+      comboWindowEnd: 3
+      stateDuration: 3
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses: []
+      sfxCues: []
+      arrowCues:
+      - time: 1.5171292
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 20
+    postureDamage: 20
+    knockback: 0
+    hitGrade: 2
+    perilous: 0
+    minRange: 0
+    maxRange: 99
+    weight: 1
+    cooldown: 8
+    extra: 0
+  - id: Kengeki_Slash
+    layer: 1
+    sequences:
+    - states:
+      - 3050
+      windows: []
+    - states:
+      - 3055
+      windows: []
+    - states:
+      - 3065
+      windows: []
+    - states:
+      - 3071
+      windows: []
+    - states:
+      - 3076
+      windows: []
+    windows:
+    - hitStartTime: 0.3614563
+      recoverStart: 0.5538897
+      comboWindowEnd: 0.975
+      stateDuration: 1.5
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 0.3614563
+        end: 0.5538897
+        overrideCombat: 0
+        baseDamage: 10
+        postureDamage: 10
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 0
+    maxRange: 2.5
+    weight: 40
+    cooldown: 0.5
+    extra: 0
+  - id: Kengeki_Double
+    layer: 1
+    sequences:
+    - states:
+      - Kengeki_Double
+      windows: []
+    windows:
+    - hitStartTime: 0.98000085
+      recoverStart: 1.47
+      comboWindowEnd: 1.47
+      stateDuration: 1.8
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 0.98000085
+        end: 1.0650002
+        overrideCombat: 0
+        baseDamage: 50
+        postureDamage: 25
+        knockback: 0
+        hitGrade: 0
+      - start: 1.3162501
+        end: 1.47
+        overrideCombat: 0
+        baseDamage: 50
+        postureDamage: 25
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 10
+      postureDamage: 10
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 0
+    maxRange: 2.5
+    weight: 20
+    cooldown: 3
+    extra: 0
+  - id: Kengeki_Thrust
+    layer: 1
+    sequences:
+    - states:
+      - Kengeki_Thrust
+      windows: []
+    windows:
+    - hitStartTime: 1.034959
+      recoverStart: 1.2893054
+      comboWindowEnd: 1.4499999
+      stateDuration: 2
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 1.034959
+        end: 1.2893054
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 25
+      postureDamage: 25
+      knockback: 0
+      hitGrade: 2
+      waitAnimEnd: 0
+    baseDamage: 25
+    postureDamage: 25
+    knockback: 0
+    hitGrade: 2
+    perilous: 1
+    minRange: 0
+    maxRange: 2.5
+    weight: 20
+    cooldown: 4
+    extra: 0
+  - id: Kengeki_Heavy
+    layer: 1
+    sequences:
+    - states:
+      - Step_L
+      - Kengeki_Heavy
+      windows: []
+    - states:
+      - Step_R
+      - Kengeki_Heavy
+      windows: []
+    windows:
+    - hitStartTime: 0.45
+      recoverStart: 0.45
+      comboWindowEnd: 0.45
+      stateDuration: 0.45
+      rotateEnd: 0.15
+      transitionDuration: 0.08
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses: []
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    - hitStartTime: 1.4249995
+      recoverStart: 1.8338841
+      comboWindowEnd: 1.8338841
+      stateDuration: 1.8338841
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 1.4249995
+        end: 1.8338841
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 1
+      baseDamage: 15
+      postureDamage: 15
+      knockback: 0
+      hitGrade: 1
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 0
+    maxRange: 2.5
+    weight: 20
+    cooldown: 4
+    extra: 0
+  - id: Kengeki_Bow
+    layer: 1
+    sequences:
+    - states:
+      - 3031
+      - 3019
+      - 3029
+      windows: []
+    - states:
+      - 3031
+      - 3036
+      windows:
+      - hitStartTime: 0.8
+        recoverStart: 0.8
+        comboWindowEnd: 0.8
+        stateDuration: 0.81481516
+        rotateEnd: 0.15
+        transitionDuration: 0.08
+        perilous: 0
+        hitboxSlot: 0
+        hitPulses: []
+        sfxCues: []
+        arrowCues:
+        - time: 0.81481516
+          overrideCombat: 0
+          baseDamage: 0
+          postureDamage: 0
+          knockback: 0
+          hitGrade: 0
+        overrideCombat: 1
+        baseDamage: 15
+        postureDamage: 15
+        knockback: 0
+        hitGrade: 1
+        waitAnimEnd: 0
+      - hitStartTime: 1.6
+        recoverStart: 1.6
+        comboWindowEnd: 1.6
+        stateDuration: 1.6
+        rotateEnd: 0.35
+        transitionDuration: 0.1
+        perilous: 0
+        hitboxSlot: 0
+        hitPulses: []
+        sfxCues: []
+        arrowCues:
+        - time: 0.67263913
+          overrideCombat: 0
+          baseDamage: 0
+          postureDamage: 0
+          knockback: 0
+          hitGrade: 0
+        - time: 0.91763914
+          overrideCombat: 0
+          baseDamage: 0
+          postureDamage: 0
+          knockback: 0
+          hitGrade: 0
+        overrideCombat: 0
+        baseDamage: 10
+        postureDamage: 10
+        knockback: 0
+        hitGrade: 0
+        waitAnimEnd: 0
+    windows:
+    - hitStartTime: 0.81481516
+      recoverStart: 0.81481516
+      comboWindowEnd: 0.81481516
+      stateDuration: 0.81481516
+      rotateEnd: 0.15
+      transitionDuration: 0.08
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses: []
+      sfxCues: []
+      arrowCues:
+      - time: 0.80438864
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      overrideCombat: 1
+      baseDamage: 15
+      postureDamage: 15
+      knockback: 0
+      hitGrade: 1
+      waitAnimEnd: 0
+    - hitStartTime: 1.3062497
+      recoverStart: 1.5613418
+      comboWindowEnd: 1.8
+      stateDuration: 1.8
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 1.3062497
+        end: 1.5613418
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 10
+      postureDamage: 25
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    - hitStartTime: 0.27590698
+      recoverStart: 0.75211066
+      comboWindowEnd: 1.8
+      stateDuration: 1.8
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 0.27590698
+        end: 0.43349934
+        overrideCombat: 0
+        baseDamage: 50
+        postureDamage: 25
+        knockback: 0
+        hitGrade: 0
+      - start: 0.58766615
+        end: 0.75211066
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 50
+      postureDamage: 25
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 0
+    maxRange: 2.5
+    weight: 20
+    cooldown: 5
+    extra: 0
+  - id: Kengeki_Air5
+    layer: 1
+    sequences:
+    - states:
+      - Dodge_Back
+      - Bow_Air5
+      windows: []
+    windows:
+    - hitStartTime: 0.55
+      recoverStart: 0.55
+      comboWindowEnd: 0.55
+      stateDuration: 0.55
+      rotateEnd: 0.15
+      transitionDuration: 0.08
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses: []
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 0
+      postureDamage: 0
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    - hitStartTime: 4.5
+      recoverStart: 4.5
+      comboWindowEnd: 4.5
+      stateDuration: 4.5
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses: []
+      sfxCues: []
+      arrowCues:
+      - time: 0.6069443
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - time: 0.84376293
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - time: 1.0741599
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - time: 1.5586642
+        overrideCombat: 1
+        baseDamage: 15
+        postureDamage: 15
+        knockback: 0
+        hitGrade: 1
+      overrideCombat: 0
+      baseDamage: 10
+      postureDamage: 10
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 0
+    maxRange: 2.5
+    weight: 20
+    cooldown: 8
+    extra: 0
+  - id: Boat_Full
+    layer: 1
+    sequences:
+    - states:
+      - Boat_Full
+      windows: []
+    windows:
+    - hitStartTime: 1.6249937
+      recoverStart: 4.7594366
+      comboWindowEnd: 4.7594366
+      stateDuration: 4.7594366
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 1.6249937
+        end: 2.1034641
+        overrideCombat: 0
+        baseDamage: 50
+        postureDamage: 25
+        knockback: 0
+        hitGrade: 0
+      - start: 2.2397008
+        end: 2.4489942
+        overrideCombat: 0
+        baseDamage: 50
+        postureDamage: 25
+        knockback: 0
+        hitGrade: 0
+      - start: 2.7723362
+        end: 3.0251124
+        overrideCombat: 0
+        baseDamage: 50
+        postureDamage: 25
+        knockback: 0
+        hitGrade: 0
+      - start: 3.1605282
+        end: 3.3230271
+        overrideCombat: 0
+        baseDamage: 50
+        postureDamage: 25
+        knockback: 0
+        hitGrade: 0
+      - start: 3.4674706
+        end: 3.5874705
+        overrideCombat: 0
+        baseDamage: 50
+        postureDamage: 25
+        knockback: 0
+        hitGrade: 0
+      - start: 3.7021914
+        end: 3.8747108
+        overrideCombat: 0
+        baseDamage: 50
+        postureDamage: 25
+        knockback: 0
+        hitGrade: 0
+      - start: 4.5066576
+        end: 4.7594366
+        overrideCombat: 1
+        baseDamage: 25
+        postureDamage: 25
+        knockback: 0
+        hitGrade: 2
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 50
+      postureDamage: 25
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 0
+    maxRange: 2.5
+    weight: 80
+    cooldown: 8
+    extra: 0
+  - id: Kengeki_Bow2Slash
+    layer: 1
+    sequences:
+    - states:
+      - 3018
+      - 3015
+      windows: []
+    windows:
+    - hitStartTime: 1.6
+      recoverStart: 1.6
+      comboWindowEnd: 1.6
+      stateDuration: 1.6
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses: []
+      sfxCues: []
+      arrowCues:
+      - time: 0.8805106
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - time: 1.1501409
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      overrideCombat: 0
+      baseDamage: 50
+      postureDamage: 25
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    - hitStartTime: 1.0520815
+      recoverStart: 1.2534696
+      comboWindowEnd: 1.2534696
+      stateDuration: 1.8
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 1.0520815
+        end: 1.2534696
+        overrideCombat: 0
+        baseDamage: 50
+        postureDamage: 10
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 10
+      postureDamage: 10
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 0
+    maxRange: 2.5
+    weight: 10
+    cooldown: 6
+    extra: 0
+  - id: Kengeki_JumpBow
+    layer: 1
+    sequences:
+    - states:
+      - 3034
+      - 3036
+      - 3015
+      windows: []
+    windows:
+    - hitStartTime: 1.6
+      recoverStart: 1.6
+      comboWindowEnd: 1.6
+      stateDuration: 1.6
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses: []
+      sfxCues: []
+      arrowCues:
+      - time: 0.64462954
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      overrideCombat: 1
+      baseDamage: 15
+      postureDamage: 15
+      knockback: 0
+      hitGrade: 1
+      waitAnimEnd: 0
+    - hitStartTime: 1.6
+      recoverStart: 1.6
+      comboWindowEnd: 1.6
+      stateDuration: 1.6
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses: []
+      sfxCues: []
+      arrowCues:
+      - time: 0.67263913
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      - time: 0.91763914
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      overrideCombat: 0
+      baseDamage: 10
+      postureDamage: 10
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    - hitStartTime: 0.98958087
+      recoverStart: 1.2499986
+      comboWindowEnd: 1.2986075
+      stateDuration: 1.8
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses:
+      - start: 0.98958087
+        end: 1.2499986
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      sfxCues: []
+      arrowCues: []
+      overrideCombat: 0
+      baseDamage: 30
+      postureDamage: 20
+      knockback: 0
+      hitGrade: 0
+      waitAnimEnd: 0
+    baseDamage: 10
+    postureDamage: 10
+    knockback: 0
+    hitGrade: 0
+    perilous: 0
+    minRange: 0
+    maxRange: 2.5
+    weight: 10
+    cooldown: 6
+    extra: 0
+  - id: Bow_AirHeavy
+    layer: 1
+    sequences:
+    - states:
+      - Bow_AirHeavy
+      windows: []
+    windows:
+    - hitStartTime: 2.2
+      recoverStart: 2.2
+      comboWindowEnd: 2.2
+      stateDuration: 2.2
+      rotateEnd: 0.35
+      transitionDuration: 0.1
+      perilous: 0
+      hitboxSlot: 0
+      hitPulses: []
+      sfxCues: []
+      arrowCues:
+      - time: 1.5587976
+        overrideCombat: 0
+        baseDamage: 0
+        postureDamage: 0
+        knockback: 0
+        hitGrade: 0
+      overrideCombat: 0
+      baseDamage: 20
+      postureDamage: 25
+      knockback: 0
+      hitGrade: 2
+      waitAnimEnd: 0
+    baseDamage: 20
+    postureDamage: 20
+    knockback: 0
+    hitGrade: 2
+    perilous: 0
+    minRange: 0
+    maxRange: 2.5
+    weight: 10
+    cooldown: 6
+    extra: 0

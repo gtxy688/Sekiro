@@ -58,7 +58,7 @@ namespace ARPG.Combat
         {
             if (owner == null || config == null) return;
             // 弓段 / 0.01 假窗：Clip 上残留的 Enable 事件也不能扫刀。
-            if (!AttackWindowSync.CanMeleeHit(config.HitStartTime, config.RecoveryWindowStart, config.hitPulses))
+            if (!AttackWindowSync.CanMeleeHit(config.hitPulses))
                 return;
             isActive = true;
             Physics.SyncTransforms();

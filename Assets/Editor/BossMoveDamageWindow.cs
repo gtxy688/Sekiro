@@ -161,7 +161,7 @@ namespace ARPG.Editor
                 BossMoveWindow w = BossMovePicker.WindowFor(entry, s, sequence);
                 if (w == null) continue;
 
-                bool melee = AttackWindowSync.CanMeleeHit(w.hitStartTime, w.recoverStart, w.hitPulses);
+                bool melee = AttackWindowSync.CanMeleeHit(w.hitPulses);
                 bool ranged = !melee && !IsLocomotionAnim(anim);
                 EditorGUILayout.BeginHorizontal();
                 GUILayout.Space(16);

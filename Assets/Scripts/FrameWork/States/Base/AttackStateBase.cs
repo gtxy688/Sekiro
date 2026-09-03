@@ -144,8 +144,7 @@ namespace ARPG.FrameWork.States.Base
             // 动作彻底结束：stateDuration 到点，或（无连招的招）动画实际播完且判定段已全部关闭。
             // 后一条专治"stateDuration 大于实际 clip 长度"的末帧冻结罚站——射箭/收弓段最容易踩：
             // 动画播完停在最后一帧，animTime 却永远达不到 stateDuration，角色僵在原地等时长。
-            bool noMelee = !AttackWindowSync.CanMeleeHit(
-                config.HitStartTime, config.RecoveryWindowStart, config.hitPulses);
+            bool noMelee = !AttackWindowSync.CanMeleeHit(config.hitPulses);
             bool animFinished = IsAnimFinished(config.AnimName);
             bool animPlayedOut = config.NextCombo == null
                 && animTime >= LastHitWindowEnd()
@@ -333,28 +332,21 @@ namespace ARPG.FrameWork.States.Base
             return true;
         }
 
-        // 有 hitPulses：按段脉冲开关，每段 Enable 会清 hitTargets，所以每刀只打一次。
+        // 判定窗只认 hitPulses：每段 Enable 会清 hitTargets，所以每刀只打一次。
         // 相邻两刀无空隙时 pulseIndex 变化也要重开，才能换伤害。
-        // 无 hitPulses：沿用 HitStartTime → RecoveryWindowStart 一对开关。
         // NoHit / 0.01s 假红条：CanMeleeHit 为假，全程不开刀。
+        // HitStartTime / RecoveryWindowStart 不再是判定依据，只管连招开放与可取消窗口。
         private void ApplyHitbox()
         {
             int pulseIndex = -1;
             bool wantOn = false;
-            if (AttackWindowSync.CanMeleeHit(config.HitStartTime, config.RecoveryWindowStart, config.hitPulses))
+            if (AttackWindowSync.CanMeleeHit(config.hitPulses))
             {
-                if (HasHitPulses())
-                {
-                    pulseIndex = CurrentPulseIndex();
-                    wantOn = pulseIndex >= 0;
-                }
-                else
-                {
-                    wantOn = animTime >= config.HitStartTime && animTime < config.RecoveryWindowStart;
-                }
+                pulseIndex = CurrentPulseIndex();
+                wantOn = pulseIndex >= 0;
             }
 
-            bool pulseChanged = HasHitPulses() && wantOn && pulseIndex != activePulseIndex;
+            bool pulseChanged = wantOn && pulseIndex != activePulseIndex;
             if (wantOn && (!weaponHitEnabled || pulseChanged))
             {
                 if (weaponHitEnabled)
@@ -444,8 +436,7 @@ namespace ARPG.FrameWork.States.Base
         private bool ShouldSteerTowardTarget()
         {
             if (HasArrowCues()) return true;
-            bool noMelee = !AttackWindowSync.CanMeleeHit(
-                config.HitStartTime, config.RecoveryWindowStart, config.hitPulses);
+            bool noMelee = !AttackWindowSync.CanMeleeHit(config.hitPulses);
             if (noMelee && config.StateDuration > 0.8f) return true;
             // 多段连刀（飞舟等）在最后一刀结束前都对准玩家。Hits() 默认 rotateEnd=0.35，
             // 飞舟第一刀约 1.85s，转向早停就会打空气。

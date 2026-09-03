@@ -21,13 +21,14 @@ namespace ARPG.Boss
             cfg.RotationSpeed = 1080f;
             // 弓段跟玩家转到出箭结束，不要用短垫步那套 0.15s 转向窗。
             bool bowTrack = (w.arrowCues != null && w.arrowCues.Length > 0)
-                || (!AttackWindowSync.CanMeleeHit(w.hitStartTime, w.recoverStart, w.hitPulses)
+                || (!AttackWindowSync.CanMeleeHit(w.hitPulses)
                     && w.stateDuration > 0.8f);
             cfg.RotationWindowEnd = bowTrack ? w.stateDuration : w.rotateEnd;
             cfg.NextCombo = null;
 
-            // NoHit：hitStart>=recover，或只剩 0~0.01 假红条。残窗也烤成时长对齐，AttackState 全程不开刀。
-            bool canHit = AttackWindowSync.CanMeleeHit(w.hitStartTime, w.recoverStart, w.hitPulses);
+            // NoHit：没有有效 hitPulses（空数组或只剩 0~0.01 假红条）。
+            // 判定窗只认 hitPulses；w.hitStartTime / w.recoverStart 仍原样带过去，供连招与取消窗口使用。
+            bool canHit = AttackWindowSync.CanMeleeHit(w.hitPulses);
             PerilousType perilous = w.perilous != PerilousType.None ? w.perilous : entry.perilous;
             cfg.Perilous = canHit ? perilous : PerilousType.None;
             cfg.HitboxSlot = canHit ? w.hitboxSlot : AttackHitboxSlot.Weapon;

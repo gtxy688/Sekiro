@@ -31,7 +31,7 @@ namespace ARPG.FrameWork.Body
         {
             if (config == null) return;
             // 弓段 / 假红条：即使动画事件误调也不开刀。
-            if (!AttackWindowSync.CanMeleeHit(config.HitStartTime, config.RecoveryWindowStart, config.hitPulses))
+            if (!AttackWindowSync.CanMeleeHit(config.hitPulses))
                 return;
             Hitbox target = ResolveHitbox(config.HitboxSlot);
             if (target == null) return;
