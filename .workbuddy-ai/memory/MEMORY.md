@@ -74,3 +74,27 @@
 要么只写性质不写数字，要么附上重算命令让别人能自己核。
 例：`grep -rn "CombatManager\.Instance" --include=*.cs Assets/Scripts`
 实例：09-02 总结时发现 `CombatManager` 注释里的「41 处 / 17 文件」实际已降到 32 处。
+
+**推论 3：给函数定性（「这是兜底，走不到」）之前，先 grep 调用点。**
+实例（09-03）：我断言 `AttackCombatResolve.DefaultCombat` 是「运行时兜底，正常流程走不到」。
+grep 后 8 个调用点全在编辑器链路（`GenichiroMoveCatalog` / `GenichiroMoveCatalogExporter` / `BossMoveDamageWindow`），
+它是**创建招式表条目时填初始值的工厂函数**，不是运行时兜底。定性错了，危害评估也跟着错。
+修正结论：它是模板常量，值已烘焙进资产，改它对现有资产零影响 → 危害比「运行时兜底」更小，不必动。
+
+## 架构事实：招式时间轴有两套表示（09-03 确认）
+
+**双重表示只发生在「判定窗」这一件事上，不是整条时间轴都有双份。**（09-03 小金追问后澄清）
+
+`AttackConfig` 上「什么时候有判定」这个事实同时存在两种写法：
+- **A 单窗字段**：`HitStartTime` / `RecoveryWindowStart`（玩家用）
+- **B 脉冲数组**：`hitPulses[] {start, end}`（Boss 一招多刀用）
+
+其余字段是**招式级**时间，pulses 表达不了、也从来只有一份，不存在双表示问题：
+`ComboWindowEnd` / `StateDuration` / `RotationWindowEnd` / `sfxCues` / `arrowCues`。
+`AttackWindowSync.ApplyPulses` 只回写 A 的两个字段，`CoverDuration` 只修正 `StateDuration` / `RotationWindowEnd`。
+
+**优先级（`AttackWindowSync.CanMeleeHit` / `Hitbox.cs:61`）：pulses 非空 → 只信 pulses，此时改 A 字段无效；pulses 为空 → 才信 A。**
+最小判定跨度 `MinMeleeHitSpan = 0.02f`（短于一帧的红条视为假窗）。
+
+`AttackWindowSync`（205 行）存在的唯一理由就是在 A、B 之间搬运同步 + 保证 `StateDuration` 盖住所有窗口。
+**调 Boss 招式时的踩坑点：只在 Inspector 改 `HitStartTime` 而 pulses 有元素 → 改动无声失效。**
