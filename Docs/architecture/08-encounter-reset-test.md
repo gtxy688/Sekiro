@@ -13,7 +13,7 @@
 | `Combat/EncounterScope.cs` | 新增（上一批）。一场战斗的边界 + `ResetAll()`。**本批两处改动**：① 删掉"倒序保证顺序"的错误说法，改为硬约束「ResetForEncounter 必须顺序无关」；② 新增 `Ensure()` —— 场景没挂时自动兜底创建一个空的，并新增 `HasParticipants` 属性 |
 | `Combat/ICombatResettable.cs` | 新增（上一批）。`ResetForEncounter()` 接口 |
 | `FrameWork/Body/CombatStats.cs` | 抽出 `ResetForEncounter()`，构造函数改为调用它 |
-| `FrameWork/Body/CharacterBody.cs` | 实现接口；9 组状态复位；站位复位加域重载保护 |
+| `FrameWork/Body/CharacterBody.cs` | 实现接口；9 组状态复位；记录并复位初始站位 |
 | `Boss/BTBrain.cs` | 实现接口；清黑板 / 回生后阶段 / 连招执行器（`moveFilter` 属设定，不清） |
 | `UI/CombatUIController.cs` | 实现接口；清三块提示 UI + `CombatInputGate` + `PlayerInput` + 命数点/回生点/葫芦 |
 | `Combat/ArrowProjectile.cs` | 实现接口；复战时销毁自己 |

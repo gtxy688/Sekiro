@@ -167,9 +167,7 @@ namespace ARPG.FrameWork.Body
         public GroundedState SharedGrounded => sharedGrounded ??= new GroundedState(this);
 
         // 转向模块：朝向的运行时状态与决策已迁入 FacingController（重构试点一），
-        // 本类只保留同名转发接口，调用方零改动。
-        // 懒创建与 EnsureRuntimeReady 同理：Play 中改脚本触发域重载后，非序列化字段会丢，
-        // 下次访问自动补一套，避免 OnAnimatorMove/RotateYaw NRE。
+        // 本类只保留同名转发接口，调用方零改动。按需创建，避免为未使用的角色提前分配。
         private FacingController facing;
         private FacingController Facing => facing ??= new FacingController(this);
 
@@ -242,11 +240,8 @@ namespace ARPG.FrameWork.Body
         private Collider bodyCollider;
 
         // 复战复位用的初始站位。Awake 时记录——此刻 transform 已是场景里摆好的位置。
-        // spawnPoseRecorded 是域重载保护：Play 中改脚本会清空非序列化字段，
-        // 那时 spawnPosition 会退回默认的 (0,0,0)，直接传送等于把角色扔到世界原点。
         private Vector3 spawnPosition;
         private Quaternion spawnRotation;
-        private bool spawnPoseRecorded;
 
         // ===== 阵营 =====
         // 「这是谁」的唯一真相源。判断身份一律查 Faction 属性，
@@ -295,7 +290,6 @@ namespace ARPG.FrameWork.Body
             // 不重载场景的话没有别人会帮它复位，Boss 会死在上一场倒下的地方。
             spawnPosition = transform.position;
             spawnRotation = transform.rotation;
-            spawnPoseRecorded = true;
         }
 
         // 地面检测接线：groundCheckPoint/groundLayer 都没赋值时，UpdateEnvironmentalChecks
@@ -395,20 +389,6 @@ namespace ARPG.FrameWork.Body
             }
 
             // 7. 站位与朝向复位。流程层若要把角色放到别处，在 ResetAll() 之后覆盖即可。
-            //
-            //    spawnPoseRecorded 为假只有一种来源：非序列化字段被清空（Play 中改脚本触发域重载）。
-            //    此时 spawnPosition 是默认的 (0,0,0)，直接传送等于把角色扔到世界原点——
-            //    比不复位更糟。所以取「当前位置」兜底当成初始站位：本次不产生位移，
-            //    之后的复战仍能复位，同时打一条日志让人知道发生过。
-            if (!spawnPoseRecorded)
-            {
-                Debug.LogWarning(
-                    $"[CharacterBody] {name} 的初始站位未记录（非序列化字段被域重载清空），" +
-                    "已用当前位置兜底，本次复战不会把角色传送回出生点。", this);
-                spawnPosition = transform.position;
-                spawnRotation = transform.rotation;
-                spawnPoseRecorded = true;
-            }
             transform.SetPositionAndRotation(spawnPosition, spawnRotation);
             Physics.SyncTransforms();
 
@@ -428,9 +408,6 @@ namespace ARPG.FrameWork.Body
 
         private void Update()
         {
-            EnsureRuntimeReady();
-            if (MainStateMachine == null) return;
-
             // 1. 每帧更新物理环境感知 (例如是否接地)
             // 这样做的好处是：所有 State 只需要读取 body.IsGrounded，不需要在各自内部写射线检测
             UpdateEnvironmentalChecks();
@@ -464,31 +441,6 @@ namespace ARPG.FrameWork.Body
 
         // 返回 true = 命令吃掉。playedNew = 本次新播了 Jump2（已用过则为 false）。
         public bool TryAirJump2(out bool playedNew) => Loco.TryAirJump2(out playedNew);
-
-        // 改脚本后仍停在 Play 时，纯 C# 状态机会丢。下一帧补一套，避免 Update NRE。
-        private void EnsureRuntimeReady()
-        {
-            if (Animator == null) Animator = GetComponent<Animator>();
-            if (Rb == null) Rb = GetComponent<Rigidbody>();
-            if (bodyCollider == null) bodyCollider = GetComponent<Collider>();
-
-            if (MainStateMachine == null)
-            {
-                MainStateMachine = new StateMachine(NotifyStateChanged, GetStatePathForDebug);
-            }
-
-            if (MainStateMachine.CurrentState == null)
-            {
-                BaseState initial = IsPostureBroken
-                    ? new StaggerBrokenState(this)
-                    : null;
-                MainStateMachine.ChangeState(
-                    initial == null ? SharedGrounded : new GroundedState(this, initial),
-                    IsPostureBroken
-                        ? "runtime recovery: restore posture broken"
-                        : "runtime recovery: restore grounded idle");
-            }
-        }
 
         // 玩家/Boss 忽略物理互撞后，用分离把玩家挡在 Boss 体外。Boss 不被胶囊挤走。
         private void ResolveOpponentOverlap()
@@ -559,8 +511,6 @@ namespace ARPG.FrameWork.Body
         // 接收大脑 (Brain) 传来的指令
         public bool TryExecuteCommand(ICommand cmd)
         {
-            EnsureRuntimeReady();
-            if (MainStateMachine == null) return false;
             if (IsFinisherLocked) return true;
 
             // 将大脑的指令直接喂给主状态机。
@@ -579,13 +529,11 @@ namespace ARPG.FrameWork.Body
         // 跨顶层的切换统一经过这里；父状态内部的叶子切换仍由父状态负责。
         public void EnterGrounded(string reason = "enter grounded")
         {
-            EnsureRuntimeReady();
             MainStateMachine.ChangeState(SharedGrounded, reason);
         }
 
         public void EnterGrounded(BaseState initialSubState, string reason = "enter grounded sub-state")
         {
-            EnsureRuntimeReady();
             MainStateMachine.ChangeState(
                 initialSubState == null ? SharedGrounded : new GroundedState(this, initialSubState),
                 reason);
@@ -593,26 +541,22 @@ namespace ARPG.FrameWork.Body
 
         public void EnterAirborne(string reason = "enter air")
         {
-            EnsureRuntimeReady();
             MainStateMachine.ChangeState(new AirState(this), reason);
         }
 
         public void EnterStunned(HitGrade grade, string reason = "hit: player reaction")
         {
-            EnsureRuntimeReady();
             MainStateMachine.ChangeState(new StunnedState(this, grade), reason);
         }
 
         public void EnterStunned(HurtContext context, string reason = "hit: reaction")
         {
-            EnsureRuntimeReady();
             MainStateMachine.ChangeState(new StunnedState(this, context), reason);
         }
 
         public void EnterDead(bool canRevive, bool alreadyDowned = false,
             string reason = "death: enter dead")
         {
-            EnsureRuntimeReady();
             MainStateMachine.ChangeState(new DeadState(this, canRevive, alreadyDowned), reason);
         }
 
@@ -708,7 +652,6 @@ namespace ARPG.FrameWork.Body
             Func<GroundedState, BaseState> factory,
             string reason = "force grounded child transition")
         {
-            EnsureRuntimeReady();
             if (MainStateMachine?.CurrentState is GroundedState g)
             {
                 g.SubStateMachine.ChangeState(factory(g), reason);
@@ -730,7 +673,6 @@ namespace ARPG.FrameWork.Body
         // 喝药重箭等打断：命中段会拒收 AttackCommand，防御态会吞掉命令却不出招，必须强切。
         public bool StartAttack(AttackConfig config, bool interruptCurrent = false)
         {
-            EnsureRuntimeReady();
             if (config == null) return false;
             if (IsParried || IsPostureBroken || IsFinisherLocked) return false;
 
@@ -828,7 +770,6 @@ namespace ARPG.FrameWork.Body
         // ParriedState 装在 GroundedState 内（通过带初始子状态的构造），顶层结构不变。
         public void ForceParryStun(string animName = null, bool armKengeki = true)
         {
-            EnsureRuntimeReady();
             IsAttacking = false;
             AttackUninterruptible = false;
             DisableWeaponHit();
@@ -846,7 +787,6 @@ namespace ARPG.FrameWork.Body
         // 被识破但未崩解：停挥刀，播 Mikiri_Deflect（资源侧曾写成 Miriki_Deflect）。
         public void ForceMikiriStun()
         {
-            EnsureRuntimeReady();
             IsAttacking = false;
             AttackUninterruptible = false;
             DisableWeaponHit();
@@ -873,7 +813,6 @@ namespace ARPG.FrameWork.Body
         // 架势崩解硬直入口（M9）：玩家 = 击飞倒地（不被处决）；Boss = 处决窗口（红点）。
         public void ForcePostureBroken(PostureBreakSource source = PostureBreakSource.Attack)
         {
-            EnsureRuntimeReady();
             IsAttacking = false;
             AttackUninterruptible = false;
             DisableWeaponHit();
@@ -972,7 +911,6 @@ namespace ARPG.FrameWork.Body
         // 崩解标志/架势条清掉，不切状态。倒地中再挨刀时先清再进受击，避免闪 Idle。
         public void ClearPostureBreak(float remainingRatio = 0f)
         {
-            EnsureRuntimeReady();
             Combat.ClearPostureBreak(remainingRatio);
         }
 
@@ -996,7 +934,6 @@ namespace ARPG.FrameWork.Body
                                HitGrade hitGrade = HitGrade.Light,
                                bool isProjectile = false)
         {
-            EnsureRuntimeReady();
             if (IsFinisherLocked || IsDefeated) return;
 
             // 打包成值类型，供状态机做层级查询（M1）

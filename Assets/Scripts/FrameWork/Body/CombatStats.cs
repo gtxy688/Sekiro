@@ -261,7 +261,6 @@ namespace ARPG.FrameWork.Body
         }
 
         // 崩解标志/架势条清掉，不切状态。倒地中再挨刀时先清再进受击，避免闪 Idle。
-        // （EnsureRuntimeReady 由 Façade 包装方法先调，这里只做数据部分）
         public void ClearPostureBreak(float remainingRatio = 0f)
         {
             IsPostureBroken = false;
