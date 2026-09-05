@@ -92,7 +92,16 @@ namespace ARPG.FrameWork.States.Ground
                 return true;
             }
 
-            // M16：拦截葫芦指令 → 切喝药状态（播动画 + 可被打断硬直）
+            
+            //FinisherLocked → 吞掉
+            // PostureBroken → 留给子状态
+            // Parried → 留给子状态
+            // 正在 Healing → 特殊处理
+            // 正在攻击且后摇未开放 → false，继续缓冲
+            // 最后才真正进入 Heal 
+            // 上面的检查全部通过后，才真正进入喝药逻辑：
+            // 集中 Grounded 的公共进入规则，把 Heal 放父状态
+            // 直接返回，让子状态机切换，也是可以的
             if (cmd is HealCommand)
             {
                 SubStateMachine.ChangeState(new HealState(body, this));

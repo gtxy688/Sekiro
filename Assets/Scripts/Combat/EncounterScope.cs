@@ -132,7 +132,8 @@ namespace ARPG.Combat
         // 已销毁的 MonoBehaviour 会以"假非空"形式留在表里，必须显式识别。
         static bool IsGone(ICombatResettable target)
         {
-            if (target == null) return true;
+            if (target == null) 
+                return true;
             return target is Object unityObj && unityObj == null;
         }
     }

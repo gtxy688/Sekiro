@@ -45,7 +45,8 @@ namespace ARPG.FrameWork.States
 
         private string ResolveDebugPath(BaseState state)
         {
-            if (state == null) return "<none>";
+            if (state == null) 
+                return "<none>";
             return debugPathResolver != null ? debugPathResolver(state) : state.GetType().Name;
         }
 
