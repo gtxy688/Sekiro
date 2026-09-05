@@ -30,7 +30,6 @@ namespace ARPG.FrameWork.States.Ground
             hasSeenAnim = false;
             hasCompleted = false;
             body.IsFinisherLocked = true;
-            body.IsAttacking = false;
             body.AttackUninterruptible = false;
             body.MoveDirection = Vector3.zero;
             body.DisableWeaponHit();

@@ -26,7 +26,6 @@ namespace ARPG.FrameWork.States.Ground
             hasCompleted = false;
             timer = 0f;
             body.IsFinisherLocked = true;
-            body.IsAttacking = false;
             body.AttackUninterruptible = false;
             body.IsAttackRecoveryOpen = false;
             body.ActiveAttack = null;

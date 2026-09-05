@@ -26,7 +26,6 @@ namespace ARPG.FrameWork.States.Ground
             triedNestedPath = false;
             timer = 0f;
             body.IsFinisherLocked = true;
-            body.IsAttacking = false;
             body.AttackUninterruptible = false;
             body.MoveDirection = Vector3.zero;
             body.DisableWeaponHit();

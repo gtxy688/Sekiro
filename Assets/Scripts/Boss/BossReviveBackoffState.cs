@@ -27,7 +27,6 @@ namespace ARPG.Boss
                 parent = body.MainStateMachine.CurrentState as HierarchicalState;
 
             timer = 0f;
-            body.IsAttacking = false;
             body.ClearSteerYaw();
             body.SetSuppressRootYaw(false);
             FacePlayer();

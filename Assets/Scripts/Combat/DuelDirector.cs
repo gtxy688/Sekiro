@@ -269,7 +269,6 @@ namespace ARPG.Combat
 
             attacker.DisableWeaponHit();
             victim.DisableWeaponHit();
-            attacker.IsAttacking = false;
             attacker.AttackUninterruptible = false;
             attacker.IsAttackRecoveryOpen = false;
             attacker.ActiveAttack = null;

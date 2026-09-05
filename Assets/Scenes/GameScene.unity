@@ -479,6 +479,7 @@ GameObject:
   - component: {fileID: 66526828}
   - component: {fileID: 66526829}
   - component: {fileID: 66526830}
+  - component: {fileID: 66526831}
   m_Layer: 0
   m_Name: Mgr
   m_TagString: Untagged
@@ -573,6 +574,21 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   resetKey: 101
+--- !u!114 &66526831
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 66526825}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 715b8a46a25f6f84886fd0ffcf8915f3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Player: {fileID: 1658754164}
+  Opponents:
+  - {fileID: 2526948168690398561}
 --- !u!1 &83678996
 GameObject:
   m_ObjectHideFlags: 0

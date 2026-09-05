@@ -200,7 +200,6 @@ namespace ARPG.FrameWork.Body
         // 死亡判定（M14）：有复活次数 → 进回生待机（先变暗，倒完再出选项）；否则直接真死
         private void HandleDeath()
         {
-            body.IsAttacking = false;
             body.AttackUninterruptible = false;
             body.DisableWeaponHit();
             if (ReviveRemaining > 0)
@@ -247,7 +246,6 @@ namespace ARPG.FrameWork.Body
 
             if (LivesRemaining <= 0)
             {
-                body.IsAttacking = false;
                 body.AttackUninterruptible = false;
                 body.DisableWeaponHit();
                 body.MoveDirection = Vector3.zero;

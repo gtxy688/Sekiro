@@ -108,8 +108,6 @@ namespace ARPG.FrameWork.States.Base
             weaponHitEnabled = false;
             ApplyHitbox();
 
-            // Boss AI 反制判定标记（M7 用，避免查状态类型）
-            body.IsAttacking = true;
             body.AttackUninterruptible = IsUninterruptibleAttack(config, body.CurrentMoveEntry);
 
             // 危字攻击：发事件 → UI 弹"危"字提示（M17）
@@ -164,7 +162,6 @@ namespace ARPG.FrameWork.States.Base
         {
             body.DisableWeaponHit();
             body.ActiveHitPulseIndex = -1;
-            body.IsAttacking = false;
             body.IsAttackRecoveryOpen = false;
             body.AttackUninterruptible = false;
             body.SetSuppressRootYaw(false);

@@ -137,8 +137,20 @@ namespace ARPG.FrameWork.Body
         // 是否正在格挡姿态（DeflectState 长按中）——架势回复 ×5 用
         public bool IsGuarding { get; set; }
 
-        // 是否正在攻击（AttackState 期间）——Boss AI 反制判定用（避免查状态类型，架构红线）
-        public bool IsAttacking { get; set; }
+        // 是否正在攻击——由当前 HFSM 攻击叶子派生，Boss AI 仍只通过此门面查询。
+        public bool IsAttacking => GetCurrentLeafState() is AttackStateBase;
+
+        private BaseState GetCurrentLeafState()
+        {
+            BaseState state = MainStateMachine?.CurrentState;
+            while (state is HierarchicalState hierarchical
+                   && hierarchical.SubStateMachine?.CurrentState is BaseState child)
+            {
+                state = child;
+            }
+
+            return state;
+        }
         public bool IsAttackRecoveryOpen { get; set; }
         public bool IsHealing { get; set; }
         // 危字 / 飞舟：挨打仍扣血涨架势，不切受击、招不中断
@@ -364,7 +376,6 @@ namespace ARPG.FrameWork.Body
             SetReviving(false);
 
             // 3. 出招残留：出招途中被打断重开，会带着上一刀的判定数据
-            IsAttacking = false;
             ActiveHitPulseIndex = -1;
             ActiveAttack = null;
             CurrentMoveEntry = null;
@@ -770,7 +781,6 @@ namespace ARPG.FrameWork.Body
         // ParriedState 装在 GroundedState 内（通过带初始子状态的构造），顶层结构不变。
         public void ForceParryStun(string animName = null, bool armKengeki = true)
         {
-            IsAttacking = false;
             AttackUninterruptible = false;
             DisableWeaponHit();
             ActiveHitPulseIndex = -1;
@@ -787,7 +797,6 @@ namespace ARPG.FrameWork.Body
         // 被识破但未崩解：停挥刀，播 Mikiri_Deflect（资源侧曾写成 Miriki_Deflect）。
         public void ForceMikiriStun()
         {
-            IsAttacking = false;
             AttackUninterruptible = false;
             DisableWeaponHit();
             string anim = AnimUtil.ResolveState(Animator, "Mikiri_Deflect", "Miriki_Deflect");
@@ -813,7 +822,6 @@ namespace ARPG.FrameWork.Body
         // 架势崩解硬直入口（M9）：玩家 = 击飞倒地（不被处决）；Boss = 处决窗口（红点）。
         public void ForcePostureBroken(PostureBreakSource source = PostureBreakSource.Attack)
         {
-            IsAttacking = false;
             AttackUninterruptible = false;
             DisableWeaponHit();
             KengekiArmed = false;
@@ -889,7 +897,6 @@ namespace ARPG.FrameWork.Body
         public void CancelAttackToIdle()
         {
             if (IsFinisherLocked || IsPostureBroken || IsDefeated) return;
-            IsAttacking = false;
             AttackUninterruptible = false;
             IsAttackRecoveryOpen = false;
             ActiveAttack = null;
