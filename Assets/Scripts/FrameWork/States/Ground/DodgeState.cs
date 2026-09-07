@@ -18,12 +18,17 @@ namespace ARPG.FrameWork.States.Ground
         private float dodgeTimer;
         private float dodgeDuration;
         private float iFrameDuration;
+        private readonly float entryBlendDuration;
         private bool lockedDodge;
         private bool mikiriEligible;
 
-        public DodgeState(CharacterBody body, HierarchicalState parent) : base(body)
+        public DodgeState(
+            CharacterBody body,
+            HierarchicalState parent,
+            float entryBlendDuration = 0f) : base(body)
         {
             this.parent = parent;
+            this.entryBlendDuration = Mathf.Max(0f, entryBlendDuration);
             dodgeDuration = body.Config != null ? body.Config.DodgeDuration : 0.5f;
             iFrameDuration = body.Config != null ? body.Config.DodgeIFrame : 0.3f;
         }
@@ -45,13 +50,12 @@ namespace ARPG.FrameWork.States.Ground
                 body.SetSuppressRootYaw(true);
                 FaceTargetInstant();
                 string anim = ResolveLockedDodgeAnim();
-                if (!AnimUtil.TryPlay(body.Animator, anim))
-                    AnimUtil.TryCrossFade(body.Animator, anim, 0.05f);
+                PlayDodgeAnimation(anim);
             }
             else
             {
                 body.SetSuppressRootYaw(false);
-                AnimUtil.TryCrossFade(body.Animator, "Dodge", 0.05f);
+                PlayDodgeAnimation("Dodge");
             }
         }
 
@@ -135,6 +139,25 @@ namespace ARPG.FrameWork.States.Ground
             if (Mathf.Abs(x) > Mathf.Abs(z))
                 return x < 0f ? "Dodge_Left" : "Dodge_Right";
             return z < 0f ? "Dodge_Back" : "Dodge_Forward";
+        }
+
+        private void PlayDodgeAnimation(string anim)
+        {
+            // 只有 Mid/Heavy 倒地取消带入固定秒数；普通锁定垫步保留原来的硬切响应。
+            if (entryBlendDuration > 0f)
+            {
+                AnimUtil.TryCrossFadeInFixedTime(body.Animator, anim, entryBlendDuration);
+                return;
+            }
+
+            if (lockedDodge)
+            {
+                if (!AnimUtil.TryPlay(body.Animator, anim))
+                    AnimUtil.TryCrossFade(body.Animator, anim, 0.05f);
+                return;
+            }
+
+            AnimUtil.TryCrossFade(body.Animator, anim, 0.05f);
         }
 
         private void FaceTargetInstant()

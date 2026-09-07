@@ -50,6 +50,7 @@ MonoBehaviour:
   LifeCount: 1
   DodgeDuration: 0.5
   DodgeIFrame: 0.3
+  KnockdownToDodgeBlendDuration: 0.12
   MikiriDuration: 0.8
   MikiriPostureGain: 30
   RotationSpeed: 720

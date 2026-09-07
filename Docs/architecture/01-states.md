@@ -46,6 +46,7 @@ Brain (输入/AI) → body.TryExecuteCommand(cmd) → MainStateMachine.HandleCom
 
 - 返回 true = 消耗，清空缓冲池
 - 返回 false = 拒收，留在缓冲池等 0.2s 超时
+- `AttackCommand` 只表示普通攻击/连招；`FinisherCommand` 只在已有可执行忍杀机会时，由玩家新按攻击键生成。
 
 ## 三、Hit 路由（M1，已实现）
 
@@ -125,6 +126,8 @@ public void ReceiveHit(CharacterBody attacker, int healthDmg, float postureDmg, 
 
 玩家受击后摇（移动/攻击/跳跃仍锁到动画结束）：Light 从 `StunDuration` 起可垫步，**防御随时可取消**（含 `Hurt_Light2`，直接进 `DeflectState`）；Mid 从 `KnockdownStunDuration` 起可垫步；Heavy 从 `HeavyStunDuration` 起可垫步。不垫/不防则动画仍播完（Light → Idle，Mid/Heavy → Standing）。对应垫步字段填 `0` = 该等级期间不能垫步。二次受击刷新动画时后摇计时重算。
 
+Mid / Heavy / HeavyRepeat 在垫步取消窗口进入 `DodgeState` 时，使用 `CharacterConfig.KnockdownToDodgeBlendDuration` 的固定时间融合（玩家默认 `0.12s`）接入闪避；设为 `0` 则回退原有的闪避进入策略。Light 受击及待机、攻击等其他闪避入口不使用该参数。
+
 玩家 `Hurt_Mid` 且倒地结束时间（`CharacterConfig.HurtMidFallEndTime`，相对动画 0 点）之前按下防御 → `MidToGuard`；过了只能躺完再 `Standing`。`MidToGuard` 播完：按住 → 举刀循环，松开 → Idle。
 
 ### 玩家受击等级（只作用于玩家挨 Boss）
@@ -188,7 +191,7 @@ Light 受击动画播完回 Idle。`Hurt_Mid` / `Hurt_Heavy` / `Hurt_HeavyRepeat
 - 识破崩解：Boss 立即播放专用 `Stagger_Broken_Mikiri`（现资源名 `Stagger_Broken_Miriki` 仍兼容）。玩家现有 `Mikiri` 剩余动画作为确认窗口（跟 Clip 走）。确认窗口不对玩家对齐朝向；窗口内按攻击后双方播放成对忍杀：`Finsher_Mikiri`（Boss 侧现资源名 `Finsher_Miriki` 仍兼容），开演才水平对视。弹反/识破确认窗口不走 Ground 处决距离门。
 - 弹反/识破窗口超时：Boss 架势从 100% 降到 80%，解除崩解并隐藏红点。
 - 忍杀开始前双方只转水平朝向彼此，不瞬移对齐站位。开始后隐藏红点；`IsFinisherLocked` 期间双方锁定命令、受击与强切攻击，直到动画播完。
-- Boss 崩解窗口内玩家再按攻击：优先处决（含连招后摇里的 AttackCommand），不进 `NextCombo`。崩解那一刀本身不会再发攻击指令，不会被同一刀直接处决。
+- Boss 崩解窗口内玩家**重新按攻击**：输入层生成 `FinisherCommand`，优先处决且不进 `NextCombo`。破防前已留在缓冲池的 `AttackCommand` 只会被丢弃，绝不能由打崩 Boss 的同一刀自动触发忍杀。
 - 玩家忍杀动画播完后由 `FinisherState` 调用 `CombatManager.ExecuteFinisher()` 清命，再 `CompleteFinisherSequence` 解锁双方。不依赖命中帧动画事件。
 
 ## 七b、Elbow 投技（Grab）

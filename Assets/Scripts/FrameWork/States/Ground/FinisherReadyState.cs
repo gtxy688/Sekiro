@@ -60,7 +60,7 @@ namespace ARPG.FrameWork.States.Ground
 
         public override bool HandleCommand(ICommand cmd)
         {
-            if (cmd is AttackCommand)
+            if (cmd is FinisherCommand)
             {
                 CombatManager.Instance?.TryExecuteFinisher(body, FinisherKind.Deflect);
             }

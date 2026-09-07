@@ -237,6 +237,11 @@ namespace ARPG.Combat
             return director != null && director.TryExecuteAvailableFinisher(initiator);
         }
 
+        public bool HasAvailableFinisher(CharacterBody initiator)
+        {
+            return director != null && director.HasAvailableFinisher(initiator);
+        }
+
         public void ExecuteFinisher(CharacterBody source)
         {
             if (director != null) director.ExecuteFinisher(source);

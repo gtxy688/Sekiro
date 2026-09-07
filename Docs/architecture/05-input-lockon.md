@@ -13,7 +13,7 @@ InputAction 已定义 8 个动作（`Assets/Scripts/Player/Input/`）。当前 P
 | 动作 | 按键 | Command | 状态机处理 |
 |------|------|---------|-----------|
 | Move | WASD/摇杆 | MoveCommand（连续，不走缓冲） | MoveState |
-| Attack | 鼠标左键/J | AttackCommand | AttackState |
+| Attack | 鼠标左键/J | `AttackCommand` / `FinisherCommand` | AttackState / 忍杀 |
 | Jump | 空格 | JumpCommand | GroundedState 拦截 |
 | Defend | 鼠标右键/K | DeflectCommand | DeflectState |
 | Dodge | 左 Shift | DodgeCommand | DodgeState |
@@ -56,6 +56,7 @@ protected override void Awake()
 
 - 不需要给 InputAction 添加 Hold Interaction。
 - 按下攻击时开始计时，阈值前松开才发送普通 `AttackCommand`。
+- 按下当帧已有可执行忍杀机会时，立即发送 `FinisherCommand`；破防前开始的普通攻击永远不会在后续被改解释为忍杀。
 - 按住达到 `CharacterConfig.AttackHoldDuration`（默认 0.3s）时，设置 `CharacterBody.ThrustAttack` 为本次主动攻击并立即发送一次 `AttackCommand`。
 - 达到阈值后继续按住不会重复出招。
 - `ThrustAttack` 使用独立 `AttackConfig`，Animator 状态名为 `Thrust`。

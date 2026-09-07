@@ -177,6 +177,7 @@ namespace ARPG.FrameWork.States.Base
 
             if (cmd is DeflectCommand) return CancelToDeflect(canCancel);
             if (cmd is DodgeCommand) return CancelToDodge(canCancel);
+            if (cmd is FinisherCommand) return HandleFinisherCommand();
             if (cmd is AttackCommand) return HandleAttackCommand();
             if (cmd is JumpCommand) return HandleJumpCommand(canCancel);
             if (cmd is MoveCommand moveCmd) return HandleMoveCommand(moveCmd);
@@ -203,20 +204,13 @@ namespace ARPG.FrameWork.States.Base
 
         private bool HandleAttackCommand()
         {
-            if (CombatManager.Instance != null &&
-                CombatManager.Instance.TryExecuteAvailableFinisher(body))
-            {
-                return true;
-            }
-
-            // 崩解窗口把攻击键留给处决，不能接 NextCombo。
-            // 「是不是玩家」查阵营；「当前对手崩没崩」仍是找对象，多 Boss 时要改为查任一对手。
+            // 已出现忍杀机会时，破防前遗留的普通攻击预输入不能接 NextCombo。
+            // 真正的忍杀只接受 PlayerBrain 在机会出现后生成的 FinisherCommand。
             if (body.Faction == Faction.Player &&
                 CombatManager.Instance != null &&
-                CombatManager.Instance.BossRef != null &&
-                CombatManager.Instance.BossRef.IsPostureBroken)
+                CombatManager.Instance.HasAvailableFinisher(body))
             {
-                return false;
+                return true;
             }
 
             if (config.NextCombo != null &&
@@ -227,6 +221,13 @@ namespace ARPG.FrameWork.States.Base
                 return true;
             }
             return false;
+        }
+
+        private bool HandleFinisherCommand()
+        {
+            if (body.Faction == Faction.Player)
+                CombatManager.Instance?.TryExecuteAvailableFinisher(body);
+            return true;
         }
 
         // ===== 共享判定/表现逻辑 =====

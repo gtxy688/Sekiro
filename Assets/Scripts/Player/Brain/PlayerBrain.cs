@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+using ARPG.Combat;
 using ARPG.FrameWork.States;
 using ARPG.Mgr;
 namespace ARPG.Player
@@ -129,6 +130,20 @@ namespace ARPG.Player
         private void OnAttackStarted(InputAction.CallbackContext _)
         {
             if (!CanAcceptPlayInput()) return;
+
+            // 忍杀意图必须在按键按下这一刻确定。
+            // 这样破防前已经开始的普通攻击，即使在松键/缓冲期间打崩 Boss，
+            // 也只会继续作为 AttackCommand，不能被状态机改解释成忍杀。
+            if (CombatManager.Instance != null &&
+                CombatManager.Instance.HasAvailableFinisher(body))
+            {
+                attackPressed = false;
+                holdAttackTriggered = false;
+                holdThresholdChecked = true;
+                BufferCommand(new FinisherCommand());
+                return;
+            }
+
             attackPressed = true;
             holdAttackTriggered = false;
             holdThresholdChecked = false;

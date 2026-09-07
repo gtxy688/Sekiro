@@ -21,6 +21,7 @@
 | 3b | 在 `RecoveryWindowStart~ComboWindowEnd` 按攻击 | 立即衔接 `NextCombo` |
 | 3c | 过早按攻击或晚于 `ComboWindowEnd` | 不错误衔接本段 `NextCombo` |
 | 3d | 后摇窗口按移动/格挡/垫步/跳跃/喝药 | 立即取消后摇并执行对应行为 |
+| 3h | Boss 已出现忍杀红点时重新按攻击；以及在红点出现前预输入攻击后再打崩 Boss | 前者进入忍杀；后者不自动忍杀，旧预输入不接普通连招 |
 | 3e | 锁定攻击时 Boss 横向移动 | `RotationWindowEnd` 前玩家持续追踪 Boss；窗口结束后不再强转 |
 | 3f | 未锁定攻击时输入不同方向 | `RotationWindowEnd` 前攻击朝输入方向调整 |
 | 3g | 锁定攻击期间持续按移动，进入后摇 | 立即衔接 `Walk_Strafe`；不会插入 `IdleToWalk`，也不会额外朝 Boss 前冲 |

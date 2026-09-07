@@ -79,6 +79,10 @@ namespace ARPG.Configs
         public float DodgeDuration = 0.5f; // 垫步持续时长（位移由动画根运动驱动，这里只控制总时长）
         public float DodgeIFrame = 0.3f;  // 垫步无敌帧时长（M4）
 
+        [Tooltip("玩家 Mid/Heavy 倒地取消到闪避时的固定融合秒数。0 = 沿用普通闪避进入策略。")]
+        [Range(0f, 0.25f)]
+        public float KnockdownToDodgeBlendDuration = 0.12f;
+
         [Header("识破（M17）")]
         public float MikiriDuration = 0.8f;      // 踩刀动画时长
         public float MikiriPostureGain = 30f;    // 识破成功涨攻击者架势

@@ -108,12 +108,20 @@ namespace ARPG.FrameWork.States.Ground
                 return true;
             }
 
-            // M10：玩家攻击指令优先查处决。Boss 崩解窗口内，连招后摇里再按攻击也走忍杀，
-            // 不进 NextCombo。崩解那一刀本身不会再发 AttackCommand，所以不会被这刀直接处决。
+            // M10：只有在崩解机会已经出现后新按的攻击键才会生成 FinisherCommand。
+            // 普通 AttackCommand 即使仍在连招缓冲中，也绝不能因本刀把 Boss 打崩而变成忍杀。
+            if (cmd is FinisherCommand)
+            {
+                if (body.Faction == Faction.Player)
+                    CombatManager.Instance?.TryExecuteAvailableFinisher(body);
+                return true;
+            }
+
+            // Boss 已可忍杀时残留的普通攻击预输入直接丢弃，不能再落到 Idle/Move 开一刀。
             if (cmd is AttackCommand &&
                 body.Faction == Faction.Player &&
                 CombatManager.Instance != null &&
-                CombatManager.Instance.TryExecuteAvailableFinisher(body))
+                CombatManager.Instance.HasAvailableFinisher(body))
             {
                 return true;
             }

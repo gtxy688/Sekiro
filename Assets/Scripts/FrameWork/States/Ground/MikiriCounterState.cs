@@ -87,7 +87,7 @@ namespace ARPG.FrameWork.States.Ground
 
         public override bool HandleCommand(ICommand cmd)
         {
-            if (finisherWindow && cmd is AttackCommand)
+            if (finisherWindow && cmd is FinisherCommand)
             {
                 CombatManager.Instance?.TryExecuteFinisher(body, FinisherKind.Mikiri);
             }

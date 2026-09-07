@@ -68,7 +68,8 @@ namespace ARPG.FrameWork.States.Ground
             }
         }
 
-        bool IsKnockdown => grade == HitGrade.Mid || grade == HitGrade.Heavy || heavyRepeat;
+        // StunnedState 在垫步取消时据此决定是否使用倒地专用的固定时间融合。
+        public bool IsKnockdown => grade == HitGrade.Mid || grade == HitGrade.Heavy || heavyRepeat;
 
         // 已过落地前摇、处于躺地窗口（Jump_Danger 等危字追击用）。
         public bool IsInKnockdownWindow()

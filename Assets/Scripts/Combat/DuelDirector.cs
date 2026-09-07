@@ -86,6 +86,22 @@ namespace ARPG.Combat
             return HitReactionUtil.IsPlayer(initiator);
         }
 
+        // 供输入层在按键按下当帧判断：只有此刻真的能开演，才生成 FinisherCommand。
+        // 不能用 TryExecuteAvailableFinisher 探测，它会直接切状态并消耗机会。
+        public bool HasAvailableFinisher(CharacterBody initiator)
+        {
+            if (initiator == null || !CanInitiateFinisher(initiator)) return false;
+            if (initiator.IsPostureBroken || active != null) return false;
+
+            CharacterBody victim = FindAnyBrokenOpponent(initiator);
+            if (victim == null) return false;
+
+            return CanExecuteFinisher(
+                initiator,
+                victim,
+                FinisherKindFor(victim.CurrentPostureBreakSource));
+        }
+
         // ===== 成对忍杀（M10）=====
         public bool TryExecuteFinisher(CharacterBody initiator, FinisherKind kind = FinisherKind.Ground)
         {
@@ -147,21 +163,9 @@ namespace ARPG.Combat
             CharacterBody victim = FindAnyBrokenOpponent(initiator);
             if (victim == null) return false;
 
-            FinisherKind kind;
-            switch (victim.CurrentPostureBreakSource)
-            {
-                case PostureBreakSource.Deflect:
-                    kind = FinisherKind.Deflect;
-                    break;
-                case PostureBreakSource.Mikiri:
-                    kind = FinisherKind.Mikiri;
-                    break;
-                default:
-                    kind = FinisherKind.Ground;
-                    break;
-            }
-
-            return TryExecuteFinisher(initiator, kind);
+            return TryExecuteFinisher(
+                initiator,
+                FinisherKindFor(victim.CurrentPostureBreakSource));
         }
 
         // 找一个能被 kind 处决的对手。
@@ -190,6 +194,21 @@ namespace ARPG.Combat
                     return opponent;
             }
             return null;
+        }
+
+        private bool CanExecuteFinisher(
+            CharacterBody initiator,
+            CharacterBody victim,
+            FinisherKind kind)
+        {
+            if (string.IsNullOrEmpty(ResolveFinisherAnim(kind, initiator.Animator)) ||
+                string.IsNullOrEmpty(ResolveFinisherAnim(kind, victim.Animator)))
+            {
+                return false;
+            }
+
+            return kind != FinisherKind.Ground ||
+                   Vector3.Distance(initiator.transform.position, victim.transform.position) <= finisherRange;
         }
 
         // 只转朝向、不瞬移。成对 Root 才能对上。双方 Clip 短名可以不同（Mikiri/Miriki）。
@@ -324,6 +343,19 @@ namespace ARPG.Combat
             {
                 victim.IsFinisherLocked = false;
                 victim.EnterGrounded("duel: grab throw complete");
+            }
+        }
+
+        private static FinisherKind FinisherKindFor(PostureBreakSource source)
+        {
+            switch (source)
+            {
+                case PostureBreakSource.Deflect:
+                    return FinisherKind.Deflect;
+                case PostureBreakSource.Mikiri:
+                    return FinisherKind.Mikiri;
+                default:
+                    return FinisherKind.Ground;
             }
         }
 

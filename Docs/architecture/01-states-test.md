@@ -114,16 +114,18 @@ Play `GameScene`，用真实战斗验收（不要再挂临时按键脚本）。
 
 | # | 操作 | 预期 |
 |---|------|------|
-| 9 | 玩家攻击打满 Boss 架势 | Boss 播 `Stagger_Broken`，红点显示；按攻击后双方播 `Finsher_Ground` |
+| 9 | 玩家攻击打满 Boss 架势 | Boss 播 `Stagger_Broken`，红点显示；**重新按攻击**后双方播 `Finsher_Ground` |
+| 9a | 在当前刀命中前预输入下一刀，再由当前刀打满 Boss 架势 | Boss 进入崩解但不自动忍杀；这条旧预输入不会接下一刀，也不会变成忍杀 |
 | 10 | 完美弹反打满 Boss 架势 | Boss 播 `Stagger_Broken_Deflect`，玩家播 `DeflectToFinsher`，红点显示；按攻击后双方播 `Finsher_Deflect` |
 | 11 | 识破突刺打满 Boss 架势 | Boss 播 `Stagger_Broken_Miriki`（不是继续挥刀）；确认窗口保持被打断时朝向，不猛转到玩家；识破动画未结束前按攻击，双方播成对忍杀（玩家 `Finsher_Mikiri` / Boss `Finsher_Miriki`），开演才水平对视 |
 | 12 | 弹反/识破崩解后不按攻击 | 确认动画结束后红点隐藏，Boss 架势降至 80% 并恢复 |
 | 13 | 任一忍杀动画播放完毕 | 只清 Boss 一条命；开演前双方水平对视，**不瞬移站位**；成对动画播完后解锁 |
 | 13a | 忍杀开演瞬间看双方朝向 | 玩家与 Boss 面对面；位置不变 |
-| 13b | 打崩 Boss 后，玩家还在连招后摇里再按攻击 | 进入忍杀，不接 `NextCombo` |
+| 13b | 打崩 Boss 后，玩家还在连招后摇里**重新按攻击** | 进入忍杀，不接 `NextCombo` |
 | 13c | 忍杀动画播放中按攻击/跳跃/喝药/移动 | 双方都不切其他动作，直到动画结束 |
 | 14 | 玩家架势打满 | 播 `Stagger_Broken`（倒地，不是格挡受击）；期间跳跃/喝药不能打断。动画结束立刻清架势条并恢复，不会额外卡住约 5 秒；起身后才能忍杀 |
 | 14b | 玩家崩解倒地期间再挨 Boss 刀 | **掉血**，立刻从 `Stagger_Broken` 切到 `Hurt_Heavy` 倒地；架势条清空。倒地动画播完后播 `Standing`，再回 Idle |
 | 15 | 攻击打崩 Boss 后玩家不按攻击 | Boss 播完 `Stagger_Broken` 立刻清架势条并解除崩解，不进 `Finsher_Ground`，不掉命 |
 | 16 | 崩解窗口内 Boss 仍可能发攻击意图 | Boss 不播忍杀、不 `ClearLife`；Console 无「自己 CrossFade 忍杀」 |
 | 17 | 玩家自己崩解期间连按攻击 | 不能忍杀 Boss；起身后再按才可能处决 |
+| 18 | 玩家吃 Mid / Heavy / HeavyRepeat 倒地，到对应垫步取消时间后按闪避 | 锁定和未锁定均从倒地姿势平滑接入闪避；普通待机/攻击取消闪避手感不变 |

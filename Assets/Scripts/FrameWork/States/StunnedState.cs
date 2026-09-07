@@ -43,7 +43,10 @@ namespace ARPG.FrameWork.States
                 if (ground != null && ground.CanDodgeCancel)
                 {
                     body.IsKnockedDown = false;
-                    body.EnterGrounded(new DodgeState(body, null),
+                    float blendDuration = ground.IsKnockdown && body.Config != null
+                        ? body.Config.KnockdownToDodgeBlendDuration
+                        : 0f;
+                    body.EnterGrounded(new DodgeState(body, null, blendDuration),
                         "stunned: dodge cancel opened");
                     return true;
                 }

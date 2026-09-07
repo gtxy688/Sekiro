@@ -57,7 +57,11 @@ namespace ARPG.FrameWork.States
     }
     public struct JumpCommand : ICommand { }
 
-    public struct AttackCommand : ICommand{ }
+    // 普通攻击/连招专用。不能因目标之后进入崩解而被重解释为忍杀。
+    public struct AttackCommand : ICommand { }
+
+    // 玩家在已有可执行忍杀机会时新按攻击键产生；与连招预输入分开，避免旧攻击缓冲自动处决。
+    public struct FinisherCommand : ICommand { }
 
     public struct DeflectCommand : ICommand{ }
 
