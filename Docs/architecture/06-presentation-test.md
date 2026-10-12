@@ -7,7 +7,7 @@
 1. `GameScene`：Main Camera 挂 CinemachineBrain（**Late Update**）+ `CameraController`（**Blend Time ≈ 0.6**）。
 2. Hierarchy 根上有 `CameraFollowTarget`：Source = 玩家根，Height≈1.4。**不要挂成玩家子物体。**
 3. FreeLook：Follow / Look At 都拖 `CameraFollowTarget`（不要拖玩家根或骨骼）。挂 `CinemachineOrbitInput`，**关掉** `CinemachineInputProvider`。三个 Rig 的 Aim = **Hard Look At**；Body X/Y/Z Damping = **0**；Binding = **World Space**；Heading = Position Delta 且 **Velocity Filter = 0**。
-4. Play 时若没有 `LockOn Camera`，`CameraController` 会运行时补一台；要调机位：菜单 **Tools/战斗/生成锁定相机** 后 Ctrl+S。锁定 VCam 的 Follow 也是 `CameraFollowTarget`（锁定时脚本给它朝 Boss 的 yaw），Look At = Boss。
+4. Play 时 CameraController 会尝试自动补齐锁定 / 处决虚拟相机与跟随代理；场景需保留主相机、CinemachineFreeLook 和 CameraController。不要依赖已不存在的“生成锁定相机”菜单。
 5. Canvas / AudioManager / 战斗逻辑已接好。
 
 ## M12：相机
@@ -91,14 +91,14 @@
 | 25 | 两条都不是 0 | 弹反叮、BGM 都在，响度跟滑条走 |
 | 23 | 招式 `sfxCues` 填了 clip | 动画播到该时刻出声 |
 
-> #20（危字警示音）已移除：M17 不在本项目范围。
+> 危字提示属于当前战斗流程；提示内容与验收见 03-hit-detection-test.md。
 
 ## 常见问题
 
 - **切镜硬切 / 穿地 / 突然变焦**：Brain 混合不是 EaseInOut 0.6s；或没开 Inherit Position / Cylindrical Position；或锁定 VCam 的 FOV 和 FreeLook 不一致。调 `CameraController.Blend Time`（更快 0.45，更软 0.8）。
 - **锁定镜头穿墙**：`LockOn Camera` 要有 `CinemachineCollider`；墙需 Default/Ground 且带碰撞体。没碰撞体只能换地图或给墙加 MeshCollider。不要把 Hurtbox 勾进 Obstacle Layers。
 - **相机锁定切换失灵**：Main Camera 没挂 `CameraController`，或没订阅 `OnLockOnChanged`；Priority 没切。
-- **锁定后仍是 FreeLook 绕圈**：锁定 VCam 没生成 / Priority 没高于 FreeLook。菜单 **Tools/战斗/生成锁定相机** 后再 Play。
+- **锁定后仍是 FreeLook 绕圈**：检查 CameraController 是否启用、LockOnManager 是否有目标，以及锁定虚拟相机 Priority 是否高于 FreeLook。运行时自动装配失败时检查 Console 和场景引用。
 - **锁定后镜头不架在人背后**：`CameraFollowTarget` 锁定时没朝 Boss（`SetYawTarget`）；或锁定 VCam 的 Follow 拖成了玩家根（会吃动画 yaw，镜头拧）。Follow 应是 `CameraFollowTarget`，Look At 才是 Boss。
 - **走路发糊 / 老花眼**：FreeLook Rig 的 **X Damping > 0**，或 Heading **Velocity Filter > 0**，或给跟随点加了位置平滑。应阻尼全 0、滤波 0、跟随点硬贴位置。
 - **侧向走镜头狂抖、调大 DeadZone 人又不居中**：Aim 还在用 Composer 跟步伐拉锯。三个 Rig 改成 **Hard Look At**，Follow/Look At 用 `CameraFollowTarget`。
@@ -106,4 +106,4 @@
 - **UI 不更新**：CombatUIController 没订阅事件，或订阅了没取消（OnDisable）。
 - **架势条不双向**：Fill 方式用的单边，改成 Center 镜像填充。
 - **没声音**：AudioManager 没订阅；或 `Resources/Sounds/Block`、`Deflect` 为空（应有 Warning）；或路径少写了 `Sounds/`。受击看 Inspector 有没有拖 `playerHitSfx` / `bossHitSfx`。其它音效仍看 Inspector。
-- **喝药不出「治」字**：场景里没有 `HealKanji`，或 CombatUI 的 `healKanjiView` 是空的。菜单 **Tools/战斗/生成治愈特效**；贴图要在 `Assets/Sekrio/FX/治.png`。
+- **喝药不出“治”字**：检查场景中的 HealKanji View、CombatUIController 引用和对应贴图资源；仓库当前没有“生成治愈特效”菜单。

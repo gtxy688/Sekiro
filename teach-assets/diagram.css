@@ -1,0 +1,103 @@
+/* ==========================================================================
+   diagram.css — 流程图 / 架构图共用样式（配合内联 SVG 使用）
+   约定：几何坐标写在各 SVG 里，颜色与字体一律走这里，改一处全站生效。
+   节点语义类：
+     .d-src  起点 / 外部输入        .d-act  动作 / 组件
+     .d-dec  判断（菱形或矩形）      .d-data 数据 / SO（绿色虚线）
+     .d-side 旁路 / 表现层           .d-stop 被拦截 / 终止（红色）
+     .d-tbd  与规范冲突、待裁定      .d-t 标题 .d-s 副标题 .d-lbl 分支标签
+   ========================================================================== */
+
+figure.dg-fig { margin: 1.8rem 0 2.2rem; }
+
+.dg {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: var(--font-ui);
+  overflow: visible;
+}
+
+.dg text { font-family: var(--font-ui); }
+
+/* ---------- 容器与文字 ---------- */
+
+.d-lane { fill: var(--paper-2); stroke: var(--rule); }
+.d-laneT { font-size: 12px; font-weight: 700; fill: var(--accent); letter-spacing: 0.08em; }
+.d-frame { fill: none; stroke: var(--rule); stroke-dasharray: 5 4; }
+.d-frameT { font-size: 11px; fill: var(--muted); letter-spacing: 0.06em; }
+
+.d-t { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+.d-s { font-size: 11px; fill: var(--muted); }
+.d-lbl { font-size: 11px; font-weight: 700; fill: var(--accent); }
+.d-note { font-size: 10.5px; fill: var(--muted); }
+.d-path { font-family: var(--font-code); font-size: 10px; fill: var(--muted); }
+
+/* ---------- 节点 ---------- */
+
+.d-src { fill: #fff; stroke: var(--ink); stroke-width: 1.4; }
+.d-act { fill: #fff; stroke: var(--rule-strong); stroke-width: 1.2; }
+.d-dec { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.3; }
+.d-data { fill: #fff; stroke: var(--ok); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.d-side { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.2; }
+.d-stop { fill: var(--no-soft); stroke: var(--no); stroke-width: 1.2; }
+.d-tbd { fill: #fff; stroke: var(--no); stroke-width: 1.3; stroke-dasharray: 6 4; }
+
+/* ---------- 连线 ---------- */
+
+.d-line { fill: none; stroke: var(--rule-strong); stroke-width: 1.4; }
+.d-head { fill: var(--rule-strong); }
+.d-line.hot { stroke: var(--accent); }
+.d-head.hot { fill: var(--accent); }
+.d-line.dash { stroke-dasharray: 5 4; }
+.d-line.soft { stroke: var(--rule); }
+
+/* ---------- 图注 ---------- */
+
+.dg-fig figcaption {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  line-height: 1.65;
+  color: var(--muted);
+  margin-top: 0.7rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--rule);
+}
+
+.dg-fig figcaption strong { color: var(--ink-soft); }
+
+/* 图例 */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.1rem;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin: 1rem 0 1.8rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-2);
+}
+
+.legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+.legend i {
+  width: 1.1rem;
+  height: 0.8rem;
+  border: 1.2px solid var(--rule-strong);
+  background: #fff;
+  display: inline-block;
+}
+
+.legend i.src { border-color: var(--ink); border-width: 1.4px; }
+.legend i.dec { border-color: var(--accent); background: var(--accent-soft); }
+.legend i.data { border-color: var(--ok); border-style: dashed; }
+.legend i.side { border-color: var(--ok); background: var(--ok-soft); }
+.legend i.stop { border-color: var(--no); background: var(--no-soft); }
+.legend i.tbd { border-color: var(--no); border-style: dashed; }
+
+@media print {
+  .dg { page-break-inside: avoid; }
+  figure.dg-fig { page-break-inside: avoid; margin: 1rem 0 1.4rem; }
+}

@@ -1,6 +1,6 @@
-# 03 命中判定 - 验收清单（M3 BoxCast + M17 危字）
+# 03 命中判定 - 手动验收清单（SphereCastAll + Overlap）
 
-> 配合 `03-hit-detection.md` 使用。当前验收范围：**M3 命中链路 + M17 识破**。
+> 配合 03-hit-detection.md 使用。当前代码链路包含近战扫描、投射物命中与危字 / 识破交互。
 
 ## 前置准备
 

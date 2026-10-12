@@ -1,37 +1,26 @@
-# 07 动画事件 - 验收清单
+# 07 攻击动画时间轴 - 手动验收清单
 
-> 配合 `07-anim-events.md` 使用。这个模块主要是你在 Unity 里操作。
+> 配合 07-anim-events.md 使用。攻击 Hitbox、攻击音效与箭矢由运行时攻击状态读取时间数据推进，不需要在攻击 Clip 上配置 EnableWeaponHit、DisableWeaponHit 或 SpawnArrow 事件。
 
 ## 前置准备
 
-1. 攻击与玩家三组忍杀动画 Clip 已就位（项目里有动画文件）。
-2. Hitbox 已挂武器骨骼上，CombatManager 已就位（M3）。
+1. 打开 Unity 工程并等待资源导入、脚本编译。
+2. 确认攻击时间轴工具可打开，测试场景中的角色、Animator、AttackConfig、BossMoveTable 和 Hitbox 引用有效。
+3. 修改配置前保存场景与资源副本，避免覆盖已调好的招式表。
 
-## 配置验收
-
-| # | 操作 | 预期 |
-|---|------|------|
-| 1 | 菜单 ARPG → 攻击时间轴，拖预览 Prefab，拖进度 | 刀停在对应姿势 |
-| 2 | 把红条拖到刀刃挥平附近，保存，进 Play 砍人 | 判定开始时刻与预览一致 |
-| 3 | Play 模式，玩家挥砍 | 命中帧才造成伤害，收刀后无伤害 |
-
-## 触发验收
+## 手动验收
 
 | # | 操作 | 预期 |
-|---|------|------|
-| 4 | 时间轴插一个 ♪ 并指定 clip，进 Play | 该帧附近出声 |
-| 5 | 挥砍扫到敌人 | 伤害在判定窗内才能命中 |
-| 6 | 分别触发三类忍杀，播完处决动画 | Boss 只扣一条命 |
-| 7 | 喝葫芦动画 | 进入 HealState 时立即扣次数并回血 |
-| 8 | 玩家轻击保存后 | `hitPulses.Length == 1`，开/关字段已回填 |
-| 9 | Boss 飞舟 Boat1 加多段红 | 同一段动画能多段出伤 |
-| 10 | 未改过的旧 AttackConfig（空 hitPulses） | 进 Play 仍有判定 |
-| 11 | 时间轴打开 `Bow_Shot` 弓段，进度拖到撒手，点「加出箭」保存；Clip 无 `SpawnArrow`/`EnableWeaponHit`；进 Play 远距离 | 该时刻出箭 |
-| 12 | 时间轴 `Bow_Air5` 插 5 个出箭点并保存 | 同一动画出 5 支箭 |
+|---|---|---|
+| 1 | 打开攻击时间轴，预览配置的动画并拖动时间指针 | 动画预览与时间指针同步 |
+| 2 | 调整一个近战判定窗口并保存，进入 Play 模式复测 | 只有配置的攻击窗口能命中，后摇关闭判定 |
+| 3 | 在配置中添加音效 cue 并播放对应招式 | 到达 cue 时间后播放一次音效 |
+| 4 | 在 Boss 招式窗口添加出箭 cue 并播放招式 | 到达 cue 时间后生成箭矢，箭命中由投射物路径结算 |
+| 5 | 连续播放带多段 hitPulses 的攻击 | 各段按配置时间分别命中，同一段不会对同一目标重复结算 |
+| 6 | 退出攻击、打断攻击或播放无近战判定的弓段 | Hitbox 关闭；不因前摇或弓段持续造成近战伤害 |
 
-## 常见问题
+## 检查位置
 
-- **预览没人**：窗口上方先拖玩家/Boss Prefab，不会写进场景。
-- **动画名找不到**：招式 `AnimName` 必须是 Animator 状态短名。
-- **伤害提前/延后**：用攻击时间轴拖红条，不要在 Clip 上加 EnableHitbox。
-- **Boss 对完的时间丢了**：不要按「填入弦一郎默认招式表」。
+- AttackConfig 的 hitPulses、sfxCues 与 arrowCues。
+- BossMoveTable 的 BossMoveWindow、hitPulses、sfxCues 与 arrowCues。
+- AttackStateBase、AttackAnimClock、WeaponController。

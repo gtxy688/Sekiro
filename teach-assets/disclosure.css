@@ -1,0 +1,65 @@
+/* ==========================================================================
+   disclosure.css — 可折叠区块共用样式（<details class="disc">）
+   用途：课程页面保持短，细节按需展开；打印时保留标题，展开内容随浏览器状态。
+   ========================================================================== */
+
+details.disc {
+  border: 1px solid var(--rule);
+  background: #fff;
+  margin: 0.9rem 0;
+}
+
+details.disc > summary {
+  cursor: pointer;
+  padding: 0.62rem 0.95rem;
+  font-family: var(--font-ui);
+  font-size: 0.87rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+details.disc > summary::-webkit-details-marker { display: none; }
+
+details.disc > summary::before {
+  content: "▸";
+  color: var(--accent);
+  font-size: 0.8rem;
+}
+
+details.disc[open] > summary::before { content: "▾"; }
+
+details.disc > summary:hover { background: var(--paper-2); }
+
+details.disc > summary .disc-tag {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+details.disc .disc-body {
+  padding: 0 0.95rem 0.9rem;
+  border-top: 1px dashed var(--rule);
+  font-size: 0.93rem;
+}
+
+details.disc .disc-body > :first-child { margin-top: 0.65rem; }
+details.disc .disc-body > :last-child { margin-bottom: 0.15rem; }
+
+details.disc .disc-body ul { margin: 0.5rem 0; }
+
+.disc-path {
+  font-family: var(--font-code);
+  font-size: 0.78em;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+@media print {
+  details.disc { page-break-inside: avoid; }
+  details.disc > summary::before { content: "•"; }
+}

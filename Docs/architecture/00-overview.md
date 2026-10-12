@@ -1,79 +1,110 @@
 # 项目架构总览
 
-复刻只狼弦一郎 Boss 战。AI 辅助开发，用户按模块验收。
+复刻《只狼》弦一郎 Boss 战。以下描述以当前 Unity 源码与资源为准；类名用于定位职责，不表示每个场景都已完成用户验收。
 
-> 本文档是给 AI 开发者看的索引。用户决策记录见 `../total.md`。
+## 技术组成
 
-## 技术栈
+- 引擎与渲染：Unity 2022.3 LTS、URP。
+- 玩家输入：Unity Input System，由 PlayerBrain 转成移动意图或 Command。
+- 玩家角色控制：CharacterBody + HFSM；BrainBase 管理离散命令缓冲。
+- Boss 决策：行为树节点 + Blackboard + BossMovePicker / BossMoveTable。
+- 攻击时间：AttackStateBase 读取 Animator 播放时间，由 AttackConfig 或 BossMoveTable 的窗口、音效点和出箭点驱动。
+- 命中：Hitbox 的 SphereCastAll 与 Overlap 查询；箭矢使用 ArrowProjectile 的独立扫描。
+- 结算：CombatManager 将命中交给 CombatResolver，再调用 CharacterBody.ReceiveHit。
+- 配置：CharacterConfig、AttackConfig 等 ScriptableObject；Boss 招式另由 BossMoveTable 表达。AttackCombatResolve 还提供代码侧默认伤害档位。
+- 表现：CombatEventBus 将战斗事件发给 UI、AudioManager、Camera 等订阅方；相机使用 Cinemachine，部分表现使用 DOTween。
 
-- Unity 2022 LTS + URP
-- 输入：Input System
-- 相机：Cinemachine
-- UI：MVC + DoTween
-- 数据：ScriptableObject
-- 战斗驱动：命令模式 (Command Pattern) + HFSM + 行为树
-- 表现：轻量事件总线 (CombatEventBus) + FX/音效管理器
+## 运行时关系
 
-## 模块清单（17 个）
+- PlayerBrain 读取玩家输入。Move 每帧作为连续意图处理；Attack、Jump、Deflect、Dodge、Heal 等离散动作走命令缓冲与状态机路由。LockOn 由 LockOnManager 处理。
+- BTBrain 构建并更新 Boss 行为树。选招节点查询 BossMoveTable，执行节点通过 CharacterBody 启动相应攻击状态。
+- CharacterBody 是 MonoBehaviour 外壳，承载角色配置、模块入口和 MainStateMachine。状态类是普通 C# 对象。
+- MainStateMachine 顶层放 HierarchicalState 父状态。GroundedState、AirState、StunnedState、DeadState 各自管理子状态机与叶子状态。
+- AttackStateBase 根据当前动画时间启停 Hitbox、发出攻击音效事件、生成箭矢并处理攻击结束与连段。
+- CombatManager / CombatResolver 是近战、投射物和拼刀结算的中间层。最终受击交给目标 CharacterBody.ReceiveHit。
+- UI、音频、相机等表现订阅 CombatEventBus；具体职责和订阅事件见各自源码。
 
-### 基础层（无依赖，可并行开发）
-| 模块 | 内容 | 文档 |
-|------|------|------|
-| M1 | HFSM 基架：OnHitReceived 路由 + HitData | `01-states.md` |
-| M2 | 战斗属性：CharacterConfig SO + HP/架势/TakeDamage | `02-combat-data.md` |
-| M5 | 行为树：黑板 + Running 记忆 | `04-behavior-tree-ai.md` |
+## 架构图
 
-### 战斗层（依赖 M1/M2）
-| 模块 | 内容 | 文档 |
-|------|------|------|
-| M3 | 命中判定：BoxCast Hitbox/Hurtbox + CombatManager | `03-hit-detection.md` |
-| M4 | 受击/盾反：各状态 OnHitReceived 实现 | `01-states.md` |
-| M9 | 架势系统：Posture 累积/崩解 | `02-combat-data.md` |
-| M10 | 处决/忍杀：忍杀动画 + 清命 | `01-states.md` |
-| M17 | 危字攻击：突刺/投技 + 识破/弹反 | `03-hit-detection.md` |
+~~~mermaid
+flowchart TB
+    subgraph Intent[意图层]
+        Input[Unity Input System]
+        PlayerBrain[PlayerBrain]
+        Buffer[BrainBase 命令缓冲]
+        BossBrain[BTBrain 行为树与 Blackboard]
+        Picker[BossMovePicker + BossMoveTable]
+        Executor[BT_ExecuteMove]
+    end
 
-> M17（危字攻击 + Mikiri 识破 + 肘击投技 Grab）与闪避（垫步）已确认**保留**（用户已解包对应动画资源）。横扫已**删除**（未实现跳踩反制）。设计见 `../策划案.md`。
+    subgraph Runtime[角色控制与状态层]
+        Body[CharacterBody]
+        HFSM[HFSM：父状态 + 子状态机]
+    end
 
-### 控制层（依赖 M1）
-| 模块 | 内容 | 文档 |
-|------|------|------|
-| M6 | 玩家输入：全按键绑定 | `05-input-lockon.md` |
-| M11 | 锁定系统：Lock-on | `05-input-lockon.md` |
+    subgraph Combat[战斗执行层]
+        Config[CharacterConfig / AttackConfig]
+        Timeline[AttackStateBase + AttackAnimClock]
+        Hitbox[Hitbox：SphereCastAll + Overlap]
+        Arrow[ArrowProjectile]
+        Manager[CombatManager]
+        Resolver[CombatResolver]
+    end
 
-### 表现层（依赖战斗层事件）
-| 模块 | 内容 | 文档 |
-|------|------|------|
-| M12 | 相机：Cinemachine 锁定 + 震屏 | `06-presentation.md` |
-| M13 | UI：MVC 布局 | `06-presentation.md` |
-| M14 | 复活：1 次回生回满血 | `02-combat-data.md` |
-| M15 | 音效：格挡/弹反池 + 受击/处决 | `06-presentation.md` |
-| M16 | 葫芦：10 次回血 | `02-combat-data.md` |
+    subgraph Presentation[表现层]
+        Bus[CombatEventBus]
+        UI[CombatUIController / Views]
+        Audio[AudioManager]
+        Camera[CameraController / Cinemachine]
+    end
 
-### AI 层（依赖 M5/M3）
-| 模块 | 内容 | 文档 |
-|------|------|------|
-| M7 | Boss AI：弦一郎 | `04-behavior-tree-ai.md` |
+    Input --> PlayerBrain
+    PlayerBrain -->|连续移动| Body
+    PlayerBrain -->|离散动作| Buffer
+    Buffer --> Body
+    BossBrain --> Picker
+    Picker --> Executor
+    Executor --> Body
+    Config -.-> Body
+    Config -.-> Timeline
+    Body <--> HFSM
+    HFSM --> Timeline
+    Timeline --> Hitbox
+    Timeline --> Arrow
+    Hitbox --> Manager
+    Arrow --> Manager
+    Manager --> Resolver
+    Resolver -->|ReceiveHit| Body
+    Manager --> Bus
+    Body --> Bus
+    Bus --> UI
+    Bus --> Audio
+    Bus --> Camera
+~~~
 
-### 集成层（依赖 M3）
-| 模块 | 内容 | 文档 |
-|------|------|------|
-| M8 | 动画事件：Hitbox 开关 + 忍杀帧 | `07-anim-events.md` |
+源码入口包括：
 
-## 依赖图
+- 输入与 Boss 决策：Assets/Scripts/Player/Brain/PlayerBrain.cs、Assets/Scripts/Boss/BTBrain.cs
+- 角色与状态：Assets/Scripts/FrameWork/Body/CharacterBody.cs、Assets/Scripts/FrameWork/States/Base/HierarchicalState.cs
+- 攻击与命中：Assets/Scripts/FrameWork/States/Base/AttackStateBase.cs、Assets/Scripts/Combat/Hitbox.cs、Assets/Scripts/Combat/CombatManager.cs、Assets/Scripts/Combat/CombatResolver.cs
+- 表现：Assets/Scripts/Mgr/CombatEventBus.cs、Assets/Scripts/UI/CombatUIController.cs、Assets/Scripts/Audio/AudioManager.cs
 
-```
-M1 ─┬─→ M2 ──→ M3 ──→ M4 ──→ M9 ──→ M10
-    │         │
-    │         └─→ M6 ──→ M11
-    │
-M5 ─┴─→ M7
-M3 ──────→ M8
+## 当前文档常见误读
 
-表现层 M12/M13/M14/M15/M16 订阅 CombatEventBus 事件
-```
+- 近战命中不是 BoxCast，也不是由 Animation Event 开关；当前攻击状态读取动画时间并使用 SphereCastAll / Overlap 扫描。
+- 项目并未按标准 MVC 组织 UI。
+- 不能笼统说全部战斗数值只存在 SO：玩家与角色配置主要由 SO 提供，BossMoveTable 承载 Boss 招式数据，默认档位值也在代码中。
+- 代码模块存在不等于场景装配完成，也不等于用户已验收。
 
-## 文档阅读指引
+## 模块入口
 
-- **架构理解**：本文件（00-overview.md）→ 对应模块的 `0X-xxx.md`
-- **验收测试**：实现后对照 `0X-xxx-test.md` 逐条验证
-- **用户决策**：`../total.md`（用户视角，AI 不要当规范用）
+| 关注内容 | 当前说明 |
+|---|---|
+| 状态机、受击、防御与忍杀 | 01-states.md |
+| 角色属性、攻击配置与结算数值 | 02-combat-data.md |
+| 近战、投射物、拼刀与命中结算 | 03-hit-detection.md |
+| Boss 行为树与选招 | 04-behavior-tree-ai.md |
+| 玩家输入与锁定 | 05-input-lockon.md |
+| UI、音效与相机 | 06-presentation.md |
+| 动画时间轴驱动的攻击与表现 | 07-anim-events.md |
+| Unity 中手动验收 | 对应文件名以 -test.md 结尾的清单 |
