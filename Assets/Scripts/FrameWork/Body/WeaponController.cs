@@ -6,12 +6,9 @@ using ARPG.Mgr;
 namespace ARPG.FrameWork.Body
 {
 
-    // 武器模块（CharacterBody 重构）：Hitbox 槽位解析 + 武器判定开关 + 弓箭发射。
-    // 约束：
-    // - Inspector 字段（weaponHitbox/arrowPrefab 等 10 个）留在 CharacterBody（prefab 已保存），模块只读；
-    // - Weapon/ActiveHitbox 运行时状态收在本类内部，Façade 转发；
-    // - 伤害数值全部来自 AttackConfig / 招式表（SO），本类不硬编码任何数值；
-    // - 判定开启仍受 AttackWindowSync 总闸约束（弓段 / 0.01s 假窗不开刀）。
+    // 角色的武器模块：绑定 Hitbox、控制判定开关、生成箭矢。
+    // Inspector 引用保留在 CharacterBody，当前使用的 Hitbox 由本类管理。
+    // 近战命中窗口由攻击状态推进，实际扫描和上报由 Hitbox 完成。
     public class WeaponController
     {
         private readonly CharacterBody body;
@@ -22,11 +19,11 @@ namespace ARPG.FrameWork.Body
             InitHitboxes();
         }
 
-        // 武器的碰撞盒（M3：BoxCast 版 Hitbox，不再用 OnTrigger）
+        // Weapon 是默认刀；ActiveHitbox 是当前攻击选中的刀、肘击或踢击判定框。
         public Hitbox Weapon { get; private set; }
         public Hitbox ActiveHitbox { get; private set; }
 
-        // 开启武器判定（M3/M8）：攻击状态/动画事件调用。绑定本招式的伤害配置
+        // 为选中的 Hitbox 绑定本招配置并开启扫描；弓段等无近战窗口的配置直接跳过。
         public void EnableWeaponHit(AttackConfig config)
         {
             if (config == null) return;
@@ -139,6 +136,7 @@ namespace ARPG.FrameWork.Body
             return body.CombatTarget.position + Vector3.up * 1.2f;
         }
 
+        // 优先使用手工指定的刀，未指定才搜索；肘击和踢击使用各自的显式引用。
         void InitHitboxes()
         {
             Weapon = body.weaponHitbox != null ? body.weaponHitbox : FindDefaultWeaponHitbox();
@@ -147,6 +145,7 @@ namespace ARPG.FrameWork.Body
             InitHitbox(body.kickHitbox);
         }
 
+        // 这里只建立所属角色引用；开场不启用命中扫描，扫描要等攻击窗口开启。
         void InitHitbox(Hitbox hitbox)
         {
             if (hitbox != null)

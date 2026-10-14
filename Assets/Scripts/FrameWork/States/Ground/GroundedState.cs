@@ -9,10 +9,11 @@ using ARPG.FrameWork.States.Base;
 namespace ARPG.FrameWork.States.Ground
 {
 
+    // 地面父状态：管理地面与空中的切换，内部子状态机管理待机、移动、攻击等动作。
+    // 开场由 CharacterBody.Start 进入；未指定子状态时默认进入 IdleState。
     public class GroundedState : HierarchicalState
     {
-        // 强制切入时指定的初始子状态（被弹反硬直/崩解倒地/喝药等物理覆写场景）
-        // null 则走默认 Idle
+        // 强制切入可指定初始子状态；null 表示使用默认待机。
         private readonly BaseState forcedInitialSubState;
 
         public GroundedState(CharacterBody body, BaseState forcedInitialSubState = null) : base(body)
@@ -20,17 +21,16 @@ namespace ARPG.FrameWork.States.Ground
             this.forcedInitialSubState = forcedInitialSubState;
         }
 
-        // 陷阱3-1 状态复用：默认 Idle 子状态随本实例缓存。IdleState 的唯一存储字段是
-        // 不可变的 parent（=本实例），行为状态全在 OnEnter 重置（CrossFade/清速度/清移动意图），
-        // 重复进入安全——消灭每次回待机的 IdleState 分配。带强制子状态的变体不受影响。
+        // 默认待机随父状态缓存，重复进入时通过 OnEnter 重置，减少回待机时的对象创建。
         private IdleState cachedIdleSubState;
 
+        // HierarchicalState.OnEnter 调用这里，再让子状态机进入返回的状态。
         protected override BaseState GetInitialSubState()
         {
             return forcedInitialSubState ?? (cachedIdleSubState ??= new IdleState(body, this));
         }
 
-        // 负责处理父层级的状态切换,内部层级切换交由子状态去处理
+        // 先处理跨父状态的切换，仍在地面时再更新当前子状态。
         public override void OnUpdate()
         {
             // 踩空掉落。Boss 不进空中状态（Config.UseAirState = false）。
@@ -41,7 +41,7 @@ namespace ARPG.FrameWork.States.Ground
                 return;
             }
 
-            base.OnUpdate(); // 执行子状态 (Idle 或 Move)
+            base.OnUpdate(); // 更新当前子状态，包含待机、移动、攻击等。
         }
 
         protected override bool OnParentHandleCommand(ICommand cmd)
@@ -93,15 +93,7 @@ namespace ARPG.FrameWork.States.Ground
             }
 
             
-            //FinisherLocked → 吞掉
-            // PostureBroken → 留给子状态
-            // Parried → 留给子状态
-            // 正在 Healing → 特殊处理
-            // 正在攻击且后摇未开放 → false，继续缓冲
-            // 最后才真正进入 Heal 
-            // 上面的检查全部通过后，才真正进入喝药逻辑：
-            // 集中 Grounded 的公共进入规则，把 Heal 放父状态
-            // 直接返回，让子状态机切换，也是可以的
+            // 通过上面的公共限制后，由父状态统一处理喝药，避免每个叶子重复实现。
             if (cmd is HealCommand)
             {
                 SubStateMachine.ChangeState(new HealState(body, this));

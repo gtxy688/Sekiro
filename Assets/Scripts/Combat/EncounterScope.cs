@@ -4,19 +4,8 @@ using UnityEngine;
 using ARPG.FrameWork.Body;
 namespace ARPG.Combat
 {
-    // 一场战斗的边界。当前场景里只有 1 个；连战时每场一个，由流程层激活。
-    //
-    // 为什么现在就要：多 Boss 不会让架构自动变好，它只会把 1 个特例复制成 N 个特例。
-    // 现在只有 1 场战斗时把边界立起来，成本是几十行；
-    // 等 3 个 Boss 都写完再补，要动 41 处调用点，每处都要回归。
-    //
-    // 职责只有两条：
-    //   1. 声明这场战斗的参与者（玩家 + 1~N 个对手），
-    //      取代 CombatManager 上写死的两个序列化字段 PlayerRef / BossRef。
-    //   2. 收集所有 ICombatResettable，提供一次性 ResetAll()。
-    //
-    // 明确不做：不负责生成 Boss、不负责连战流程编排、不负责存档。
-    // 那些属于流程层，等真要做复战时需求才清楚，现在做就是猜。
+    // 本场战斗的范围：声明玩家和对手，收集 ICombatResettable 供统一复位。
+    // 参与者来自场景引用；本类不负责生成角色或编排连战流程。
     public class EncounterScope : MonoBehaviour
     {
         public static EncounterScope Current { get; private set; }
@@ -28,20 +17,17 @@ namespace ARPG.Combat
         [Tooltip("本场战斗的对手。复战换 Boss、连战多 Boss 时在这里增减，CombatManager 不用改。")]
         public List<CharacterBody> Opponents = new List<CharacterBody>();
 
-        // 主对手：单 Boss 语义下等价于旧的 CombatManager.BossRef。
-        // 多 Boss 时它只是"列表里第一个"，用于锁定指示这类只有单一目标的地方。
+        // 主对手固定取列表首项，用于仍只处理一个 Boss 的接口；不是运行时选敌逻辑。
         public CharacterBody PrimaryOpponent =>
             Opponents != null && Opponents.Count > 0 ? Opponents[0] : null;
 
-        // 是否显式声明了参与者。留空 = 未配置，CombatManager 会回退到自己的 PlayerRef/BossRef。
-        // 用来区分「有 Scope 且配好了」与「自动兜底出来的空壳」——
-        // 否则自动兜底会把「PlayerRef 未绑定」这类配置错误一起吞掉，诊断变差。
+        // 区分已配置的范围与自动创建的空范围，供 CombatManager 决定是否检查回退引用。
         public bool HasParticipants =>
             Player != null || (Opponents != null && Opponents.Count > 0);
 
         private readonly List<ICombatResettable> resettable = new List<ICombatResettable>();
 
-        // Awake 先于所有 Start，保证别的组件在 Start 里注册时 Current 已经就位。
+        // 初始场景中的活动对象先完成 Awake，其他组件在 Start 注册时即可取得 Current。
         private void Awake()
         {
             if (Current != null && Current != this)
@@ -59,21 +45,9 @@ namespace ARPG.Combat
                 Current = null;
         }
 
-        // 取本场战斗的边界；场景里没有就兜底创建一个空的。
-        //
-        // 为什么兜底而不是要求手工挂：当前只有一场战斗，手工挂出来的通常也是个空组件
-        // （Player/Opponents 留空即回退 PlayerRef/BossRef），那这一步就是纯仪式。
-        // 而忘了挂的代价是整条复位契约静默失效——恰恰是几个月后真做复战最难想起来的那类坑。
-        // 与其靠一条警告提醒人去点一下，不如让失效模式不存在。
-        //
-        // ⚠️ 调用时机：只能在 Start 及之后调用，不可在 Awake 里调。
-        // Unity 保证「所有 Awake 跑完才进 Start」，所以在 Start 里 Current==null
-        // 就一定是场景里真没有，不会误判、不会造出第二个。
-        // 在 Awake 里调则相反：跨组件 Awake 顺序不定，会重复创建。
-        // （挂在 inactive 物体上的 Scope 其 Awake 不跑，视为不存在——本就不该生效。）
-        //
-        // 每个注册方都自己调一次，而不是只靠 CombatManager 先建好：
-        // 各组件的 Start 顺序同样不定，谁先跑到谁就负责创建，后跑的复用同一个。
+        // 在 Start 或之后取得范围对象；没有已初始化的 Scope 就创建空范围，保证复位注册可用。
+        // 不在 Awake 调用：其他 Scope 可能尚未执行 Awake，会误建重复对象。
+        // 各组件 Start 顺序不定，因此每个注册方自行 Ensure，先创建的对象会被后续调用复用。
         public static EncounterScope Ensure()
         {
             if (Current != null) return Current;
@@ -88,6 +62,7 @@ namespace ARPG.Combat
             return scope;
         }
 
+        // 登记复位能力，不要求组件按某个固定顺序完成 Start；重复登记同一对象会被忽略。
         public void Register(ICombatResettable target)
         {
             if (target == null) return;
@@ -101,19 +76,9 @@ namespace ARPG.Combat
             resettable.Remove(target);
         }
 
-        // 复战 / 连战切场时调用。
-        //
-        // 顺序说明（重要）：这里倒序遍历，但**不要依赖它**。
-        // 所有组件都在各自的 Start 里注册，而 Unity 不保证跨组件 Start 的先后顺序，
-        // 所以"倒序"只是一条无意义的稳定排序，不等于"AI 先于 CharacterBody 归零"。
-        // 要确定性顺序得给每个组件配 [DefaultExecutionOrder] 或给接口加优先级字段——
-        // 现在没有这个需求，加了就是维护负担，所以改成一条硬约束：
-        //
-        //   **ResetForEncounter() 必须顺序无关且可重复调用。**
-        //
-        // 也就是：不要读别人还没复位的字段，只写自己的状态；
-        // 需要"初始值"就从 Config（序列化 SO，整局不变）读，不要从 body 的当前值读。
-        // UI 那边已经按这条写的（命数点/回生点读 Config 而非 body），改动时请一并遵守。
+        // 各组件的 Start 注册顺序不定，倒序遍历也不代表业务复位顺序。
+        // ResetForEncounter 必须可重复调用且顺序无关：恢复自身状态，初始值从配置读取。
+        // 倒序便于移除已销毁的登记项，避免跳过后续元素。
         public void ResetAll()
         {
             for (int i = resettable.Count - 1; i >= 0; i--)

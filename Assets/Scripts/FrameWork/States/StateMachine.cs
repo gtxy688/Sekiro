@@ -3,10 +3,8 @@ using System;
 using ARPG.FrameWork.States.Base;
 namespace ARPG.FrameWork.States
 {
-    // 2. 状态机驱动器
-    //
-    // 状态机只负责生命周期顺序：退出旧状态 → 进入新状态。
-    // 具体的「从哪里切到哪里」由 CharacterBody 的语义化入口或当前父状态决定。
+    // 普通 C# 状态机：管理状态的进入、退出、更新和命令转发。
+    // 本类不判断切换条件，调用方决定何时 ChangeState；顶层与子状态机共用这套机制。
     public class StateMachine
     {
         private readonly Action<BaseState, BaseState, string> onStateChanged;
@@ -19,6 +17,7 @@ namespace ARPG.FrameWork.States
         public string LastChangeReason { get; private set; }
         public int TransitionCount { get; private set; }
 
+        // 构造只保存调试回调，不进入状态；首次 ChangeState 后才有 CurrentState。
         public StateMachine(
             Action<BaseState, BaseState, string> onStateChanged = null,
             Func<BaseState, string> debugPathResolver = null)
@@ -27,6 +26,7 @@ namespace ARPG.FrameWork.States
             this.debugPathResolver = debugPathResolver;
         }
 
+        // null 表示清空当前状态；切换始终先退出旧状态，再进入新状态。
         public void ChangeState(BaseState newState, string reason = null)
         {
             BaseState previous = CurrentState;
@@ -37,6 +37,7 @@ namespace ARPG.FrameWork.States
             PreviousState = previous;
             CurrentState = newState;
             LastChangeReason = string.IsNullOrEmpty(reason) ? "unspecified" : reason;
+            // 父状态会在 OnEnter 中建立初始子状态，之后再记录完整调试路径。
             CurrentState?.OnEnter();
             CurrentStatePath = ResolveDebugPath(CurrentState);
             TransitionCount++;

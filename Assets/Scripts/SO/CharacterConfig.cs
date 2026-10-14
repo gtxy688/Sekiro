@@ -5,8 +5,9 @@ using ARPG.FrameWork.States.Ground;
 namespace ARPG.Configs
 {
 
-    // 角色战斗属性配置（SO）：玩家和 Boss 共用 CharacterBody，数值各自配置一份
-    // 战斗数值全部走 SO，禁止在 .cs 里硬编码
+    // 玩家和 Boss 的角色属性配置，供数值、移动和状态逻辑读取。
+    // 最大值与初始次数在这里配置；当前 HP、架势等可变数据保存在各角色的 CombatStats。
+    // 攻击伤害另由 AttackConfig、BossMoveTable 和结算默认值提供。
     [CreateAssetMenu(fileName = "NewCharacterConfig", menuName = "Combat/Character Config")]
     public class CharacterConfig : ScriptableObject
     {

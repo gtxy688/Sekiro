@@ -8,22 +8,15 @@ using ARPG.Mgr;
 namespace ARPG.FrameWork.Body
 {
 
-    // 战斗数值模块（CharacterBody 重构：HP/架势/葫芦/命数的生命周期与结算）。
-    // 职责：
-    //   1. 数值状态：CurrentHP/CurrentPosture/GourdRemaining/ReviveRemaining/LivesRemaining/崩解标志
-    //   2. 结算逻辑：TakeDamage / AccumulatePosture / UpdatePostureDecay / UseGourd / Revive / ClearLife
-    //   3. 死亡与崩解的"事件上报"：触发事件总线后，通过构造注入的委托请求 Façade 切状态
-    // 约束：
-    // - 数值只从 CharacterConfig（SO）读取；事件全部走 CombatEventBus，模块不持有表现层引用；
-    // - 崩解 → ForcePostureBroken、死亡 → DeadState 的切换编排权在 Façade（onPostureBreak/onDeath 委托），
-    //   模块自己不碰状态机（"模块请求、Façade 编排"）；
-    // - 架构红线：不判状态类型，只依赖 body 的语义化标志（IsGuarding 等）。
+    // 每个角色独立持有的数值模块：管理 HP、架势、葫芦、回生和命数。
+    // 从 CharacterConfig 读取属性，通过 CombatEventBus 通知表现层。
+    // 崩解和死亡通过回调交给 CharacterBody 切状态，本类不直接操作状态机。
     public class CombatStats
     {
         private readonly CharacterBody body;
-        // 崩解硬直入口（玩家击飞倒地 / Boss 处决窗口）——由 Façade 的 ForcePostureBroken 编排
+        // 请求角色进入崩解状态；具体切换由 CharacterBody 决定。
         private readonly Action<PostureBreakSource> onPostureBreak;
-        // 死亡入口（true=进回生待机，false=真死）——由 Façade 构造 DeadState 并切入
+        // 请求角色进入死亡状态：true 可等待回生，false 为真死。
         private readonly Action<bool> onDeath;
 
         public CombatStats(CharacterBody body, Action<PostureBreakSource> onPostureBreak, Action<bool> onDeath)
@@ -32,17 +25,14 @@ namespace ARPG.FrameWork.Body
             this.onPostureBreak = onPostureBreak;
             this.onDeath = onDeath;
 
+            // 首次创建和复战重置共用同一套初始值，避免两条路径维护不同的赋值逻辑。
             ResetForEncounter();
         }
 
-        // 复战重置：把数值恢复到「战斗刚开始」的瞬间。
-        //
-        // 这段原本只写在构造函数里——意味着唯一能调用它的方式是销毁重建，也就是重载场景。
-        // 复战 / 连战要走「原地重开」，不重载场景，所以必须把它抽成可重复调用的方法。
-        // 构造函数现在也走它，保证两条路径的初始状态完全一致，不会哪天改了一处忘了另一处。
+        // 恢复开场数值；只修改本角色的数据，不读取其他组件尚未复位的运行时状态。
         public void ResetForEncounter()
         {
-            // 原 InitCombat：从 Config 读取初始数值（Awake 时机由 Façade 保证）
+            // 将配置值复制到运行时属性；战斗中改变 CurrentHP 等值不会修改配置资产。
             CharacterConfig config = body.Config;
             if (config != null)
             {
@@ -57,7 +47,7 @@ namespace ARPG.FrameWork.Body
             lastHitTime = 0f;
         }
 
-        // ===== 运行时数值状态（原 CharacterBody 属性迁入）=====
+        // ===== 每个角色各自保存的运行时数值 =====
         public int CurrentHP { get; private set; }
         public float CurrentPosture { get; private set; }
         public int GourdRemaining { get; private set; }

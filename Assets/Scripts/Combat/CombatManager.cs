@@ -8,32 +8,10 @@ using ARPG.FrameWork.States.Ground;
 using ARPG.Mgr;
 namespace ARPG.Combat
 {
-    // 命中判定中间层的门面（Facade）。方案 B 决策不变：
-    // Hitbox 扫到 Hurtbox → 报告这里 → 转 CombatResolver → 调 target.ReceiveHit。
-    //
-    // 历史：这里曾经同时装着四类互不相关的职责——无状态结算、有状态成对演出、
-    // 时间尺度（顿帧）、场景装配，431 行，外加 8 个瞬时状态字段挂在单例上。
-    //
-    // 已经分出去的：
-    //   结算 → CombatResolver（无状态，多 Boss 时一行都不用改）
-    //   演出 → DuelDirector（有状态，但状态属于"一场演出"对象，不再是单例上的散落字段）
-    //   时间 → TimeScaleController（顿帧的申报与执行都在那里，本类不再碰 Time.timeScale）
-    //
-    // 本类现在剩下的活（别被"只是个门面"骗了，它实际干五件事）：
-    //   1. 门面转发 —— 上面三类的对外 API 一字未改，老调用点零改动
-    //   2. 参与者解析 —— EncounterScope 优先，回退到 PlayerRef / BossRef 序列化字段
-    //   3. 启动校验 —— 引用拖全了没、阵营配对没
-    //   4. 依赖自装配 —— resolver / director 留空就自动补，旧场景打开即用
-    //   5. 场景装配 —— 忽略角色互撞 + 空气墙。这条本不属于这里，见下方 TODO
-    //
-    // 为什么保留门面：全项目仍有 30 余处 `CombatManager.Instance.X` 调用点，分布在十几个文件
-    // （数字随迁移推进而下降，想看当前值：
-    //   grep -rn "CombatManager\.Instance" --include=*.cs Assets/Scripts）。
-    // 一次性全迁风险过高，也不是这个阶段该做的事。门面保证既有调用点零改动、行为零变化；
-    // 新代码（复战流程）直接依赖 CombatResolver / DuelDirector，老代码按需逐步迁移。
-    //
-    // TODO（后续，不是现在）：
-    //   - IgnoreCharacterPhysics / ArenaBoundary 属场景装配，应移到独立的 ArenaSetup
+    // 战斗服务的统一入口：Awake 补齐组件，Start 解析参与者、校验配置并完成场景装配。
+    // 命中交给 CombatResolver，成对演出交给 DuelDirector，顿帧交给 TimeScaleController。
+    // 保留门面，让现有调用方通过 CombatManager 使用这些服务。
+    // TODO：角色互撞和 ArenaBoundary 的装配可在需要时移到独立的场地初始化组件。
     public class CombatManager : MonoBehaviour, ICombatResettable
     {
         public static CombatManager Instance { get; private set; }
@@ -61,8 +39,7 @@ namespace ARPG.Combat
         [Tooltip("场景里拖 Boss。若放了 EncounterScope，则以其主对手为准。多 Boss 请填 EncounterScope.Opponents。")]
         public CharacterBody BossRef;
 
-        // 运行时实际参与者：EncounterScope 优先，回退到序列化字段。
-        // 复战换 Boss 时只改 EncounterScope，CombatManager 与其余调用点都不用动。
+        // 每次读取当前参与者：优先用 Scope 对应引用，为空才回退到手工绑定字段。
         public CharacterBody ActivePlayer
         {
             get
@@ -93,7 +70,7 @@ namespace ARPG.Combat
             }
             Instance = this;
 
-            // 自动补齐依赖：旧场景 / prefab 打开即用，不需要手工挂组件
+            // 优先保留 Inspector 指定的依赖；未指定时找同物体组件，仍没有才添加。
             if (resolver == null) resolver = GetComponent<CombatResolver>();
             if (resolver == null) resolver = gameObject.AddComponent<CombatResolver>();
 
@@ -103,34 +80,30 @@ namespace ARPG.Combat
 
         private void Start()
         {
-            // 复位契约的边界对象先就位：下面 ValidateFinisherRefs 与 ActivePlayer/ActiveBoss 都要读它。
-            // 场景里没挂就自动创建一个空的（理由见 EncounterScope.Ensure 注释）。
+            // 先取得本场战斗范围，后续参与者解析和复位登记都要使用它。
             EncounterScope scope = EncounterScope.Ensure();
 
-            // 放在 Start 而非 Awake：它依赖 EncounterScope.Current，
-            // 而跨组件的 Awake 顺序不确定，Start 时所有 Awake 都已跑完。
+            // 等初始活动对象的 Awake 完成后再校验，避免 Scope 尚未设置 Current。
             ValidateFinisherRefs();
             ValidateFaction();
 
-            // 过渡期参数同步：把 Inspector 上可能已调过的旧值带给新组件
+            // 将本组件保留的 Inspector 参数同步到实际执行组件，避免已有场景配置丢失。
             if (resolver != null) resolver.clashPostureMultiplier = clashPostureMultiplier;
             if (director != null) director.finisherRange = finisherRange;
 
-            // 顿帧参数同上。这里只是把配置喂过去，顿帧的实际执行归 TimeScaleController。
+            // 这里只提供顿帧配置，时间尺度的实际修改由 TimeScaleController 负责。
             TimeScaleController.EnableHitStop = enableHitStop;
             TimeScaleController.HitStopDuration = hitStopDuration;
 
-            // 只注入对手，不注入玩家：谁能发起处决是阵营规则（DuelDirector.CanInitiateFinisher），
-            // 不该由这里拖一个引用来决定。注入玩家就等于把规则焊死在实例上。
+            // 演出需要当前对手引用；发起处决的资格由 DuelDirector 的阵营规则判断。
             if (director != null) director.Configure(ActiveBoss);
 
             scope?.Register(this);
 
-            // 身体胶囊同时承担 Hurtbox 扫描。互撞冲量会挤开站位，所以忽略 PhysX 互撞；
-            // 玩家仍在 CharacterBody.LateUpdate 里做胶囊分离，不会穿过 Boss。
+            // 忽略双方 Collider 的 PhysX 互撞，避免冲量挤开站位；玩家在 LateUpdate 做身体分离。
             IgnoreCharacterPhysics(ActivePlayer, ActiveBoss);
 
-            // 擂台外圈空气墙：走位/垫步/击退都出不了场（坠落兜底仍在 CharacterBody）
+            // 确保擂台外圈有边界；角色自身另有坠落保护。
             ArenaBoundary.Ensure();
         }
 

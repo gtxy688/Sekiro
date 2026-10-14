@@ -14,6 +14,8 @@ using ARPG.Mgr;
 namespace ARPG.FrameWork.Body
 {
 
+    // 玩家和 Boss 共用的角色入口：连接 Unity 生命周期、内部模块与 HFSM。
+    // Awake 准备组件和初始数据，Start 进入初始状态，Update 驱动状态机。
     [RequireComponent(typeof(Animator), typeof(Rigidbody))]
     public class CharacterBody : MonoBehaviour, ICombatResettable
     {
@@ -39,11 +41,11 @@ namespace ARPG.FrameWork.Body
         // 跳跃镜头跟髋骨采样已迁入 Locomotion（相机在 LateUpdate 采样）
         public float GetJumpFollowWorldY() => Loco.GetJumpFollowWorldY();
 
-        // 武器的碰撞盒（M3）：运行时状态与判定开关已迁入 WeaponController，这里只转发
+        // 外部通过角色访问武器；Hitbox 的选择和开关由 WeaponController 管理。
         public Hitbox Weapon => WeaponCtrl.Weapon;
         public Hitbox ActiveHitbox => WeaponCtrl.ActiveHitbox;
 
-        // 武器模块：Hitbox 槽位解析 + 判定开关 + 射箭；构造时完成原 InitHitboxes（Awake 时机）
+        // 首次访问时创建并绑定 Hitbox，之后复用同一模块；Awake 会主动触发这次创建。
         private WeaponController weaponCtrl;
         private WeaponController WeaponCtrl => weaponCtrl ??= new WeaponController(this);
 
@@ -101,7 +103,7 @@ namespace ARPG.FrameWork.Body
 
         // ===== 战斗属性（M2）=====
 
-        // 角色配置（SO）：玩家/Boss 各配一份，数值全部从这里读
+        // 角色属性配置；当前 HP、架势等可变数据保存在 CombatStats，不写回 SO。
         public CharacterConfig Config;
 
         // 玩家默认普攻（SO）。AttackCommand 不携带配置，待机/走路从这里取连招起点。
@@ -111,14 +113,14 @@ namespace ARPG.FrameWork.Body
         public AttackConfig AirAttack;
 
         // ===== 战斗数值（M2）=====
-        // 运行时数值状态与结算已迁入 CombatStats（普通类）；本类只保留只读转发与两个编排入口
-        // （崩解 → ForcePostureBroken / 死亡 → DeadState，经构造注入的委托）。懒创建理由同 Facing。
+        // 数值由 CombatStats 管理；通过两个回调请求本角色处理崩解和死亡状态切换。
         private CombatStats combat;
         private CombatStats Combat => combat ??= new CombatStats(
             this,
             source => ForcePostureBroken(source),
             revive => EnterDead(revive, reason: revive ? "death: enter revive pending" : "death: enter game over"));
 
+        // 对外保留统一的角色入口，数值的实际存储在内部模块中。
         public int CurrentHP => Combat.CurrentHP;
         public float CurrentPosture => Combat.CurrentPosture;
         public int GourdRemaining => Combat.GourdRemaining;
@@ -209,9 +211,8 @@ namespace ARPG.FrameWork.Body
         }
         private bool isFinisherLocked;
 
-        // 陷阱3-1 状态复用：无参 GroundedState 每角色仅一实例。OnEnter 走 GetInitialSubState
-        // （Idle 已随实例缓存）、OnExit 清空子状态机，重复进入安全——消灭高频"回待机"的
-        // Grounded+Idle 成对分配。带强制子状态的变体（被弹/崩解/喝药等物理覆写）仍按需 new。
+        // 普通回待机复用同一个地面父状态；进入时恢复默认子状态，退出时清空子状态机。
+        // 指定初始子状态的强制切换仍创建独立实例。
         private GroundedState sharedGrounded;
         public GroundedState SharedGrounded => sharedGrounded ??= new GroundedState(this);
 
@@ -310,41 +311,35 @@ namespace ARPG.FrameWork.Body
 
         public Faction Faction => faction;
 
+        // 先准备角色自身的依赖；跨对象装配和初始状态进入留到 Start。
         private void Awake()
         {
             Animator = GetComponent<Animator>();
             Rb = GetComponent<Rigidbody>();
             bodyCollider = GetComponent<Collider>();
 
-            // 【相机微抖修复】刚体插值：
-            // 位移来自动画根运动（Update 直改 transform），但物理系统每 FixedUpdate(50Hz) 会同步/回写刚体位置，
-            // 相机在 LateUpdate(60Hz) 采样时会看到 50Hz 台阶 → 匀速跑动时镜头细微抖动。
-            // Interpolate 让渲染位置在物理步进之间插值，把台阶抹平（物理驱动的标准做法）。
+            // 开启刚体插值；朝向由角色逻辑和根运动控制，避免物理碰撞把角色转倒。
             Rb.interpolation = RigidbodyInterpolation.Interpolate;
             Rb.freezeRotation = true;
             if (Animator != null) Animator.applyRootMotion = UseRootMotion;
 
             EnsureGroundDetectionWired();
 
-            // 实例化纯 C# 的状态机引擎
+            // 这里只创建状态机；两个回调用于调试，当前状态要到 Start 才设置。
             MainStateMachine = new StateMachine(NotifyStateChanged, GetStatePathForDebug);
 
-            // 武器模块构造（原 InitHitboxes：解析默认刀 + Initialize）
+            // 访问属性触发首次构造：解析各 Hitbox，并写入所属角色引用。
             _ = WeaponCtrl;
 
-            // 从 Config 初始化战斗属性（M2，原 InitCombat 已并入 CombatStats 构造）
+            // 构造 CombatStats 时调用 ResetForEncounter，从 Config 取得初始数值。
             _ = Combat;
 
-            // 记录初始站位：复战 / 连战要把角色拉回这里。
-            // 不重载场景的话没有别人会帮它复位，Boss 会死在上一场倒下的地方。
+            // 保存初始站位，供不重载场景的复战复位使用。
             spawnPosition = transform.position;
             spawnRotation = transform.rotation;
         }
 
-        // 地面检测接线：groundCheckPoint/groundLayer 都没赋值时，UpdateEnvironmentalChecks
-        // 会走 check=true 容错分支，IsGrounded 恒 true → 走出擂台边缘不进空中状态，
-        // 人悬浮着直接掉出地图。这里按胶囊体脚底自动生成检测点、按 Layer 名补掩码；
-        // Inspector 里赋过值的以手动为准。
+        // 保留 Inspector 配置；缺少接地点或地面掩码时补齐，避免接地检测一直走容错分支。
         private void EnsureGroundDetectionWired()
         {
             if (groundCheckPoint == null)
@@ -373,14 +368,13 @@ namespace ARPG.FrameWork.Body
 
         private void Start()
         {
-            // 进状态机前先采一次接地。迟滞默认 false，否则头几帧 IsGrounded 仍假，
-            // GroundedState 会当成踩空切 AirState，进场播 Jump/Fall。
+            // 先同步物理位置并采样接地，避免检测初始值为 false 时误切空中状态。
             Physics.SyncTransforms();
             UpdateEnvironmentalChecks();
+            // 地面父状态进入后，会在自己的子状态机中进入默认 IdleState。
             EnterGrounded("lifecycle: initial grounded");
 
-            // 注册进本场战斗的重置清单。用 Ensure() 而非 Current：
-            // 各组件的 Start 顺序不定，谁先跑到谁负责把 Scope 建出来。
+            // 各组件的 Start 顺序不定，Ensure 保证注册时已有战斗范围对象。
             EncounterScope.Ensure()?.Register(this);
         }
 
