@@ -9,11 +9,15 @@ using ARPG.Mgr;
 namespace ARPG.Boss
 {
 
+    // Boss 决策入口：准备目标、黑板和行为树，再由 Update 驱动决策。
+    // 动作执行交给 CharacterBody；自身只保留 AI 的决策和招式执行进度。
     [RequireComponent(typeof(CharacterBody))]
     public class BTBrain : MonoBehaviour, ICombatResettable
     {
         [Header("目标")]
+        // AI 目标独立配置，不会从 CombatManager 的参与者引用中自动注入。
         public Transform PlayerTarget;
+        // 用于读取目标的战斗状态；未指定时从 PlayerTarget 或其父级解析。
         public CharacterBody PlayerBody;
 
         [Header("追击")]
@@ -34,7 +38,7 @@ namespace ARPG.Boss
         public float roamAfterAttackJitter = 1.2f;
 
         [Header("调试（测试弹反用）")]
-        [Tooltip("只近战模式：屏蔽弓/后跳/特殊招，Boss 只用近战普通攻击 + 被动格挡/弹反。测弹反后立即反击的纯净环境")]
+        [Tooltip("只近战模式：只放行 Kengeki_Slash / Kengeki_Double 两条贴身交锋平砍，屏蔽弓/后跳/肘击/踢腿/转身/特殊招。配合被动格挡，测弹反后立即反击的纯净环境")]
         public bool MeleeOnly = false;
         [Tooltip("禁用 Boss 主动出招（交锋/喝药重箭/主动抽招），只留追击走位 + 被动防御判定。测试被弹反回合时勾上，Boss 变纯挨打靶")]
         public bool DisableBossAttacks = false;
@@ -44,10 +48,14 @@ namespace ARPG.Boss
         [Header("完整 AI")]
         public BossMoveTable moveTable;
 
-        // MeleeOnly 调试白名单：只放行近战普通挥砍，屏蔽弓/后跳/特殊招。
+        // MeleeOnly 调试白名单：只放行贴身交锋的普通平砍，屏蔽其余全部招式。
+        // 刻意不含 Slash_Double / Slash_Heavy / Slash_SpinElbow / Slash_StepTurn / Kick：
+        // 它们在数据上是「近战普攻」，但表现是两连斩、转身肘击、踢腿等独立招式，
+        // 混进来会让人以为 MeleeOnly 没生效。测交锋手感只要这两条。
+        // 两条都是 Kengeki 层、距离 0~2.5m：拉开距离时抽不到招是预期行为，
+        // 此时行为树落到追击走位，Boss 会自己贴近再出刀，不是发呆。
         static readonly HashSet<string> MeleeOnlyMoveIds = new HashSet<string>
         {
-            "Slash_Double", "Slash_Heavy", "Slash_SpinElbow", "Slash_StepTurn", "Kick",
             "Kengeki_Slash", "Kengeki_Double"
         };
 
@@ -64,6 +72,7 @@ namespace ARPG.Boss
             body = GetComponent<CharacterBody>();
         }
 
+        // 必要依赖齐全才建立行为树；缺失时停用 AI，避免每帧在不完整配置上决策。
         private void Start()
         {
             if (PlayerTarget == null)
@@ -94,26 +103,24 @@ namespace ARPG.Boss
                 return;
             }
 
+            // 黑板保存本 Boss 的运行时决策数据，与共享的招式表资产分开。
             blackboard = new Blackboard();
+            // 角色移动、攻击和射箭也需要自己的目标引用，不能使用玩家的锁定目标。
             body.CombatTarget = PlayerTarget;
             body.MoveUsesWorldDir = true;
-            // M7 被动防御（只狼攻防转换）：玩家命中 Boss 的瞬间做防御判定（普通格挡/计数升级弹反）。
-            // 取代旧的"AI 短按防御 + 1.5s 格挡 CD"主动方案，Boss 不再裸受击。
-            // 调试：DisablePassiveDeflect 勾上时关闭，Boss 裸吃伤害（测玩家主动弹反链）。
+            // 被动防御在受击时判定；调试开关只控制是否启用，不需要行为树主动抬刀。
             body.EnablePassiveDeflect = !DisablePassiveDeflect;
 
-            // 调试：MeleeOnly → 白名单只放行近战普通挥砍（弓/后跳/特殊招全部屏蔽），
-            // 弹反后的立即反击抽到的也只会是近战刀招，方便验证"弹反 → 反手刀"。
-            // 过滤器建在本 Boss 实例上（moveFilter），不写 moveTable 资产。
+            // 调试过滤器属于本 Boss 实例，不修改共享的 moveTable 资产。
             if (MeleeOnly)
                 moveFilter = new HashSet<string>(MeleeOnlyMoveIds);
 
+            // 构建节点后提供黑板；Update 才开始评估行为树。
             behaviorTreeRoot = ConstructBehaviorTree();
             behaviorTreeRoot.SetBlackboard(blackboard);
             CombatEventBus.OnRevived += HandlePlayerRevived;
 
-            // 注册进本场战斗的重置清单。用 Ensure() 而非 Current：
-            // 各组件的 Start 顺序不定，谁先跑到谁负责把 Scope 建出来。
+            // 自行确保 Scope 存在，注册不依赖 CombatManager.Start 先执行。
             EncounterScope.Ensure()?.Register(this);
         }
 
@@ -260,8 +267,14 @@ namespace ARPG.Boss
             {
                 children.Add(new BT_Kengeki(
                     body, moveTable, PlayerTarget, kengekiExecutor, PlayerBody, moveFilter));
-                healPunish = new BT_HealPunish(body, moveTable, PlayerBody, interruptExecutor);
-                children.Add(healPunish);
+                // 喝药惩罚是唯一绕过 moveFilter 的出招路径（BT_HealPunish 内部直接
+                // FindById("Bow_Heavy")，不接受白名单）。MeleeOnly 要的是纯净近战环境，
+                // 所以这里整节点不挂——否则一按葫芦就必吃重箭，白名单形同虚设。
+                if (!MeleeOnly)
+                {
+                    healPunish = new BT_HealPunish(body, moveTable, PlayerBody, interruptExecutor);
+                    children.Add(healPunish);
+                }
                 children.Add(new BT_PickActive(
                     body, moveTable, PlayerTarget, activeExecutor, PlayerBody, moveFilter,
                     roamAfterAttack, roamAfterAttackJitter));

@@ -15,8 +15,6 @@ MonoBehaviour:
   kengekiMaxRange: 2.5
   postureLowThreshold: 0
   air5HeavyInterruptChance: 0.5
-  jumpThrustLife2SweepWeight: 7
-  jumpThrustLife2ThrustWeight: 3
   moves:
   - id: Bow_ThenSlash
     layer: 0

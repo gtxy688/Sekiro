@@ -12926,6 +12926,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1983880709}
   m_CullTransparentMesh: 1
+--- !u!114 &1988305997 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1202306516436034602, guid: b7abfbd29aad5974a81365aa4360ad91,
+    type: 3}
+  m_PrefabInstance: {fileID: 1335233536997301795}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 93f04a034a6bfb142a06d47e885189b2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1988591813
 GameObject:
   m_ObjectHideFlags: 0
@@ -14221,6 +14233,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5769318795455819891, guid: 0abd895b2aed2ce48bc2d2b340c22288,
         type: 3}
+      propertyPath: MeleeOnly
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5769318795455819891, guid: 0abd895b2aed2ce48bc2d2b340c22288,
+        type: 3}
       propertyPath: PlayerBody
       value: 
       objectReference: {fileID: 1658754164}
@@ -14229,6 +14246,26 @@ PrefabInstance:
       propertyPath: PlayerTarget
       value: 
       objectReference: {fileID: 1658754160}
+    - target: {fileID: 5769318795455819891, guid: 0abd895b2aed2ce48bc2d2b340c22288,
+        type: 3}
+      propertyPath: DisableBossAttacks
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5769318795455819891, guid: 0abd895b2aed2ce48bc2d2b340c22288,
+        type: 3}
+      propertyPath: DisablePassiveDeflect
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7093018238165780159, guid: 0abd895b2aed2ce48bc2d2b340c22288,
+        type: 3}
+      propertyPath: EnableStateDebugLog
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7093018238165780159, guid: 0abd895b2aed2ce48bc2d2b340c22288,
+        type: 3}
+      propertyPath: EnablePassiveDeflect
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -14935,6 +14972,16 @@ PrefabInstance:
     - target: {fileID: 8521545883036066956, guid: b7abfbd29aad5974a81365aa4360ad91,
         type: 3}
       propertyPath: faction
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8521545883036066956, guid: b7abfbd29aad5974a81365aa4360ad91,
+        type: 3}
+      propertyPath: weaponHitbox
+      value: 
+      objectReference: {fileID: 1988305997}
+    - target: {fileID: 8521545883036066956, guid: b7abfbd29aad5974a81365aa4360ad91,
+        type: 3}
+      propertyPath: EnableStateDebugLog
       value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
