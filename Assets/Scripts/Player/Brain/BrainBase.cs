@@ -30,6 +30,14 @@ namespace ARPG.Player
         // duration 就是《只狼》里的预输入窗口期，动作游戏通常设为 0.2 秒左右
         protected void BufferCommand(ICommand cmd, float duration = 0.2f)
         {
+            if (body.EnableStateDebugLog)
+            {
+                Debug.Log(
+                    $"[CombatTiming][CommandQueued] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
+                    $"指令={cmd?.GetType().Name ?? "<none>"}，" +
+                    $"被覆盖指令={bufferedCommand?.GetType().Name ?? "<none>"}，" +
+                    $"缓冲时长={duration:F3}s，状态={body.CurrentStatePath}", body);
+            }
             bufferedCommand = cmd;
             bufferTimer = duration;
         }
@@ -41,10 +49,19 @@ namespace ARPG.Player
 
             // 尝试把指令塞给身体
             // 还记得我们之前在 CharacterBody 里写的 TryExecuteCommand 返回的 bool 吗？
+            bool debugTiming = body.EnableStateDebugLog;
+            string commandName = debugTiming ? bufferedCommand.GetType().Name : null;
+            string stateBefore = debugTiming ? body.CurrentStatePath : null;
             bool isConsumed = body.TryExecuteCommand(bufferedCommand);
 
             if (isConsumed)
             {
+                if (debugTiming)
+                {
+                    Debug.Log(
+                        $"[CombatTiming][CommandConsumed] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
+                        $"指令={commandName}，状态前={stateBefore}，状态后={body.CurrentStatePath}", body);
+                }
                 // 指令被成功消耗（状态机切了状态，或者放行了指令），清空缓冲池
                 bufferedCommand = null;
             }
@@ -56,6 +73,12 @@ namespace ARPG.Player
                 // 如果超时了还没执行出去，就丢弃掉
                 if (bufferTimer <= 0)
                 {
+                    if (debugTiming)
+                    {
+                        Debug.Log(
+                            $"[CombatTiming][CommandExpired] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
+                            $"指令={commandName}，状态={body.CurrentStatePath}", body);
+                    }
                     bufferedCommand = null;
                 }
             }

@@ -130,6 +130,7 @@ namespace ARPG.Player
         private void OnAttackStarted(InputAction.CallbackContext _)
         {
             if (!CanAcceptPlayInput()) return;
+            LogTimingInput("AttackPressed");
 
             // 忍杀意图必须在按键按下这一刻确定。
             // 这样破防前已经开始的普通攻击，即使在松键/缓冲期间打崩 Boss，
@@ -152,6 +153,7 @@ namespace ARPG.Player
 
         private void OnAttackCanceled(InputAction.CallbackContext _)
         {
+            LogTimingInput("AttackReleased");
             if (attackPressed && !holdAttackTriggered && CanAcceptPlayInput())
             {
                 body.ActiveAttack = null;
@@ -172,7 +174,17 @@ namespace ARPG.Player
 
         private void OnDeflectCanceled(InputAction.CallbackContext _)
         {
+            LogTimingInput("DeflectReleased");
             if (CanAcceptPlayInput()) BufferCommand(new IdleCommand());
+        }
+
+        private void LogTimingInput(string action)
+        {
+            if (body == null || !body.EnableStateDebugLog) return;
+            Debug.Log(
+                $"[CombatTiming][{action}] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
+                $"状态={body.CurrentStatePath}，攻击按下标志={attackPressed}，" +
+                $"长按攻击已触发={holdAttackTriggered}", body);
         }
 
         private void OnDodgeStarted(InputAction.CallbackContext ctx)

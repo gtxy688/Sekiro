@@ -208,6 +208,11 @@ namespace ARPG.Boss
 
             healPunish?.ArmIfPlayerHealing();
             behaviorTreeRoot.Evaluate();
+            // 已选好招但尚未到允许起手时刻，保留走位；被动格挡仍由 ReceiveHit 独立处理。
+            if ((activeExecutor != null && activeExecutor.IsWaitingForStart)
+                || (kengekiExecutor != null && kengekiExecutor.IsWaitingForStart)
+                || (interruptExecutor != null && interruptExecutor.IsWaitingForStart))
+                moveToTarget?.Evaluate();
         }
 
         private static bool IsOpeningHold()

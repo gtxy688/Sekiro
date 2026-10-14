@@ -140,6 +140,43 @@ namespace ARPG.FrameWork.Body
         // 是否正在攻击——由当前 HFSM 攻击叶子派生，Boss AI 仍只通过此门面查询。
         public bool IsAttacking => GetCurrentLeafState() is AttackStateBase;
 
+        public bool IsParryCounterPending => GetCurrentLeafState() is DeflectState deflect
+            && deflect.HasPendingCounter;
+
+        public float PlayerParryExpectedHitTime { get; private set; }
+        public float AttackHitNotBeforeTime { get; private set; }
+
+        // 玩家弹断本角色时只保护标准普通第一刀，不跟踪玩家实际按键或连招。
+        public void ArmPlayerParryAttackWindow(AttackConfig firstAttack)
+        {
+            ClearPlayerParryAttackWindow();
+            if (Config == null || firstAttack == null || firstAttack.hitPulses == null) return;
+            float firstHit = float.PositiveInfinity;
+            foreach (var pulse in firstAttack.hitPulses)
+            {
+                if (AttackWindowSync.PulseIsMelee(pulse))
+                    firstHit = Mathf.Min(firstHit, pulse.start);
+            }
+            if (float.IsPositiveInfinity(firstHit)) return;
+            PlayerParryExpectedHitTime = Time.time
+                + Mathf.Max(0f, Config.PlayerParryAttackPreparationTime) + Mathf.Max(0f, firstHit);
+            AttackHitNotBeforeTime = PlayerParryExpectedHitTime
+                + Mathf.Max(0f, Config.PlayerParryAttackHitBuffer);
+        }
+
+        public void ClearPlayerParryAttackWindow()
+        {
+            PlayerParryExpectedHitTime = 0f;
+            AttackHitNotBeforeTime = 0f;
+        }
+
+        public bool TryGetParriedRecoveryTime(out float recoveryTime)
+        {
+            recoveryTime = 0f;
+            return GetCurrentLeafState() is ParriedState parried
+                && parried.TryGetRecoveryTime(out recoveryTime);
+        }
+
         private BaseState GetCurrentLeafState()
         {
             BaseState state = MainStateMachine?.CurrentState;
@@ -374,6 +411,7 @@ namespace ARPG.FrameWork.Body
             IsParried = false;
             KengekiArmed = false;
             SetReviving(false);
+            ClearPlayerParryAttackWindow();
 
             // 3. 出招残留：出招途中被打断重开，会带着上一刀的判定数据
             ActiveHitPulseIndex = -1;

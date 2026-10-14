@@ -56,7 +56,11 @@ namespace ARPG.Configs
         public float DeflectPostureGain = 30f;         // 完美弹反成功：攻击者涨的架势
         public float GuardPostureFactor = 0.5f;        // 格挡时自己涨架势的比例（×对方架势伤害）
         public float ParriedDuration = 1.0f;          // 被完美弹反后的最小硬直（下限，动画播完仍保底）。M7 攻防转换：给弹反成功方稳定反击窗口，回合制才成立
-        public float ParryCounterHitDelay = 0.1f;     // 完美弹反后，反击命中时刻 = 被弹方硬直结束 + 该值（推荐 0~0.15）。命中早于玩家攻击前摇 → 贪刀必被罚；发起时刻由代码按反击招 HitStartTime 倒推
+        public float ParryCounterHitDelay = 0.1f;     // 被动完美弹反：以被弹方预计恢复 + 该值为反击命中目标；按首段 HitStartTime 倒推起手。长前摇/多段招不保证抢先
+        [Min(0f), Tooltip("Boss 被玩家普通近战弹断后，估算玩家收刀与输入耗时；与玩家 LightAttack 首个有效判定开始时间相加。不是玩家实际输入计时，0.7 秒来自当前手动采样。")]
+        public float PlayerParryAttackPreparationTime = 0.7f;
+        [Min(0f), Tooltip("Boss 下一次攻击最早判定比玩家标准第一刀晚多少秒；只限制攻击，不限制硬直恢复后的格挡和移动。")]
+        public float PlayerParryAttackHitBuffer = 0.1f;
         public float DeflectMashLimit = 3;             // 抖刀惩罚：0.5s 内连点次数阈值
         public float DeflectMashWindow = 0.5f;         // 抖刀判定窗口
         public float DeflectMashPenalty = 0.75f;       // 每次超限惩罚系数

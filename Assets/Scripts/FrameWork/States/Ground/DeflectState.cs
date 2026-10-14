@@ -46,12 +46,13 @@ namespace ARPG.FrameWork.States.Ground
 
         // 完美弹反后收到的反击攻击配置：BT_Kengeki 在弹反瞬间抽好，先存下，
         // 反击的发起时刻按"目标命中时刻 - 该招 HitStartTime"倒推（counterFireTime），
-        // 保证不管抽到哪招，命中都落在"被弹方硬直结束 + ParryCounterHitDelay"附近：
-        // 玩家恢复瞬间的刀（前摇 ~0.15s）永远晚于反击命中 → 贪刀必被罚；
-        // 弹反动画正常播放作为表现，到点直接切入反击攻击（弹开表现已完整）。
+        // 恢复基准由被弹方 ParriedState 的动画进度与最小硬直共同预测。
+        // 前摇过长或首段无命中的多段招不能保证按目标时刻命中。
         private AttackConfig pendingCounter;
+        public bool HasPendingCounter => pendingCounter != null;
         private float counterFireTime;
-        private float parriedDurationOnHit; // 弹反瞬间记录的被弹方硬直（为准就算 hit.attacker.Config）
+        private CharacterBody parriedOpponent;
+        private float parriedRecoveryTime;
         private float guardFlinchTimer;
         private float beginTimer;
         private float beginFailsafe = 0.55f;
@@ -105,7 +106,8 @@ namespace ARPG.FrameWork.States.Ground
             guardStable = remash;
             pendingCounter = null;
             counterFireTime = 0f;
-            parriedDurationOnHit = 0f;
+            parriedOpponent = null;
+            parriedRecoveryTime = 0f;
 
             body.IsGuarding = true;
 
@@ -167,6 +169,13 @@ namespace ARPG.FrameWork.States.Ground
                 if ((AnimUtil.IsPlaying(cancelInfo, "Deflect_Cancel") && cancelInfo.normalizedTime >= 0.95f)
                     || cancelTimer >= cancelDuration)
                 {
+                    if (body.EnableStateDebugLog)
+                    {
+                        Debug.Log(
+                            $"[CombatTiming][DeflectCancelEnd] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
+                            $"收刀计时={cancelTimer:F4}s，收刀动画进度={cancelInfo.normalizedTime:F3}，" +
+                            $"到达超时={cancelTimer >= cancelDuration}，随后进入Idle", body);
+                    }
                     parent.SubStateMachine.ChangeState(new IdleState(body, parent));
                 }
                 return;
@@ -181,14 +190,12 @@ namespace ARPG.FrameWork.States.Ground
 
                 if (mode == DeflectEntryMode.PerfectParry)
                 {
-                    // 弹反动画正常播放作为表现（弹开火花完整呈现）；反击发起时刻由
-                    // counterFireTime 决定（命中对齐被弹方硬直结束 + 补偿，与动画时长无关）。
-                    // 动画播完但没到发起时刻 → 保持防御姿态稍作停顿，等点发起；
-                    // 到点直接切入反击攻击（此时弹反动画关键表现已播完，剪尾无碍观感）。
-                    if (pendingCounter != null && Time.time >= counterFireTime)
+                    // 等待期间持续校准恢复时刻，不能被弹反动画结束条件提前收刀。
+                    if (pendingCounter != null)
                     {
-                        parent.SubStateMachine.ChangeState(
-                            new AttackState(body, parent, pendingCounter));
+                        if (RefreshCounterFireTime() && Time.time >= counterFireTime)
+                            parent.SubStateMachine.ChangeState(
+                                new AttackState(body, parent, pendingCounter));
                         return;
                     }
 
@@ -326,19 +333,15 @@ namespace ARPG.FrameWork.States.Ground
 
             // M7 完美弹反后的反击命令：BT_Kengeki（KengekiArmed 已置位）在弹反瞬间抽好反击招下发。
             // 不立即出招——按"目标命中时刻 - 该招 HitStartTime"倒推出发起时刻，
-            // 让反击无论抽到哪招都在被弹方硬直结束 + ParryCounterHitDelay 附近命中。
-            // 玩家恢复瞬间的刀（前摇 ~0.15s）永远晚于反击命中 → 贪刀必被罚。
+            // 可及时起手的单段近战以被弹方预计恢复 + ParryCounterHitDelay 为命中目标。
+            // 长前摇、多段位移/弓段仍按原招式执行，不承诺统一命中时刻。
             // 只对被动完美弹反（Boss）生效；玩家主动弹反走 Normal 模式不受影响。
             if (mode == DeflectEntryMode.PerfectParry && cmd is AttackCommand)
             {
                 if (body.ActiveAttack != null)
                 {
-                    float hitDelay = body.Config != null ? body.Config.ParryCounterHitDelay : 0.1f;
-                    float parryDur = parriedDurationOnHit > 0f ? parriedDurationOnHit
-                        : (body.Config != null ? body.Config.ParriedDuration : 1.0f);
-                    // 目标命中 = 弹反开始 + 被弹方硬直 + 补偿；发起 = 命中 - 本招判定前摇
-                    counterFireTime = enterTime + parryDur + hitDelay - body.ActiveAttack.HitStartTime;
                     pendingCounter = body.ActiveAttack;
+                    RefreshCounterFireTime();
                     return true;
                 }
                 // 反击招未就绪（BT 抽招失败/距离超展开）：直接收刀回 Idle，交给 BT 常规路径
@@ -390,6 +393,15 @@ namespace ARPG.FrameWork.States.Ground
         // 完美弹反：弹开攻击者 + 打铁表现。玩家弹反 Boss 且 Boss 架势崩时给玩家处决确认窗口。
         private bool HandlePerfectParry(HitData hit)
         {
+            if (body.EnableStateDebugLog || (hit.attacker != null && hit.attacker.EnableStateDebugLog))
+            {
+                Debug.Log(
+                    $"[CombatTiming][PerfectParry] t={Time.time:F4}s frame={Time.frameCount} " +
+                    $"弹反方={body.name}，攻击方={(hit.attacker != null ? hit.attacker.name : "<none>")}，" +
+                    $"箭矢={hit.isProjectile}，入口={mode}",
+                    body);
+            }
+
             if (!hit.isProjectile && hit.attacker != null
                 && HitReactionUtil.IsPlayer(body)
                 && HitReactionUtil.IsBoatFinalPulseParry(hit.attacker))
@@ -406,22 +418,40 @@ namespace ARPG.FrameWork.States.Ground
                     gain,
                     allowBreak: true,
                     source: PostureBreakSource.Deflect);
-                // 玩家被弹开进 ParriedState。Boss 连段（飞舟等）被弹不打断，才能连续弹反。
-                if (!brokeAttackerPosture && HitReactionUtil.IsPlayer(hit.attacker))
-                    hit.attacker.ForceParryStun();
+                // 被弹断：统一给双方走 ParriedState 硬直，被弹方短暂停顿 → 弹反方拿先手。
+                // 两道例外：
+                //   1. 打不断的招（危字 / 飞舟 / JumpThrust）维持原样，招继续，保留连续弹反。
+                //   2. 多段连招只在末段被弹才断，中间段弹中招继续 —— 否则弹第一下就掐断，
+                //      后面几刀砍不出来，连续弹反就没了。
+                // armKengeki: false 必须显式传：默认值会给被弹方挂 KengekiArmed，
+                // 变成"玩家一弹反 Boss 立刻反击"，刚拿到的先手权当场又没了。
+                if (!brokeAttackerPosture && !hit.attacker.AttackUninterruptible
+                    && AttackStateBase.IsLastHit(hit.attacker))
+                {
+                    hit.attacker.ForceParryStun(armKengeki: false);
+                    if (mode == DeflectEntryMode.Normal && HitReactionUtil.IsPlayer(body)
+                        && !HitReactionUtil.IsPlayer(hit.attacker))
+                        hit.attacker.ArmPlayerParryAttackWindow(body.LightAttack);
+                }
             }
 
             // 弹反成功方获得优先反击权（回合制）：
             // 只有 Boss 弹反玩家才武装交锋；玩家弹反 Boss 不该给玩家挂 KengekiArmed。
             if (!hit.isProjectile && !HitReactionUtil.IsPlayer(body))
+            {
+                // Boss 已弹回玩家，攻防轮次已改变，不沿用上次被玩家弹断的保护窗口。
+                body.ClearPlayerParryAttackWindow();
                 body.KengekiArmed = true;
+            }
             // 玩家近战弹开 Boss：累计连续弹开次数，供主动层 JumpThrust（≠ 交锋 3062）。
             if (!hit.isProjectile && HitReactionUtil.IsPlayer(body) && hit.attacker != null)
                 hit.attacker.NotifyPerfectlyParried();
-            // 精确记录被弹方硬直：反击命中时刻基准是"被弹方恢复"，不是弹反方自己的配置
-            parriedDurationOnHit = hit.attacker != null && hit.attacker.Config != null
+            // 先保存配置下限作缺失动画的兜底；安排反击时再读取真实硬直状态的预测。
+            parriedOpponent = hit.attacker;
+            float minimumDuration = hit.attacker != null && hit.attacker.Config != null
                 ? hit.attacker.Config.ParriedDuration
                 : (body.Config != null ? body.Config.ParriedDuration : 1.0f);
+            parriedRecoveryTime = Time.time + minimumDuration;
 
             CombatEventBus.TriggerWeaponDeflected(
                 CombatFxPoint.ForDeflect(hit.attacker, body, hit.hitPoint, hit.isProjectile),
@@ -566,9 +596,29 @@ namespace ARPG.FrameWork.States.Ground
             return true;
         }
 
+        private bool RefreshCounterFireTime()
+        {
+            if (parriedOpponent != null && parriedOpponent.IsParried)
+            {
+                if (!parriedOpponent.TryGetParriedRecoveryTime(out float recoveryTime))
+                    return false;
+                parriedRecoveryTime = recoveryTime;
+            }
+            float hitDelay = body.Config != null ? body.Config.ParryCounterHitDelay : 0.1f;
+            counterFireTime = parriedRecoveryTime + hitDelay - pendingCounter.HitStartTime;
+            return true;
+        }
+
         private void StartCancel()
         {
             if (canceling) return;
+
+            if (body.EnableStateDebugLog)
+            {
+                Debug.Log(
+                    $"[CombatTiming][DeflectCancelStart] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
+                    $"状态={body.CurrentStatePath}，入口={mode}，收刀超时={cancelDuration:F3}s", body);
+            }
 
             body.NotifyDeflectCancel();
             canceling = true;

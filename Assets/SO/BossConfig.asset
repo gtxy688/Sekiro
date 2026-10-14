@@ -36,7 +36,9 @@ MonoBehaviour:
   DeflectPostureGain: 10
   GuardPostureFactor: 0.5
   ParriedDuration: 0.35
-  ParryCounterHitDelay: 0.5
+  ParryCounterHitDelay: 0.1
+  PlayerParryAttackPreparationTime: 0.7
+  PlayerParryAttackHitBuffer: 0.1
   DeflectMashLimit: 3
   DeflectMashWindow: 0.5
   DeflectMashPenalty: 0.75

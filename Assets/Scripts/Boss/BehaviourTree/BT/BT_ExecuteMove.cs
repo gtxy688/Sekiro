@@ -22,8 +22,11 @@ namespace ARPG.Boss.BehaviourTree
         private bool allowInterrupt;
         private bool jumpThrustCameraActive;
         private float jumpThrustBossBaseY;
+        private bool waitingForStart;
+        private bool scheduleLogged;
 
         public bool IsBusy => started;
+        public bool IsWaitingForStart => started && waitingForStart;
 
         public BT_ExecuteMove(CharacterBody body, BossMoveTable table)
         {
@@ -41,6 +44,8 @@ namespace ARPG.Boss.BehaviourTree
             }
             started = false;
             waitingAttack = false;
+            waitingForStart = false;
+            scheduleLogged = false;
             allowInterrupt = false;
             entry = null;
             sequence = null;
@@ -57,18 +62,7 @@ namespace ARPG.Boss.BehaviourTree
             started = true;
             segment = 0;
             allowInterrupt = interruptCurrent;
-            jumpThrustCameraActive = move.id == "JumpThrust";
-            if (jumpThrustCameraActive)
-            {
-                // 跟髋不跟根：跳跃 Clip 常 keepOriginalPositionY，根贴地时视觉已在天上。
-                jumpThrustBossBaseY = body.GetJumpFollowWorldY();
-                CombatEventBus.TriggerJumpThrustCamera(true, body, jumpThrustBossBaseY);
-            }
-            NodeState fired = FireCurrentSegment();
-            // 起跳成功才清连弹计数，避免 Begin 失败后永远抽不到。
-            if (fired != NodeState.Failure && move.extra == BossMoveExtra.ConsecutiveParry2)
-                body.ResetConsecutiveTimesParried();
-            return fired;
+            return FireCurrentSegment();
         }
 
         public override NodeState Evaluate()
@@ -81,9 +75,17 @@ namespace ARPG.Boss.BehaviourTree
                 return NodeState.Failure;
             }
 
+            // 等待期间 Boss 弹回玩家时，交还交锋层，不继续上次预选的主动招。
+            if (waitingForStart && body.KengekiArmed)
+            {
+                ResetMove();
+                return NodeState.Failure;
+            }
+
             if (waitingAttack)
             {
-                if (body.IsAttacking) return NodeState.Running;
+                // 反击已接收但尚在弹反态等起手，也算本段未完成。
+                if (body.IsAttacking || body.IsParryCounterPending) return NodeState.Running;
                 waitingAttack = false;
                 segment++;
                 TryInterruptAir5();
@@ -124,6 +126,37 @@ namespace ARPG.Boss.BehaviourTree
         {
             string anim = sequence.states[segment];
             BossMoveWindow w = BossMovePicker.WindowFor(entry, segment, sequence);
+            if (body.IsParried || body.IsPostureBroken || body.IsFinisherLocked)
+            {
+                ResetMove();
+                return NodeState.Failure;
+            }
+
+            if (segment == 0 && body.AttackHitNotBeforeTime > 0f)
+            {
+                // 从首个真实近战判定/出箭点倒推起手，不使用 NoHit 段的占位 HitStartTime。
+                float firstCue = FirstOffensiveCueTime(w);
+                float earliestStart = body.AttackHitNotBeforeTime - firstCue;
+                waitingForStart = Time.time < earliestStart;
+                if (!scheduleLogged && body.EnableStateDebugLog)
+                {
+                    Debug.Log(
+                        $"[CombatTiming][BossAttackSchedule] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
+                        $"招式={entry.id}/{anim}，玩家标准第一刀={body.PlayerParryExpectedHitTime:F4}s，" +
+                        $"Boss最早判定={body.AttackHitNotBeforeTime:F4}s，首段前摇={firstCue:F3}s，" +
+                        $"倒推最早起手={earliestStart:F4}s，需要等待={waitingForStart}", body);
+                }
+                scheduleLogged = true;
+                if (waitingForStart) return NodeState.Running;
+            }
+            // 普通格挡中 StartAttack 会吞指令却不出招；等防御态退出再派发。
+            if (segment == 0 && scheduleLogged && body.IsGuarding)
+            {
+                waitingForStart = true;
+                return NodeState.Running;
+            }
+            waitingForStart = false;
+
             body.CurrentMoveEntry = entry;
             body.CurrentMoveWindow = w;
             AttackConfig baked = BossAttackBaker.Bake(entry, anim, w);
@@ -144,8 +177,42 @@ namespace ARPG.Boss.BehaviourTree
                 ResetMove();
                 return NodeState.Failure;
             }
+            if (segment == 0)
+            {
+                body.ClearPlayerParryAttackWindow();
+                // 延后起手时不能提前开启起跳镜头或清掉连弹计数。
+                if (entry.id == "JumpThrust")
+                {
+                    jumpThrustCameraActive = true;
+                    jumpThrustBossBaseY = body.GetJumpFollowWorldY();
+                    CombatEventBus.TriggerJumpThrustCamera(true, body, jumpThrustBossBaseY);
+                }
+                if (entry.extra == BossMoveExtra.ConsecutiveParry2)
+                    body.ResetConsecutiveTimesParried();
+            }
             waitingAttack = true;
             return NodeState.Running;
+        }
+
+        // 首段没有攻击事件时保守取 0：等保护窗口结束再做位移段，避免猜测后续段时长。
+        private static float FirstOffensiveCueTime(BossMoveWindow window)
+        {
+            float first = float.PositiveInfinity;
+            if (window != null && window.hitPulses != null)
+            {
+                foreach (var pulse in window.hitPulses)
+                {
+                    if (AttackWindowSync.PulseIsMelee(pulse)) first = Mathf.Min(first, pulse.start);
+                }
+            }
+            if (window != null && window.arrowCues != null)
+            {
+                foreach (var cue in window.arrowCues)
+                {
+                    if (cue != null) first = Mathf.Min(first, cue.time);
+                }
+            }
+            return float.IsPositiveInfinity(first) ? 0f : Mathf.Max(0f, first);
         }
 
         void ReleaseJumpThrustCamera()

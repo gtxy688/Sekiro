@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 using ARPG.FrameWork;
 using ARPG.FrameWork.Body;
@@ -12,11 +13,14 @@ namespace ARPG.FrameWork.States.Ground
     public class ParriedState : BaseState
     {
         private const string DefaultAnim = "Deflected";
+        private const float ExitNormalizedTime = 0.95f;
+        private readonly List<AnimatorClipInfo> recoveryClips = new List<AnimatorClipInfo>(1);
 
         private readonly string animName;
         private readonly bool freezeYawAfterExit;
         private float timer;
         private float duration;
+        private float enterTime;
         private bool hasSeenAnim;
         private bool triedNestedPath;
 
@@ -30,6 +34,7 @@ namespace ARPG.FrameWork.States.Ground
         public override void OnEnter()
         {
             timer = 0f;
+            enterTime = Time.time;
             hasSeenAnim = false;
             triedNestedPath = false;
             body.IsParried = true;
@@ -66,7 +71,7 @@ namespace ARPG.FrameWork.States.Ground
             if (AnimUtil.IsPlaying(info, animName) || AnimUtil.IsPlaying(next, animName))
             {
                 hasSeenAnim = true;
-                if (AnimUtil.IsPlaying(info, animName) && info.normalizedTime >= 0.95f)
+                if (AnimUtil.IsPlaying(info, animName) && info.normalizedTime >= ExitNormalizedTime)
                     animDone = true;
             }
             else if (hasSeenAnim && !body.Animator.IsInTransition(0))
@@ -77,14 +82,60 @@ namespace ARPG.FrameWork.States.Ground
             // 硬直 = max(动画, 配置下限)：ParriedDuration 是最小硬直。
             if (animDone && timer >= duration)
             {
+                if (body.EnableStateDebugLog)
+                {
+                    Debug.Log(
+                        $"[CombatTiming][ParriedExit] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
+                        $"进入时刻={enterTime:F4}s，经过时间={Time.time - enterTime:F4}s，" +
+                        $"硬直计时={timer:F3}s，配置下限={duration:F3}s，" +
+                        $"仍是被弹动画={AnimUtil.IsPlaying(info, animName)}，" +
+                        $"动画长度={info.length:F3}s，进度={info.normalizedTime:F3}，" +
+                        $"状态速度={info.speed:F3}，速度倍率={info.speedMultiplier:F3}，" +
+                        $"Animator速度={body.Animator.speed:F3}",
+                        body);
+                }
+
                 body.EnterGrounded("parried: animation finished");
                 return;
             }
 
             if (!hasSeenAnim && timer >= duration)
             {
+                if (body.EnableStateDebugLog)
+                {
+                    Debug.Log(
+                        $"[CombatTiming][ParriedExit] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
+                        $"进入时刻={enterTime:F4}s，经过时间={Time.time - enterTime:F4}s，" +
+                        $"硬直计时={timer:F3}s，配置下限={duration:F3}s，原因=未识别动画，兜底恢复",
+                        body);
+                }
                 body.EnterGrounded("parried: fallback duration reached");
             }
+        }
+
+        // 供反击安排读取预计恢复时刻；退出条件仍由 OnUpdate 决定。
+        // 动画尚未进入、混合树或停播时不猜测，调用方等待下一帧或真实恢复。
+        public bool TryGetRecoveryTime(out float recoveryTime)
+        {
+            recoveryTime = enterTime + duration;
+            var animator = body.Animator;
+            if (animator == null) return false;
+            var info = animator.GetCurrentAnimatorStateInfo(0);
+            bool useNext = !AnimUtil.IsPlaying(info, animName) && animator.IsInTransition(0);
+            if (useNext) info = animator.GetNextAnimatorStateInfo(0);
+            if (!AnimUtil.IsPlaying(info, animName)) return false;
+
+            recoveryClips.Clear();
+            if (useNext) animator.GetNextAnimatorClipInfo(0, recoveryClips);
+            else animator.GetCurrentAnimatorClipInfo(0, recoveryClips);
+            float speed = info.speed * info.speedMultiplier * animator.speed;
+            if (recoveryClips.Count != 1 || recoveryClips[0].clip == null || speed <= 0f)
+                return false;
+
+            float remaining = Mathf.Max(0f, ExitNormalizedTime - info.normalizedTime)
+                * recoveryClips[0].clip.length / speed;
+            recoveryTime = Mathf.Max(recoveryTime, Time.time + remaining);
+            return true;
         }
 
         public override bool HandleCommand(ICommand cmd)

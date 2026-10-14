@@ -923,8 +923,8 @@ MonoBehaviour:
       - Kengeki_Double
       windows: []
     windows:
-    - hitStartTime: 0.98000085
-      recoverStart: 1.47
+    - hitStartTime: 0.59
+      recoverStart: 1.07
       comboWindowEnd: 1.47
       stateDuration: 1.8
       rotateEnd: 0.35
@@ -932,15 +932,15 @@ MonoBehaviour:
       perilous: 0
       hitboxSlot: 0
       hitPulses:
-      - start: 0.98000085
-        end: 1.0650002
+      - start: 0.59
+        end: 0.67
         overrideCombat: 0
         baseDamage: 50
         postureDamage: 25
         knockback: 0
         hitGrade: 0
-      - start: 1.3162501
-        end: 1.47
+      - start: 0.9389816
+        end: 1.07
         overrideCombat: 0
         baseDamage: 50
         postureDamage: 25

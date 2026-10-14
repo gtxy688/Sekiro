@@ -56,6 +56,16 @@ namespace ARPG.Combat
 
             // 伤害数据来自 AttackConfig（SO），这里只做转发（含危字标记 M17 / 击退 / 受击等级）
             if (hitbox.Config == null) return;
+            // 接触时间记录在防御/伤害结算之前；接触不代表一定扣血。
+            if (attacker.EnableStateDebugLog || target.EnableStateDebugLog)
+            {
+                Debug.Log(
+                    $"[CombatTiming][MeleeContact] t={Time.time:F4}s frame={Time.frameCount} " +
+                    $"{attacker.name} -> {target.name}，招式={hitbox.Config.AnimName}，" +
+                    $"目标状态={target.CurrentStatePath}，目标被弹硬直={target.IsParried}，" +
+                    $"目标格挡={target.IsGuarding}（结算前接触）",
+                    target);
+            }
             target.ReceiveHit(attacker, hitbox.Config.BaseDamage, hitbox.Config.PostureDamage, hitPoint,
                               hitbox.Config.Perilous != PerilousType.None, hitbox.Config.Perilous,
                               hitbox.Config.Knockback, hitbox.Config.HitGrade, false);

@@ -89,9 +89,21 @@ namespace ARPG.FrameWork.States.Base
             }
 
             // 招式在 _Attack/_Bow/_Clash/_Danger 子状态机里，必须走 Parent.State。
-            if (!AnimUtil.TryBeginAttackAnim(body.Animator, config, body.CurrentMoveEntry))
+            bool attackAnimStarted = AnimUtil.TryBeginAttackAnim(body.Animator, config, body.CurrentMoveEntry);
+            if (!attackAnimStarted)
             {
                 Debug.LogError($"{body.name} 的 Animator 缺少攻击状态：{config.AnimName}");
+            }
+
+            // 记录攻击状态起手请求；真正接触目标的时刻由 MeleeContact 日志确认。
+            if (body.EnableStateDebugLog)
+            {
+                Debug.Log(
+                    $"[CombatTiming][AttackStart] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
+                    $"招式={config.AnimName}，来源状态={parent?.SubStateMachine?.PreviousStatePath ?? "<unknown>"}，" +
+                    $"HitStartTime={config.HitStartTime:F3}s，融合配置={config.TransitionDuration:F3}，" +
+                    $"动画请求成功={attackAnimStarted}，Animator速度={body.Animator.speed:F3}",
+                    body);
             }
 
             // 允许转向的招：起手先对准目标，整招丢掉 Clip 根旋转，否则挥砍 Root yaw 会盖掉代码朝向。
@@ -244,6 +256,55 @@ namespace ARPG.FrameWork.States.Base
                 && cfg.AnimName.StartsWith("Boat"))
                 return true;
             return false;
+        }
+
+        // 这一招总共挥几下 = 各段「真判定」段数之和与动画段数取大。
+        // 取大是因为两者都可能单独偏小：Kengeki_Slash 是 5 段动画但只在第 1 段带判定
+        // （后续段 WindowFor 按段号 Clamp，fallback 到同一个窗口），
+        // Kengeki_Bow 则是单段动画带多段判定。只看其中一个都会把它误判成单发招。
+        // 只数 PulseIsMelee 的段：招式表里有 start == end 的占位段（转视角/位移用，见
+        // Slash_Rush2 的一个脉冲），数进来会把单发招误判成连招。
+        public static int HitChanceCount(CharacterBody body)
+        {
+            if (body == null) return 1;
+
+            int pulses = 0;
+            BossMoveEntry entry = body.CurrentMoveEntry;
+            if (entry != null && entry.windows != null)
+            {
+                for (int i = 0; i < entry.windows.Length; i++)
+                {
+                    HitPulse[] wp = entry.windows[i] != null ? entry.windows[i].hitPulses : null;
+                    if (wp == null) continue;
+                    for (int j = 0; j < wp.Length; j++)
+                    {
+                        if (AttackWindowSync.PulseIsMelee(wp[j])) pulses++;
+                    }
+                }
+            }
+
+            // 窗口表在招式表上是单份、按段号 Clamp 取用，所以段数要看动画序列本身。
+            int states = 0;
+            if (entry != null && entry.sequences != null)
+            {
+                for (int i = 0; i < entry.sequences.Length; i++)
+                {
+                    string[] st = entry.sequences[i] != null ? entry.sequences[i].states : null;
+                    if (st != null && st.Length > states) states = st.Length;
+                }
+            }
+
+            int total = pulses > states ? pulses : states;
+            return total > 1 ? total : 1;
+        }
+
+        // 被弹的这一下是不是本招最后一下。单发招恒为 true。
+        // 多段连招在中间段被弹不算，招继续 —— 才能连续弹反；打到末段被弹才打断。
+        public static bool IsLastHit(CharacterBody body)
+        {
+            int total = HitChanceCount(body);
+            if (total <= 1) return true;
+            return body.ActiveHitPulseIndex >= total - 1;
         }
 
         // 最后一个判定窗结束时间：多段脉冲取末段 end，单段取 RecoveryWindowStart
