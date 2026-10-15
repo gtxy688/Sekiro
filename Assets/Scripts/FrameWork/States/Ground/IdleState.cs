@@ -57,10 +57,11 @@ namespace ARPG.FrameWork.States.Ground
                 return true;
             }
 
-            // M6：待机时按防御 → 进入弹反/防御姿态（弹反窗口逻辑 M4 细化）
-            if (cmd is DeflectCommand)
+            // M6：待机时按防御 → 进入弹反/防御姿态（弹反窗口由 DeflectAttemptTracker 判定）
+            if (cmd is DeflectCommand deflectCmd)
             {
-                parent.SubStateMachine.ChangeState(new DeflectState(body, parent));
+                parent.SubStateMachine.ChangeState(
+                    new DeflectState(body, parent, pressId: deflectCmd.PressId));
                 return true;
             }
 

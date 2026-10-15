@@ -16,6 +16,22 @@
 
 因此，ScriptableObject 和 BossMoveTable 是主要配置载体，但不能声称所有战斗数值都只来自 SO 或完全没有代码常量。
 
+## 弹反窗口与空按惩罚
+
+主动弹反的全部参数取自 CharacterConfig，没有为它们新建 SO：
+
+| 字段 | 含义 |
+|---|---|
+| `DeflectWindow` | 基础完美弹反窗口（秒） |
+| `DeflectWindowMin` | 窗口下限（秒） |
+| `DeflectEmptyGraceCount` | 前 N 次连续空按不缩窗 |
+| `DeflectEmptyPenalty` | 超出宽容次数后每个空按的累乘系数，取值 (0, 1] |
+| `DeflectEmptyResetInterval` | 相邻两次实际开启尝试的间隔超过该值则清零累计 |
+
+运行时由 CharacterBody 组装成 `DeflectAttemptTracker.Settings` 轻量快照传入 Tracker。非法值（窗口 ≤ 0、下限大于基础窗口、惩罚系数不在 (0, 1]、宽容次数为负、恢复间隔 ≤ 0）由 `Editor/ArpgValidationRules.cs` 报错；运行时 CharacterBody 仍会夹紧并告警一次，避免除零或弹反窗口永久消失。
+
+字段迁移：旧的按次数记账字段 `DeflectMashLimit` / `DeflectMashWindow` / `DeflectMashPenalty` 已删除，改为上面的按结果记账字段。`DeflectMashWindow` → `DeflectEmptyResetInterval`、`DeflectMashPenalty` → `DeflectEmptyPenalty` 用 `FormerlySerializedAs` 保留资源旧值；宽容次数由 float 改成 int，无法直接迁移，按默认值 3 与两个配置资源里的显式取值处理。
+
 ## 受击与架势
 
 CombatResolver 把结算参数传给 CharacterBody.ReceiveHit。当前状态可以先处理命中；未被状态处理的命中进入生命值、架势与受击状态处理。格挡、弹反、闪避、架势崩解及死亡规则分布在 CharacterBody、CombatStats 与状态类中。

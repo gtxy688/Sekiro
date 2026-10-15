@@ -333,7 +333,8 @@ namespace ARPG.UI
             if (c == playerBody)
             {
                 revivePromptView?.ShowChoices(
-                    () => playerBody.TryExecuteCommand(new DeflectCommand()),
+                    // 系统指令：UI 选"就此死去"不伪造物理按下身份，不开启弹反窗口、不计空按。
+                    () => playerBody.TryExecuteCommand(DeflectCommand.System()),
                     () => playerBody.TryExecuteCommand(new AttackCommand()));
             }
         }

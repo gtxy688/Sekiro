@@ -169,13 +169,21 @@ namespace ARPG.Player
 
         private void OnDeflectStarted(InputAction.CallbackContext _)
         {
-            if (CanAcceptPlayInput()) BufferCommand(new DeflectCommand());
+            if (!CanAcceptPlayInput()) return;
+
+            // 只有真实物理按下生成新的按下身份：缓冲重试、状态重入都沿用同一个 PressId，
+            // 身体侧据此保证"同一次按下只开一次弹反窗口"。
+            int pressId = body.BeginDeflectPress();
+            BufferCommand(DeflectCommand.Physical(pressId));
         }
 
         private void OnDeflectCanceled(InputAction.CallbackContext _)
         {
             LogTimingInput("DeflectReleased");
-            if (CanAcceptPlayInput()) BufferCommand(new IdleCommand());
+
+            // 松开不再用 IdleCommand 覆盖尚未消费的防御按下：释放记录挂在 PressId 上，
+            // 由防御状态按窗口到期决定收刀还是继续格挡（短点按保留窗口）。
+            body.NotifyDeflectReleased();
         }
 
         private void LogTimingInput(string action)
@@ -213,6 +221,16 @@ namespace ARPG.Player
             holdAttackTriggered = false;
             holdThresholdChecked = false;
             currentMoveInput = Vector2.zero;
+            ClearDeflectInput();
+        }
+
+        // 输入被暂停 / 结算 / 生命周期阻断：清掉防御按住状态与待处理的防御命令。
+        // 状态机侧的未完成尝试按生命周期取消（不记空按）；恢复输入后必须由新的物理按下重新开始。
+        private void ClearDeflectInput()
+        {
+            if (body == null) return;
+            body.ClearDeflectInput();
+            DropBufferedCommand<DeflectCommand>();
         }
 
         private bool CanAcceptPlayInput()
@@ -230,6 +248,7 @@ namespace ARPG.Player
             if (Time.unscaledTime < acceptInputAfter)
             {
                 currentMoveInput = Vector2.zero;
+                ClearDeflectInput();
                 if (body != null)
                     body.TryExecuteCommand(new MoveCommand(Vector2.zero));
                 return;
@@ -242,6 +261,7 @@ namespace ARPG.Player
                 holdAttackTriggered = false;
                 holdThresholdChecked = false;
                 currentMoveInput = Vector2.zero;
+                ClearDeflectInput();
                 body.TryExecuteCommand(new MoveCommand(Vector2.zero));
                 return;
             }
@@ -259,9 +279,12 @@ namespace ARPG.Player
             // 1. 调用基类的 Update，让它去处理缓冲池里的 攻击、弹反、跳跃 指令
             base.Update();
 
-            // 崩解倒地：长按格挡键应在 BrokenDeflectDodgeOpenTime 到达后切入 DeflectState
-            if (body.IsPostureBroken && deflectAction != null && deflectAction.IsPressed())
-                BufferCommand(new DeflectCommand(), 0.15f);
+            // 崩解倒地：长按格挡键应在 BrokenDeflectDodgeOpenTime 到达后切入 DeflectState。
+            // 这是系统回防：只恢复普通格挡，不开新的完美弹反窗口、不计空按，也不伪造按键身份。
+            // 玩家真实按下仍留在缓冲里优先被接受（否则会被这条请求顶掉，白丢一次弹反窗口）。
+            if (body.IsPostureBroken && deflectAction != null && deflectAction.IsPressed()
+                && !HasBufferedCommand<DeflectCommand>())
+                BufferCommand(DeflectCommand.System(), 0.15f);
 
             // 2. 独立处理移动指令（连绵不断的意图，不走缓冲）
             if (moveAction == null) return;
@@ -305,6 +328,8 @@ namespace ARPG.Player
             attackPressed = false;
             holdAttackTriggered = false;
             holdThresholdChecked = false;
+            // 对象停用属于生命周期阻断：未完成尝试取消（不记空按），残留命令一并丢弃。
+            ClearDeflectInput();
             if (playerInput != null) return;
             if (actions != null) actions.Disable();
         }

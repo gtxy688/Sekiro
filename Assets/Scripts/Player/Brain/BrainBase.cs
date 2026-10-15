@@ -42,6 +42,27 @@ namespace ARPG.Player
             bufferTimer = duration;
         }
 
+        // 缓冲池里是否已有指定类型的指令。防御用它避免自动回防请求顶掉玩家真实按下。
+        protected bool HasBufferedCommand<T>() where T : ICommand
+        {
+            return bufferedCommand is T;
+        }
+
+        // 定向清理：输入被暂停 / 结算 / 生命周期阻断时，丢掉尚未消费的指定指令。
+        // 通用单槽缓冲保持不变，只有清理需要按类型定位——不为此把整套命令系统改成队列。
+        protected void DropBufferedCommand<T>() where T : ICommand
+        {
+            if (bufferedCommand is not T) return;
+
+            if (body != null && body.EnableStateDebugLog)
+            {
+                Debug.Log(
+                    $"[CombatTiming][CommandDropped] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
+                    $"指令={typeof(T).Name}，状态={body.CurrentStatePath}", body);
+            }
+            bufferedCommand = null;
+        }
+
         private void ProcessCommandBuffer()
         {
             // 如果缓冲池里没东西，直接跳过

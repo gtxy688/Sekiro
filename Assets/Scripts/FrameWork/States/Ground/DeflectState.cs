@@ -14,14 +14,19 @@ namespace ARPG.FrameWork.States.Ground
     // 防御状态（M4）：短按/长按都是格挡。
     //   待机按下 → Deflect_Begin（抬刀）→ 静止 Deflect_Guard / 移动 Deflect_Walk|Deflect_Strafe
     //   走着按下 → 跳过抬刀，直接进移动格挡（对齐当前步伐，避免根运动被掐断抽搐）
-    //   格挡中再按 → Deflect_Repeat（抖刀），刷新弹反窗口；没有 Repeat 状态则回退抬刀
+    //   格挡中再按 → Deflect_Repeat（抖刀），开一次新的弹反窗口；没有 Repeat 状态则回退抬刀
     //   窗口内挡住 → Deflect_Slash；窗口外挡住 → 普通格挡受击
-    //   长按松手 → Deflect_Cancel（收刀）；短按松手姿态不变，窗口结束回待机
+    //   长按松手 → Deflect_Cancel（收刀）；短按松手窗口保留到到期，直接回待机
+    //
+    // 主动弹反只由一个入口判定：DeflectAttemptTracker 里"未结束的尝试 + 固定半开窗口"。
+    // 抬刀阶段（inBegin）只管表现，不再放行弹反资格，动画播放速度/长度也就无法延长窗口。
+    // 一次真实按下 = 一次尝试；弹中则清罚，到期/被替换/被垫步取消/被打断才记空按。
+    // 系统回防（崩解恢复自动回防、UI 选择）pressId = 0，只恢复普通格挡：不开窗口、不计空按。
     //
     // M7 被动防御：只狼模式中 Boss 的格挡不是"AI 按按钮"，而是玩家命中瞬间的
     // 防御判定。DeflectEntryMode.PassiveGuard（普通格挡，留下防御姿态）与
     // DeflectEntryMode.PerfectParry（强制完美弹反，弹开攻击者）由 CharacterBody
-    // 的 TryPassiveDeflect 路由进入，不参与抖刀惩罚，处理完锁定中的命中后保持姿态片刻退出。
+    // 的 TryPassiveDeflect 路由进入，不参与玩家主动尝试记账，处理完锁定中的命中后保持姿态片刻退出。
     public enum DeflectEntryMode
     {
         Normal,       // 玩家/BT 主动按防御（原 M4 流程）
@@ -35,9 +40,10 @@ namespace ARPG.FrameWork.States.Ground
         private readonly bool remash;
         private readonly DeflectEntryMode mode;
         private readonly HitData? pendingHit;
+        private readonly int pressId;   // 本次防御对应的物理按下身份；0 = 系统回防
+        private int attemptId;          // 主动弹反尝试；0 = 没有主动窗口（系统回防 / 被动防御）
         private float enterTime;
-        private float window;
-        private bool hasReleased;
+        private bool releasedDuringWindow; // 窗口内已经松手：短点按，到期直接回待机，不走收刀
         private const float PassiveHoldDuration = 0.25f; // 普通格挡姿态保持时长（玩家连打会被连续重进场）
         private const float PerfectHoldMax = 1.1f;    // 完美弹反兜底：弹反挥刀动画缺失/异常时强制收刀
         // 弹反收刀阈值：动画主体基本播完才收刀——弹反的"弹开表现"必须完整呈现，
@@ -69,17 +75,17 @@ namespace ARPG.FrameWork.States.Ground
         private bool arrowHeavyGuard; // 箭 Heavy 普通格挡：播完 Stagger_Broken 才能回举刀
         private bool arrowHeavyDeflect; // 箭 Heavy 完美弹反：播完 Deflect_HeavyArrow 才能回举刀
         private float arrowHeavyLockTimer;
-        private bool raiseSpamGuard; // 连续举刀放刀：窗口内也只算普通格挡
-        private bool guardStable;    // 已进入举刀循环，抖刀 remash 不算 spam
         private float rotationSpeed = 720f;
 
         public DeflectState(CharacterBody body, HierarchicalState parent, bool remash = false,
-            DeflectEntryMode mode = DeflectEntryMode.Normal, HitData? pendingHit = null) : base(body)
+            DeflectEntryMode mode = DeflectEntryMode.Normal, HitData? pendingHit = null,
+            int pressId = 0) : base(body)
         {
             this.parent = parent;
             this.remash = remash;
             this.mode = mode;
             this.pendingHit = pendingHit;
+            this.pressId = pressId;
             if (body.Config != null) rotationSpeed = body.Config.RotationSpeed;
         }
 
@@ -90,7 +96,8 @@ namespace ARPG.FrameWork.States.Ground
                 parent = body.MainStateMachine.CurrentState as HierarchicalState;
 
             enterTime = Time.time;
-            hasReleased = false;
+            releasedDuringWindow = false;
+            attemptId = 0;
             guardFlinchTimer = 0f;
             beginTimer = 0f;
             cancelTimer = 0f;
@@ -102,8 +109,6 @@ namespace ARPG.FrameWork.States.Ground
             arrowHeavyGuard = false;
             arrowHeavyDeflect = false;
             arrowHeavyLockTimer = 0f;
-            raiseSpamGuard = false;
-            guardStable = remash;
             pendingCounter = null;
             counterFireTime = 0f;
             parriedOpponent = null;
@@ -111,11 +116,10 @@ namespace ARPG.FrameWork.States.Ground
 
             body.IsGuarding = true;
 
-            // M7 被动防御入口：不参与抖刀惩罚、无抬刀动画，直接处理锁定中的命中，
+            // M7 被动防御入口：不参与玩家主动尝试记账、无抬刀动画，直接处理锁定中的命中，
             // 处理完保持防御姿态，由 OnUpdate 的被动退出逻辑按时收刀。
             if (mode != DeflectEntryMode.Normal)
             {
-                window = 0f;
                 if (pendingHit.HasValue)
                 {
                     if (mode == DeflectEntryMode.PerfectParry)
@@ -127,14 +131,24 @@ namespace ARPG.FrameWork.States.Ground
                 return;
             }
 
-            body.RegisterDeflectPress();
-            window = body.GetDeflectWindow();
-
-            float mashWindow = body.Config != null ? body.Config.DeflectMashWindow : 0.5f;
-            if (!remash && !IsPlayingLocomotion()
-                && Time.time - body.LastDeflectCancelTime < mashWindow)
+            // 主动防御入口：只有真实物理按下才开启尝试。窗口从"身体实际接受并开启防御"的
+            // Time.time 起算，预输入时间不作为起点；系统回防只恢复普通格挡。
+            if (pressId > 0)
             {
-                raiseSpamGuard = true;
+                attemptId = body.BeginDeflectAttempt(pressId);
+
+                // 命令延迟消费、而该 PressId 已经松开：按短点按处理（窗口照开并标记已释放），
+                // 不能凭"没按住"就丢掉这一次有效点按。
+                if (attemptId != 0 && body.IsDeflectPressReleased(pressId))
+                    releasedDuringWindow = true;
+            }
+
+            if (body.EnableStateDebugLog)
+            {
+                Debug.Log(
+                    $"[CombatTiming][DeflectEnter] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
+                    $"pressId={pressId} attempt={attemptId} 窗口={body.CurrentDeflectWindow:F4}s " +
+                    $"连续空按={body.DeflectEmptyCount} 入口={mode}", body);
             }
 
             // 格挡中再按：抖刀，不要重播抬刀。没有 Repeat Clip（Boss）则走原来的抬刀/走路融合
@@ -146,8 +160,9 @@ namespace ARPG.FrameWork.States.Ground
             }
             else if (IsPlayingLocomotion())
             {
-                // 走着进格挡：不播原地抬刀（会掐步伐），用较长融合把走路姿势接到举刀走
-                inBegin = false;
+                // 走着进格挡：融合本身就是抬刀阶段；按 RaiseBlend 到点结束。
+                // 注意融合只吃表现，不参与弹反资格（资格只看 Tracker 的窗口）。
+                inBegin = true;
                 raiseAnim = null;
                 UpdateStrafeParams(instant: true);
                 PlayGuardLoop(force: true, matchCycle: true, blendSeconds: RaiseBlend);
@@ -162,6 +177,10 @@ namespace ARPG.FrameWork.States.Ground
 
         public override void OnUpdate()
         {
+            // 状态 Update 与命中入口都要先按当前时间推进尝试到期，
+            // 否则两者的执行顺序会改变"窗口外命中"的结果（设计文档 §5）。
+            body.AdvanceDeflectAttempt();
+
             if (canceling)
             {
                 cancelTimer += Time.deltaTime;
@@ -224,10 +243,12 @@ namespace ARPG.FrameWork.States.Ground
                 beginTimer += Time.deltaTime;
                 var beginInfo = body.Animator.GetCurrentAnimatorStateInfo(0);
                 if ((raiseAnim != null && AnimUtil.IsPlaying(beginInfo, raiseAnim) && beginInfo.normalizedTime >= 0.92f)
+                    || (raiseAnim == null && beginTimer >= RaiseBlend)
                     || beginTimer >= beginFailsafe)
                 {
                     inBegin = false;
-                    PlayGuardLoop(force: true);
+                    // 走路分支已在举刀循环中，到点不重播，保留当前步伐。
+                    PlayGuardLoop(force: raiseAnim != null);
                 }
             }
 
@@ -243,7 +264,7 @@ namespace ARPG.FrameWork.States.Ground
                 {
                     arrowHeavyGuard = false;
                     arrowHeavyDeflect = false;
-                    if (hasReleased)
+                    if (IsReleased())
                     {
                         parent.SubStateMachine.ChangeState(new IdleState(body, parent));
                         return;
@@ -254,23 +275,52 @@ namespace ARPG.FrameWork.States.Ground
             else if (guardFlinchTimer > 0f)
             {
                 guardFlinchTimer -= Time.deltaTime;
-                if (guardFlinchTimer <= 0f && !hasReleased && !inBegin)
+                if (guardFlinchTimer <= 0f && !IsReleased() && !inBegin)
                 {
                     PlayGuardLoop(force: true);
                 }
             }
-            else if (!inBegin && !hasReleased)
+            // 走路抬刀没有独立动画，融合期间仍需响应移动方向与举刀走路切换。
+            else if ((!inBegin || raiseAnim == null) && !IsReleased())
             {
                 PlayGuardLoop(force: false);
                 RotateIfMoving();
             }
 
+            // 窗口内松手：短点按。窗口不因松开而取消，等到期再决定收刀还是继续格挡
+            // （本次明确的操作设计调整：旧实现松开立刻 StartCancel，把点按的剩余弹反窗口砍掉了）。
+            if (IsParryWindowActive() && IsReleased()) releasedDuringWindow = true;
+
+            // 主动窗口到期后：松开则退出防御，仍按住则继续普通格挡（长按不会自动续窗）。
             // 箭 Heavy 格挡/弹反动画未结束时不能因松手提前回 Idle。
-            if (hasReleased && Time.time - enterTime >= window
+            if (!IsParryWindowActive() && IsReleased()
                 && !((arrowHeavyGuard || arrowHeavyDeflect) && waitingGuardHurt))
             {
-                parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+                if (releasedDuringWindow)
+                {
+                    // 短点按：抬刀都还没走完就松了，直接回待机，不播收刀。
+                    parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+                }
+                else
+                {
+                    // 长按 / 系统回防松手：走现有收刀流程。
+                    StartCancel();
+                }
             }
+        }
+
+        // 本次防御是否已松开。物理按下按 PressId 查释放记录（延迟处理旧释放不会关掉新按下）；
+        // 系统回防没有按键身份，退回看实时按住状态。
+        private bool IsReleased()
+        {
+            if (pressId > 0) return body.IsDeflectPressReleased(pressId);
+            return !body.IsDeflectHeld;
+        }
+
+        // 唯一的弹反资格：Tracker 里未结束的尝试 + 固定半开窗口。
+        private bool IsParryWindowActive()
+        {
+            return attemptId != 0 && body.IsDeflectParryActive(attemptId);
         }
 
         // 格挡受击动画（Hurt_Guard/Hurt_GuardHeavy）播放进度跟踪：播完复位，等待下一击
@@ -296,37 +346,41 @@ namespace ARPG.FrameWork.States.Ground
 
         public override bool HandleCommand(ICommand cmd)
         {
-            // 格挡全程可被再格挡（刷新窗口 + 抖刀计数）或垫步取消，含抬刀/举刀/弹刀成功/收刀
+            // 格挡全程可被再格挡（开一次新窗口）或垫步取消，含抬刀/举刀/弹刀成功/收刀。
             // 箭 Heavy 特殊格挡/弹反动画：默认必须播完；到达 ArrowHeavyDeflectDodgeOpenTime 后可提前格挡/垫步。
             if ((arrowHeavyGuard || arrowHeavyDeflect) && waitingGuardHurt)
             {
-                if (cmd is IdleCommand)
-                {
-                    hasReleased = true;
-                    return true;
-                }
-
                 if (cmd is DeflectCommand || cmd is DodgeCommand)
                 {
                     if (CanArrowHeavyDeflectDodgeCancel())
                     {
-                        FinishArrowHeavyLockEarly(cmd is DeflectCommand);
+                        FinishArrowHeavyLockEarly(cmd);
                         return true;
                     }
+                    // 锁定期间未实际开启窗口：不消耗、不记空按，留缓冲等开放时刻
                     return false;
                 }
 
                 return true;
             }
 
-            if (cmd is DeflectCommand)
+            if (cmd is DeflectCommand deflectCmd)
             {
-                parent.SubStateMachine.ChangeState(new DeflectState(body, parent, remash: true));
+                // 系统回防：已经有主动窗口时不重建状态，避免把正在进行的一次尝试打断。
+                if (!deflectCmd.IsPhysicalPress && IsParryWindowActive()) return true;
+
+                // 再按防御：重新进状态开一次新窗口。Tracker 内部先结算旧尝试
+                // （被替换 = 空按一次）再按当前空按次数算新窗口；同一个 PressId 的
+                // 缓冲重试或状态重入不会重复开窗，也不会重复记账。
+                parent.SubStateMachine.ChangeState(new DeflectState(body, parent, remash: true,
+                    pressId: deflectCmd.PressId));
                 return true;
             }
 
             if (cmd is DodgeCommand)
             {
+                // 主动垫步离开防御：未成功的尝试提前结束，空按一次。
+                body.EndDeflectAttempt(attemptId, DeflectAttemptEndReason.LeftDefense);
                 parent.SubStateMachine.ChangeState(new DodgeState(body, parent));
                 return true;
             }
@@ -357,42 +411,40 @@ namespace ARPG.FrameWork.States.Ground
                 return true;
             }
 
-            if (cmd is IdleCommand)
-            {
-                StartCancel();
-                return true;
-            }
-
             return true;
         }
 
         public override bool OnHitReceived(HitData hit)
         {
+            // 命中入口先推进到期：同帧的输入接受与命中按真实执行顺序处理，不回滚、不开事后窗口。
+            body.AdvanceDeflectAttempt();
+            if (canceling) return false;
+
+            bool inParryWindow = IsParryWindowActive();
+
             // 危字：普通格挡等于没防。突刺/抓取只有弹反窗口内能弹开。横扫已当普通刀，走下面格挡/弹反。
             if (hit.isPerilous)
             {
-                if (canceling)
-                    return false;
-                float perilousElapsed = Time.time - enterTime;
-                if (perilousElapsed <= window || inBegin)
-                    return HandlePerfectParry(hit);
+                if (inParryWindow) return HandlePerfectParry(hit);
                 return false;
             }
-            if (canceling) return false;
 
-            float elapsed = Time.time - enterTime;
-            bool inParryWindow = elapsed <= window || inBegin;
-            bool multiHit = HitReactionUtil.IsMultiHitParryException(hit);
+            if (inParryWindow) return HandlePerfectParry(hit);
 
-            if (inParryWindow && (!raiseSpamGuard || multiHit))
-                return HandlePerfectParry(hit);
-
+            // 窗口外（或本次防御没有主动窗口）：普通格挡。
+            // 普通格挡不给已经结束的尝试追加失败，也不清罚。
             return HandleGuardHit(hit);
         }
 
         // 完美弹反：弹开攻击者 + 打铁表现。玩家弹反 Boss 且 Boss 架势崩时给玩家处决确认窗口。
         private bool HandlePerfectParry(HitData hit)
         {
+            // 主动尝试的成功记账必须早于任何状态切换（飞舟末刀互弹、架势崩解转忍杀准备、
+            // Boss 交锋反击），否则清罚会丢在切换里。被动入口没有主动尝试（attemptId = 0），
+            // 这里天然不会误记到玩家账上。
+            if (mode == DeflectEntryMode.Normal)
+                body.RecordDeflectSuccess(attemptId);
+
             if (body.EnableStateDebugLog || (hit.attacker != null && hit.attacker.EnableStateDebugLog))
             {
                 Debug.Log(
@@ -620,7 +672,6 @@ namespace ARPG.FrameWork.States.Ground
                     $"状态={body.CurrentStatePath}，入口={mode}，收刀超时={cancelDuration:F3}s", body);
             }
 
-            body.NotifyDeflectCancel();
             canceling = true;
             inBegin = false;
             cancelTimer = 0f;
@@ -644,11 +695,6 @@ namespace ARPG.FrameWork.States.Ground
             }
 
             currentLoopAnim = want;
-            if (!inBegin)
-            {
-                guardStable = true;
-                raiseSpamGuard = false;
-            }
             AnimUtil.TryCrossFadeInFixedTime(body.Animator, want, blendSeconds, 0, startAt);
         }
 
@@ -723,7 +769,9 @@ namespace ARPG.FrameWork.States.Ground
             return open > 0f && arrowHeavyLockTimer >= open;
         }
 
-        void FinishArrowHeavyLockEarly(bool toDeflect)
+        // 箭 Heavy 动画锁定的提前结束。cmd 是触发取消的那条命令：它带着本次按下的身份，
+        // 必须原样传给下一个防御状态，否则这一下只会恢复普通格挡，白丢弹反窗口。
+        void FinishArrowHeavyLockEarly(ICommand cmd)
         {
             waitingGuardHurt = false;
             arrowHeavyGuard = false;
@@ -734,15 +782,29 @@ namespace ARPG.FrameWork.States.Ground
             currentLoopAnim = null;
             guardFlinchTimer = 0f;
 
-            if (toDeflect)
+            if (cmd is DeflectCommand deflectCmd)
             {
-                if (hasReleased)
+                bool released = deflectCmd.PressId > 0
+                    ? body.IsDeflectPressReleased(deflectCmd.PressId)
+                    : !body.IsDeflectHeld;
+
+                if (released)
+                {
+                    // 已经松手：未成功的尝试提前结束（空按一次），直接回待机，不凭空举刀。
+                    body.EndDeflectAttempt(attemptId, DeflectAttemptEndReason.LeftDefense);
                     parent.SubStateMachine.ChangeState(new IdleState(body, parent));
+                }
                 else
-                    parent.SubStateMachine.ChangeState(new DeflectState(body, parent, remash: true));
+                {
+                    // 旧尝试交给 Tracker：新按下开启时按"被替换"结算，重复 PressId 不会重复记账。
+                    parent.SubStateMachine.ChangeState(new DeflectState(body, parent, remash: true,
+                        pressId: deflectCmd.PressId));
+                }
             }
             else
             {
+                // 垫步取消：未成功的尝试提前结束，空按一次。
+                body.EndDeflectAttempt(attemptId, DeflectAttemptEndReason.LeftDefense);
                 parent.SubStateMachine.ChangeState(new DodgeState(body, parent));
             }
         }

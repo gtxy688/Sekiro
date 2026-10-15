@@ -108,10 +108,12 @@ namespace ARPG.FrameWork.States.Ground
             // 到达 BrokenDeflectDodgeOpenTime 后：
             //   DeflectCommand → DeflectState（格挡/抬刀）
             //   DodgeCommand   → DodgeState（垫步）
+            // 系统回防（pressId = 0）只恢复普通格挡，不开启新的弹反窗口。
             if (cmd is DeflectCommand || cmd is DodgeCommand)
             {
+                int pressId = cmd is DeflectCommand deflectCmd ? deflectCmd.PressId : 0;
                 if (CanDeflectOrDodgeCancel &&
-                    body.TryChangeToDeflectOrDodge(cmd is DeflectCommand))
+                    body.TryChangeToDeflectOrDodge(cmd is DeflectCommand, pressId))
                 {
                     // 架势条同步清空（与 RecoverFromBreak 一致），留在同一个 GroundedState 里只换子状态，
                     // 不走 RecoverFromBreak 重建顶层（会掐断垫步/抬刀的进场）。
@@ -119,7 +121,7 @@ namespace ARPG.FrameWork.States.Ground
                     return true;
                 }
 
-                // 窗口未到：不消耗，留缓冲重试（格挡键可长按）
+                // 窗口未到 / 锁定期间未实际开启窗口：不消耗，留缓冲重试（格挡键可长按），也不记空按
                 return false;
             }
 

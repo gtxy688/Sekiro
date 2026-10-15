@@ -41,22 +41,6 @@ namespace ARPG.Combat
             return hit.isProjectile && hit.hitGrade == HitGrade.Heavy;
         }
 
-        // 连续举刀放刀仍算格挡；但 Boat / Air5 等多段招可在抬刀期弹反。
-        public static bool IsMultiHitParryException(HitData hit)
-        {
-            if (hit.attacker == null) return false;
-            BossMoveEntry entry = hit.attacker.CurrentMoveEntry;
-            if (entry != null)
-            {
-                string id = entry.id;
-                if (id == "Boat" || id == "Boat_Full" || id == "Bow_Air5" || id == "Kengeki_Air5")
-                    return true;
-            }
-
-            AttackConfig atk = hit.attacker.ActiveAttack;
-            return atk != null && atk.hitPulses != null && atk.hitPulses.Length > 1;
-        }
-
         // 飞舟最后一刀被完美弹反：Boat 的 Boat2 段末刀，或 Boat_Full 整段末刀 → Deflected_Boat。
         // 不能读 ActiveAttack：AttackState 进招后会清空，Boss 挥刀期间恒为 null。
         public static bool IsBoatFinalPulseParry(CharacterBody attacker)

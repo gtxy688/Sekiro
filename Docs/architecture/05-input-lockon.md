@@ -13,6 +13,16 @@ PlayerInput / PlayerInputActions 提供玩家动作。PlayerBrain 绑定 Move、
 
 具体动作是否在资源中绑定、键位是什么，以 PlayerInputActions.inputactions 当前内容为准。
 
+## 防御按键的身份与释放
+
+防御是唯一需要区分"玩家真实按下"与"系统请求"的动作，两者不能靠 `TryExecuteCommand` 的返回值区分：
+
+- PlayerBrain 在 Deflect 的按下回调里向 CharacterBody 申请新的 PressId，再缓冲带身份的 `DeflectCommand`（`DeflectCommandSource.PhysicalPress`）。同一个 PressId 在缓冲重试或状态重入时不会重复开窗，也不会重复记账。
+- 松开不再缓冲 `IdleCommand` 去覆盖尚未消费的防御按下，而是通过 CharacterBody 的语义入口记录该 PressId 已释放。释放按"最高已释放 ID"保存，延迟处理旧释放不会关掉之后的新按下；防御状态据此判断短点按、收刀与是否继续举刀。
+- 崩解恢复处的自动回防、UI 的防御选择使用系统来源 `DeflectCommand`（PressId = 0），只恢复普通格挡：不开启完美弹反窗口、不累计空按，也不伪造物理按键身份。自动回防请求不会顶掉缓冲里玩家真实按下的防御命令。
+- 输入被暂停、胜利结算或对象停用时，PlayerBrain 清除防御按住状态并定向丢弃缓冲中的 `DeflectCommand`；BrainBase 仍保持通用单槽缓冲，只增加了按类型定向清理能力。
+- 是否真的开启弹反窗口由身体 / 状态入口确认（`CharacterBody.BeginDeflectAttempt` 的返回值），不由命令是否被消费推断。
+
 ## 锁定职责
 
 LockOnManager 管理锁定目标与锁定状态事件。CharacterBody / 移动状态在需要时读取战斗目标处理面向和方向；相机与锁定指示器由表现层响应相关事件或目标数据。锁定相机的实际构图与切换以 Camera 模块实现为准。

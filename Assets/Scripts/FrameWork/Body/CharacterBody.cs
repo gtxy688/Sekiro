@@ -265,7 +265,8 @@ namespace ARPG.FrameWork.Body
         public float MidToGuardDeflectDodgeOpenTime =>
             Config != null ? Config.MidToGuardDeflectDodgeOpenTime : 0f;
 
-        // 弹反记忆模块：抖刀惩罚 + Boss 被动防御 + 连续被弹的记账已迁入 DeflectMemory。
+        // 弹反记忆模块：Boss 被动防御 + 连续被弹的记账已迁入 DeflectMemory；
+        // 玩家主动弹反的窗口与空按惩罚在 DeflectAttemptTracker（见下方门面）。
         // 切状态编排权通过委托留在本类（模块"请求"、Façade 编排）；懒创建理由同 Facing。
         private DeflectMemory deflect;
         private DeflectMemory Deflect => deflect ??= new DeflectMemory(this,
@@ -417,6 +418,9 @@ namespace ARPG.FrameWork.Body
             // 4. 连弹计数：JumpThrust 的抽招条件，跨场累积会让复战开局就放出不该放的招
             ResetConsecutiveTimesParried();
             ResetAirJump2();
+
+            // 4.5 主动弹反尝试：跨场残留会让复战开局第一刀就吃上一次空按的缩窗
+            ResetDeflectAttempts();
 
             // 5. 朝向锁定
             ClearCombatYawFrozen();
@@ -600,6 +604,8 @@ namespace ARPG.FrameWork.Body
         public void EnterDead(bool canRevive, bool alreadyDowned = false,
             string reason = "death: enter dead")
         {
+            // 死亡属于生命周期取消：未完成的弹反尝试直接丢掉，不记空按（设计文档 §4.2）。
+            ResetDeflectAttempts();
             MainStateMachine.ChangeState(new DeadState(this, canRevive, alreadyDowned), reason);
         }
 
@@ -704,12 +710,14 @@ namespace ARPG.FrameWork.Body
             EnterGrounded(factory(null), reason + ": rebuild parent");
         }
 
-        // 换到"格挡 / 垫步"叶子：三个受击/起身状态（MidToGuard / Standing / StaggerBroken）
-        // 共用的取消配方，收敛成一处
-        public bool TryChangeToDeflectOrDodge(bool toDeflect)
+        // 换到"格挡 / 垫步"叶子：四个受击/起身状态（Stunned / MidToGuard / Standing / StaggerBroken）
+        // 共用的取消配方，收敛成一处。
+        // pressId 由触发这次切换的 DeflectCommand 带入：真实按下的身份必须一路传到防御状态入口，
+        // 否则这一下只会恢复普通格挡，白白丢掉弹反窗口（0 = 系统回防）。
+        public bool TryChangeToDeflectOrDodge(bool toDeflect, int pressId = 0)
         {
             return TryChangeGroundedSubState(g => toDeflect
-                ? (BaseState)new DeflectState(this, g)
+                ? (BaseState)new DeflectState(this, g, pressId: pressId)
                 : new DodgeState(this, g));
         }
 
@@ -793,17 +801,106 @@ namespace ARPG.FrameWork.Body
             return "Hurt_Ground";
         }
 
-        // ===== 抖刀惩罚（M4）/ 弹反窗口 =====
-        // 记账与窗口缩放已迁入 DeflectMemory，这里只转发。
+        // ===== 主动弹反尝试：输入身份 / 窗口资格 / 空按记账 =====
+        // 记账与时间判定都在 DeflectAttemptTracker 里（唯一入口），本类只做门面：
+        // 状态不直接访问 Tracker 内部字段，也不自己算 elapsed。
+        private DeflectAttemptTracker deflectAttempts;
 
-        public void RegisterDeflectPress() => Deflect.RegisterDeflectPress();
+        private DeflectAttemptTracker DeflectAttempts
+        {
+            get
+            {
+                if (deflectAttempts == null)
+                {
+                    deflectAttempts = new DeflectAttemptTracker();
+                    // 记账节点接在既有调试开关上：Unity 内验证"一次结算 / 成功恢复 / 截止边界"时不用加断点。
+                    deflectAttempts.Trace = message =>
+                    {
+                        if (EnableStateDebugLog)
+                            Debug.Log($"[CombatTiming][DeflectAttempt] {message}", this);
+                    };
+                }
+                return deflectAttempts;
+            }
+        }
 
-        public float LastDeflectCancelTime => Deflect.LastDeflectCancelTime;
+        // 真实物理按下：生成新的按下身份。只有 PlayerBrain 的按下回调可以调用。
+        public int BeginDeflectPress() => DeflectAttempts.BeginPress();
 
-        public void NotifyDeflectCancel() => Deflect.NotifyDeflectCancel();
+        // 松开：按身份记录释放，不再用 IdleCommand 覆盖尚未消费的防御按下。
+        public void NotifyDeflectReleased() => DeflectAttempts.ReleasePress();
 
-        // 当前生效的弹反窗口（已计入抖刀惩罚）
-        public float GetDeflectWindow() => Deflect.GetDeflectWindow();
+        public bool IsDeflectHeld => DeflectAttempts.IsDeflectHeld;
+
+        public bool IsDeflectPressReleased(int pressId) => DeflectAttempts.IsPressReleased(pressId);
+
+        // 开启一次主动尝试。返回 AttemptId；系统回防、重复按下、复位残留都返回 0（不开窗口、不计空按）。
+        // 调用方必须是"确实要让身体进入防御"的状态入口，不能用 TryExecuteCommand == true 代替。
+        public int BeginDeflectAttempt(int pressId)
+            => DeflectAttempts.BeginAttempt(pressId, Time.time, ResolveDeflectSettings());
+
+        // 按当前时间推进尝试到期。状态 Update 与命中入口都要先调用它。
+        public void AdvanceDeflectAttempt() => DeflectAttempts.Advance(Time.time);
+
+        // 唯一的弹反资格查询：未结束的尝试 + 固定半开窗口。
+        public bool IsDeflectParryActive(int attemptId)
+            => DeflectAttempts.CanParry(attemptId, Time.time);
+
+        // 成功记账：清空连续空按与窗口缩减。特殊成功分支切状态之前必须先调用。
+        public bool RecordDeflectSuccess(int attemptId)
+            => DeflectAttempts.RecordSuccess(attemptId, Time.time);
+
+        // 显式结束一次尝试（垫步离开、被不可弹反的命中打断等）。幂等。
+        public bool EndDeflectAttempt(int attemptId, DeflectAttemptEndReason reason)
+            => DeflectAttempts.EndAttempt(attemptId, reason, Time.time);
+
+        // 这一击真的落实了、而当前尝试没弹掉它：按失败结束（空按一次）。
+        public void NotifyDeflectHitFailed()
+            => DeflectAttempts.EndAttempt(
+                DeflectAttempts.ActiveAttemptId, DeflectAttemptEndReason.HitFailed, Time.time);
+
+        // 当前尝试缓存的窗口（调试/表现读取用，不参与判定）。
+        public float CurrentDeflectWindow => DeflectAttempts.ActiveWindow;
+
+        public int DeflectEmptyCount => DeflectAttempts.EmptyCount;
+
+        // 复战 / 死亡：取消未完成尝试（不记空按），清除空按计数与输入身份。
+        public void ResetDeflectAttempts() => DeflectAttempts.Reset();
+
+        // 输入被暂停 / 结算 / 生命周期阻断：取消未完成尝试与输入身份，保留空按记忆。
+        public void ClearDeflectInput() => DeflectAttempts.ClearInput();
+
+        // 参数快照：来源仍是 CharacterConfig，不为弹反参数新建 SO。
+        // 非法值在这里夹紧并只告警一次——运行时不夹紧会除零或让弹反窗口永久消失。
+        private bool warnedDeflectSettings;
+
+        private DeflectAttemptTracker.Settings ResolveDeflectSettings()
+        {
+            DeflectAttemptTracker.Settings settings = new DeflectAttemptTracker.Settings
+            {
+                Window = Config != null ? Config.DeflectWindow : DeflectAttemptTracker.FallbackWindow,
+                EmptyGraceCount = Config != null ? Config.DeflectEmptyGraceCount : 3,
+                EmptyPenalty = Config != null ? Config.DeflectEmptyPenalty : 0.75f,
+                WindowMin = Config != null ? Config.DeflectWindowMin : DeflectAttemptTracker.FallbackWindowMin,
+                EmptyResetInterval = Config != null
+                    ? Config.DeflectEmptyResetInterval
+                    : DeflectAttemptTracker.FallbackResetInterval,
+            };
+
+            DeflectAttemptTracker.Settings normalized = settings.Normalized(out bool corrected);
+            if (corrected && !warnedDeflectSettings)
+            {
+                warnedDeflectSettings = true;
+                Debug.LogWarning(
+                    $"{name} 的弹反窗口参数非法，已按安全值夹紧：" +
+                    $"DeflectWindow={settings.Window}，DeflectWindowMin={settings.WindowMin}，" +
+                    $"DeflectEmptyPenalty={settings.EmptyPenalty}，" +
+                    $"DeflectEmptyGraceCount={settings.EmptyGraceCount}，" +
+                    $"DeflectEmptyResetInterval={settings.EmptyResetInterval}。" +
+                    "请检查 CharacterConfig（编辑器校验见 ArpgValidationRules）", this);
+            }
+            return normalized;
+        }
 
         // 锁定四向移动参数：有 MoveZ 用 MoveZ，否则回退 MoveY。实现已迁入 Locomotion
         public void SetMoveStrafe(float x, float z, bool instant) => Loco.SetMoveStrafe(x, z, instant);
@@ -1006,6 +1103,13 @@ namespace ARPG.FrameWork.Body
 
             // 2. 没拦住 → 伤害/架势结算（M2）：扣血 + 涨架势 + 死亡判定
             TakeDamage(healthDmg, postureDmg, attacker);
+
+            // 2.2 这一击真的落实了：窗口内没弹掉的防御尝试按失败结束（空按一次）。
+            //     致死不记：死亡走 ResetDeflectAttempts 按生命周期取消，不能重复记账。
+            //     被状态拦下的命中（完美弹反 / 普通格挡 / 垫步无敌）不会走到这里。
+            if (CurrentHP > 0)
+                NotifyDeflectHitFailed();
+
             // 玩家挨实锤打断 Boss 连弹计数，下次要重新弹满 2 次才可能 JumpThrust。
             if (HitReactionUtil.IsPlayer(this) && attacker != null)
                 attacker.ResetConsecutiveTimesParried();

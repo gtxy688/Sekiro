@@ -53,22 +53,23 @@ namespace ARPG.FrameWork.States.Ground
         {
             if (cmd is DodgeCommand)
             {
-                CancelStanding(toDeflect: false);
+                CancelStanding(toDeflect: false, pressId: 0);
                 return true;
             }
-            if (cmd is DeflectCommand)
+            if (cmd is DeflectCommand deflectCmd)
             {
-                CancelStanding(toDeflect: true);
+                CancelStanding(toDeflect: true, pressId: deflectCmd.PressId);
                 return true;
             }
             return true;
         }
 
-        void CancelStanding(bool toDeflect)
+        void CancelStanding(bool toDeflect, int pressId)
         {
             body.IsKnockedDown = false;
-            // 换格挡/垫步叶子（共用配方见 CharacterBody.TryChangeToDeflectOrDodge）
-            body.TryChangeToDeflectOrDodge(toDeflect);
+            // 换格挡/垫步叶子（共用配方见 CharacterBody.TryChangeToDeflectOrDodge）。
+            // pressId 一并带过去：起身过程里按下的是真实按键，必须能开出弹反窗口。
+            body.TryChangeToDeflectOrDodge(toDeflect, pressId);
         }
 
         // 已经算站起来：不要拦截，让 ReceiveHit 按新一击完整播。

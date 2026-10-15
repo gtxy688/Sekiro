@@ -1,6 +1,6 @@
 # 项目架构图：复习版
 
-核对日期：2026-10-11。
+核对日期：2026-10-11（2026-10-15 更新"弹反窗口与空按记账"节点：窗口移入 DeflectAttemptTracker）。
 
 这是当前项目的模块级架构图。同职责脚本合并展示，箭头表示模块之间的主要关系，不表示 Unity 生命周期的严格执行顺序。依据当前源码及 GameScene 的序列化引用整理；本次没有运行 Unity，不作为运行验收或测试通过的证明。
 
@@ -90,7 +90,7 @@ flowchart LR
     Move["移动与转向<br/>Locomotion + FacingController"]
     Weapon["武器控制与出箭<br/>WeaponController"]
     Stats["血量、架势、命数、回生、药量<br/>CombatStats"]
-    Memory["弹反窗口与相关记账<br/>DeflectMemory"]
+    Memory["弹反窗口与空按记账 / 被动防御<br/>DeflectAttemptTracker + DeflectMemory"]
 
     Body --> States
     Body --> Move

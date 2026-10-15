@@ -163,9 +163,10 @@ namespace ARPG.FrameWork.States.Ground
                 return true;
             }
 
-            if (cmd is DeflectCommand)
+            if (cmd is DeflectCommand deflectCmd)
             {
-                parent.SubStateMachine.ChangeState(new DeflectState(body, parent));
+                parent.SubStateMachine.ChangeState(
+                    new DeflectState(body, parent, pressId: deflectCmd.PressId));
                 return true;
             }
 

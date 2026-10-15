@@ -24,11 +24,13 @@ namespace ARPG.FrameWork.States.Ground
             return new AttackState(body, parent, next);
         }
 
-        // 地面：前摇/后摇窗口内可格挡取消
-        protected override bool CancelToDeflect(bool canCancel)
+        // 地面：前摇/后摇窗口内可格挡取消。
+        // pressId 原样透传：后摇里按下的是真实按键，必须能开出弹反窗口。
+        protected override bool CancelToDeflect(bool canCancel, DeflectCommand cmd)
         {
             if (!canCancel) return false;
-            parent.SubStateMachine.ChangeState(new DeflectState(body, parent), "attack: cancel to deflect");
+            parent.SubStateMachine.ChangeState(
+                new DeflectState(body, parent, pressId: cmd.PressId), "attack: cancel to deflect");
             return true;
         }
 

@@ -63,7 +63,42 @@ namespace ARPG.FrameWork.States
     // 玩家在已有可执行忍杀机会时新按攻击键产生；与连招预输入分开，避免旧攻击缓冲自动处决。
     public struct FinisherCommand : ICommand { }
 
-    public struct DeflectCommand : ICommand{ }
+    // 防御指令来源：区分玩家真实物理按下与系统请求（崩解恢复自动回防、UI 忍杀选择）。
+    // 只有真实按下携带按键身份，可以开启一次主动弹反尝试；系统请求只请求防御姿态，
+    // 不开启完美弹反窗口、也不累计空按。
+    public enum DeflectCommandSource
+    {
+        // 系统回防。刻意取 0：DeflectCommand 的默认构造（无参 new / default）必须是系统来源，
+        // 新增构造点才不会静默伪造出一次物理按下。
+        SystemRequest = 0,
+        PhysicalPress = 1,
+    }
+
+    // PressId 是真实按下的递增身份：缓冲重试、状态重入都沿用同一个 ID，
+    // 身体侧据此保证"同一次按下只开一次窗口"。系统请求的 PressId = 0。
+    public struct DeflectCommand : ICommand
+    {
+        public int PressId;
+        public DeflectCommandSource Source;
+
+        public DeflectCommand(int pressId, DeflectCommandSource source)
+        {
+            PressId = pressId;
+            Source = source;
+        }
+
+        // 玩家真实物理按下：唯一会生成 PressId 的入口在 PlayerBrain。
+        public static DeflectCommand Physical(int pressId)
+            => new DeflectCommand(pressId, DeflectCommandSource.PhysicalPress);
+
+        // 系统请求防御姿态（崩解恢复自动回防、UI 防御选择）。
+        public static DeflectCommand System() => new DeflectCommand(0, DeflectCommandSource.SystemRequest);
+
+        // 能否开启主动弹反尝试：来源必须是物理按下，且带有效身份。
+        // 实际是否开启还要看身体侧是否接受（缓冲过期、状态拒绝都不算）。
+        public bool IsPhysicalPress
+            => Source == DeflectCommandSource.PhysicalPress && PressId > 0;
+    }
 
     // M6 新增：葫芦 / 锁定 / 闪避
     public struct HealCommand : ICommand { }

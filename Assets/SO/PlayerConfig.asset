@@ -39,10 +39,10 @@ MonoBehaviour:
   GuardPostureFactor: 0.5
   ParriedDuration: 0.35
   ParryCounterHitDelay: 0.1
-  DeflectMashLimit: 3
-  DeflectMashWindow: 0.5
-  DeflectMashPenalty: 0.75
+  DeflectEmptyGraceCount: 3
+  DeflectEmptyPenalty: 0.75
   DeflectWindowMin: 0.1
+  DeflectEmptyResetInterval: 0.5
   GuardPostureRecoveryMultiplier: 5
   PostureDecayInverse: 0
   BrokenDeflectDodgeOpenTime: 1

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 using ARPG.FrameWork.States.Air;
 using ARPG.FrameWork.States.Ground;
@@ -62,10 +63,19 @@ namespace ARPG.Configs
         public float PlayerParryAttackPreparationTime = 0.7f;
         [Min(0f), Tooltip("Boss 下一次攻击最早判定比玩家标准第一刀晚多少秒；只限制攻击，不限制硬直恢复后的格挡和移动。")]
         public float PlayerParryAttackHitBuffer = 0.1f;
-        public float DeflectMashLimit = 3;             // 抖刀惩罚：0.5s 内连点次数阈值
-        public float DeflectMashWindow = 0.5f;         // 抖刀判定窗口
-        public float DeflectMashPenalty = 0.75f;       // 每次超限惩罚系数
+        // 空按惩罚（主动弹反重构）：一次真实按下 = 一次尝试，只有"实际开启窗口但没弹中"才缩窗。
+        // 旧的 DeflectMashLimit / DeflectMashWindow / DeflectMashPenalty 是按次数记账，
+        // 会把还没得到结果的按下直接算成失败，已按"有效尝试的结果"改写为下面三个字段。
+        [Tooltip("前几次连续空按不缩窗。宽容次数内连按不吃惩罚，准确连弹与乱按才区分得开")]
+        public int DeflectEmptyGraceCount = 3;
+        [Tooltip("超出宽容次数后，每个空按把下一次窗口乘上该系数，取值 (0, 1]")]
+        [FormerlySerializedAs("DeflectMashPenalty")]
+        public float DeflectEmptyPenalty = 0.75f;
         public float DeflectWindowMin = 0.1f;          // 弹反窗口下限
+        [Tooltip("相邻两次实际开启弹反窗口的间隔超过该值就清除空按累计，窗口恢复正常")]
+        [FormerlySerializedAs("DeflectMashWindow")]
+        public float DeflectEmptyResetInterval = 0.5f;
+
         public float GuardPostureRecoveryMultiplier = 5f; // 按住格挡 2s 后架势回复倍率
 
         [Header("架势（M9）")]

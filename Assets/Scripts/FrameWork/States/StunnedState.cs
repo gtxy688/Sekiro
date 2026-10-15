@@ -53,17 +53,19 @@ namespace ARPG.FrameWork.States
                 // 后摇未到：不消耗，留缓冲重试（对齐 StaggerBroken / MidToGuard）
                 return false;
             }
-            if (useHitGrade && cmd is DeflectCommand)
+            if (useHitGrade && cmd is DeflectCommand deflectCmd)
             {
                 if (ground != null && ground.CanMidToGuard)
                 {
-                    body.EnterGrounded(new MidToGuardState(body),
+                    // 起身进防：这一下真实按下要一路带到 MidToGuard 结束，
+                    // 由它进 DeflectState 时开出弹反窗口（预输入时间不作为窗口起点）。
+                    body.EnterGrounded(new MidToGuardState(body, deflectCmd.PressId),
                         "stunned: mid to guard cancel");
                     return true;
                 }
                 if (ground != null && ground.CanLightGuardCancel)
                 {
-                    body.EnterGrounded(new DeflectState(body, null),
+                    body.EnterGrounded(new DeflectState(body, null, pressId: deflectCmd.PressId),
                         "stunned: light guard cancel");
                     return true;
                 }

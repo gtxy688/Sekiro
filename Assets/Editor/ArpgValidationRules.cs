@@ -66,7 +66,50 @@ namespace ARPG.Editor
 
             ValidateMoveTables(issues, bossStates);
             ValidateAttackConfigs(issues, playerStates);
+            ValidateCharacterConfigs(issues);
             return issues;
+        }
+
+        // ---------- CharacterConfig：弹反窗口与空按惩罚 ----------
+
+        // 这几个值配错不会抛异常，只会表现成"弹反窗口莫名变短 / 干脆没有"或除零。
+        // 运行时有安全夹紧兜底，但那时玩家已经在打了，所以在编辑器侧先拦下来。
+        static void ValidateCharacterConfigs(List<ValidationIssue> issues)
+        {
+            string[] guids = AssetDatabase.FindAssets("t:CharacterConfig");
+            for (int i = 0; i < guids.Length; i++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+                CharacterConfig cfg = AssetDatabase.LoadAssetAtPath<CharacterConfig>(path);
+                if (cfg == null) continue;
+
+                string where = cfg.name;
+
+                if (cfg.DeflectWindow <= 0f)
+                    issues.Add(Issue(ValidationSeverity.Error, where,
+                        "DeflectWindow <= 0，弹反窗口永远不成立。", cfg));
+
+                if (cfg.DeflectWindowMin <= 0f)
+                    issues.Add(Issue(ValidationSeverity.Error, where,
+                        "DeflectWindowMin <= 0，缩窗下限失效。", cfg));
+
+                if (cfg.DeflectWindowMin > cfg.DeflectWindow)
+                    issues.Add(Issue(ValidationSeverity.Error, where,
+                        $"DeflectWindowMin({cfg.DeflectWindowMin:0.###}) > DeflectWindow({cfg.DeflectWindow:0.###})，" +
+                        "基础窗口一开始就会被下限顶掉。", cfg));
+
+                if (cfg.DeflectEmptyPenalty <= 0f || cfg.DeflectEmptyPenalty > 1f)
+                    issues.Add(Issue(ValidationSeverity.Error, where,
+                        $"DeflectEmptyPenalty({cfg.DeflectEmptyPenalty:0.###}) 不在 (0, 1]，空按不会正常缩窗。", cfg));
+
+                if (cfg.DeflectEmptyGraceCount < 0)
+                    issues.Add(Issue(ValidationSeverity.Error, where,
+                        "DeflectEmptyGraceCount < 0，宽容次数无意义。", cfg));
+
+                if (cfg.DeflectEmptyResetInterval <= 0f)
+                    issues.Add(Issue(ValidationSeverity.Error, where,
+                        "DeflectEmptyResetInterval <= 0，任何两次按下之间都算恢复，空按惩罚永远累计不起来。", cfg));
+            }
         }
 
         // ---------- 招式表 ----------

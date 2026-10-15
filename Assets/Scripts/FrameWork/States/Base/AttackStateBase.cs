@@ -187,7 +187,7 @@ namespace ARPG.FrameWork.States.Base
             bool canCancel = animTime < config.HitStartTime ||
                              animTime >= config.RecoveryWindowStart;
 
-            if (cmd is DeflectCommand) return CancelToDeflect(canCancel);
+            if (cmd is DeflectCommand deflectCmd) return CancelToDeflect(canCancel, deflectCmd);
             if (cmd is DodgeCommand) return CancelToDodge(canCancel);
             if (cmd is FinisherCommand) return HandleFinisherCommand();
             if (cmd is AttackCommand) return HandleAttackCommand();
@@ -198,8 +198,9 @@ namespace ARPG.FrameWork.States.Base
 
         // ===== 命令钩子（子类按需覆盖）=====
 
-        // 地面：可切入格挡态；空中：不可格挡取消
-        protected virtual bool CancelToDeflect(bool canCancel) { return false; }
+        // 地面：可切入格挡态；空中：不可格挡取消。
+        // cmd 带本次按下的身份，子类必须原样透传给防御状态入口。
+        protected virtual bool CancelToDeflect(bool canCancel, DeflectCommand cmd) { return false; }
 
         // 地面：可切入垫步态；空中：不可垫步取消
         protected virtual bool CancelToDodge(bool canCancel) { return false; }

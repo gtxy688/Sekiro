@@ -8,9 +8,11 @@ namespace ARPG.FrameWork.Body
 {
 
     // 弹反记忆模块（CharacterBody 重构试点二）。
-    // 职责：玩家侧抖刀惩罚记账（M4）+ Boss 侧被动防御记账（M7：连挡计数升级完美弹反）+ 连续被弹计数。
+    // 职责：Boss 侧被动防御记账（M7：连挡计数升级完美弹反）+ 连续被弹计数。
+    // 玩家侧主动弹反的窗口与空按惩罚已迁往 DeflectAttemptTracker（按有效尝试的结果记账），
+    // 本类不再持有按次计数：那种记法会把"还没得到结果的按下"直接算成失败。
     // 约束：
-    // - 计数/时间戳/窗口缩放等运行时状态收在本类内部，CharacterBody 不再持有；
+    // - 计数/时间戳等运行时状态收在本类内部，CharacterBody 不再持有；
     // - Inspector 字段 EnablePassiveDeflect 留在 CharacterBody（prefab 已保存该值），模块只读；
     // - 切状态的编排权通过构造注入的委托交回 Façade：模块只判定"要不要进格挡、以哪种级别进"，
     //   自己不碰状态机（与"模块请求、Façade 编排"的拆分原则一致）；
@@ -26,47 +28,6 @@ namespace ARPG.FrameWork.Body
         {
             this.body = body;
             this.enterDeflectState = enterDeflectState;
-        }
-
-        // ===== 抖刀惩罚（M4）=====
-        private int deflectMashCount;
-        private float lastDeflectPressTime;
-        private float deflectWindowScale = 1f;
-
-        // DeflectState 进入时调用：0.5s 内连点 ≥3 次 → 窗口 ×0.75，下限 0.1s；停止 0.5s 后恢复
-        public void RegisterDeflectPress()
-        {
-            CharacterConfig config = body.Config;
-            float now = Time.time;
-            if (now - lastDeflectPressTime > (config != null ? config.DeflectMashWindow : 0.5f))
-            {
-                deflectMashCount = 0;
-                deflectWindowScale = 1f;
-            }
-            deflectMashCount++;
-            lastDeflectPressTime = now;
-
-            if (config != null && deflectMashCount > config.DeflectMashLimit)
-            {
-                deflectWindowScale *= config.DeflectMashPenalty;
-                float min = config.DeflectWindowMin;
-                float baseWindow = config.DeflectWindow;
-                if (baseWindow * deflectWindowScale < min) deflectWindowScale = min / baseWindow;
-            }
-        }
-
-        public float LastDeflectCancelTime { get; private set; }
-
-        public void NotifyDeflectCancel()
-        {
-            LastDeflectCancelTime = Time.time;
-        }
-
-        // 当前生效的弹反窗口（已计入抖刀惩罚）
-        public float GetDeflectWindow()
-        {
-            float baseWindow = body.Config != null ? body.Config.DeflectWindow : 0.3f;
-            return baseWindow * deflectWindowScale;
         }
 
         // ===== 连续被弹计数 =====
