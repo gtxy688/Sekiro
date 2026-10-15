@@ -257,7 +257,7 @@ public Vector3 FinisherDeflectOffset = new Vector3(0f, 0f, -1f);
 public Vector3 FinisherMikiriOffset = new Vector3(0f, 0f, -1f);
 ```
 
-数值由 Unity 手动验收时按动画起始姿势调整，不在代码中分散硬编码。
+数值由 Unity 中按实际表现按动画起始姿势调整，不在代码中分散硬编码。
 
 - [ ] **步骤 2：创建 `FinisherVictimState.cs`**
 
@@ -333,24 +333,3 @@ Boss 成对动画不添加清命事件。
 - [ ] **步骤 7：刷新 Unity 并检查 Console**
 
 预期：三组成对动画可播放；每次忍杀只减少一条命；重复事件不重复扣命。
-
-### 任务 6：同步架构文档并手动验收
-
-- [ ] **步骤 1：更新 `01-states.md`**
-
-写明崩解来源、确认状态、成对忍杀状态和 80% 超时恢复。
-
-- [ ] **步骤 2：更新 `07-anim-events.md`**
-
-列出三个玩家忍杀 Clip 的 `ExecuteFinisher` 事件，并说明事件通过 `CharacterBody` 转发。
-
-- [ ] **步骤 3：执行 Unity 手动验收**
-
-1. 普通/重型裸受击、格挡、弹反分别播放正确动画。
-2. 攻击前摇取消进格挡，松开后必播 `Deflect_Cancel`。
-3. Ground/Deflect/Mikiri 三类崩解均显示红点。
-4. 弹反/识破窗口超时，红点关闭且 Boss 架势为 80%。
-5. 三类确认后红点立即关闭，双方位置与朝向正确。
-6. 三个动画事件均只清一条命，动画结束后双方状态正确。
-
-预期：Console 无 Error；允许存在用于调偏移的明确日志，不允许 Animator state missing。

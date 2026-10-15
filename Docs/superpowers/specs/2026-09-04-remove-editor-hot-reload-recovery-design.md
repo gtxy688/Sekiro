@@ -19,8 +19,3 @@
 ## 生命周期前提
 
 `CharacterBody.Awake()` 初始化组件引用、状态机和出生点；`Start()` 进入初始地面状态。运行时入口只在该生命周期完成后使用这些数据，不再静默重建丢失的状态机。
-
-## 验收
-
-- 工程中不再存在 `EnsureRuntimeReady`、`spawnPoseRecorded` 或 `runtime recovery`。
-- 正常进入 Play、移动、攻击、受击、架势崩解和复战行为保持不变。

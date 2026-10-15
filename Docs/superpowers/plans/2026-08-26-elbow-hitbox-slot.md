@@ -6,11 +6,11 @@
 
 **架构：** 招式数据写枚举 `AttackHitboxSlot`；`CharacterBody` 拖各槽引用；`EnableWeaponHit` 按配置亮一把、同时只亮一把；缺肘引用回退刀。结算仍走现有 `Hitbox` → `CombatManager`。
 
-**技术栈：** Unity 2022.3、C#、现有 HFSM / AttackState。本项目无自动化测试；用编译 0 error + 验收清单。不要新建 Test Runner。不要擅自 git commit。
+**技术栈：** Unity 2022.3、C#、现有 HFSM / AttackState。本项目无自动化测试；用编译 0 error。不要新建 Test Runner。不要擅自 git commit。
 
 **规格：** `Docs/superpowers/specs/2026-08-26-elbow-hitbox-slot-design.md`
 
-**本任务只改这些架构文档：** `03-hit-detection.md`、`03-hit-detection-test.md`
+**本任务涉及的架构文档：** `03-hit-detection.md`
 
 **不要做：** 射箭投射物、Grab 新状态、Kick 接线、改 CombatManager 结算、OnTrigger、把 `Weapon` 改成肘。
 
@@ -30,7 +30,6 @@
 | 修改 `Assets/Scripts/Combat/CombatFxPoint.cs` | 攻击者优先 `ActiveHitbox` |
 | 修改 `Assets/Editor/AttackTimelineWindow.cs` | Boss 段枚举下拉 |
 | 修改 `Docs/architecture/03-hit-detection.md` | 肢体 Hitbox 接线 |
-| 修改 `Docs/architecture/03-hit-detection-test.md` | Elbow 验收 |
 
 字段名锁定（后续任务禁止改名）：
 
@@ -285,14 +284,9 @@ public enum AttackHitboxSlot
 
 **文件：**
 - 修改：`Docs/architecture/03-hit-detection.md`
-- 修改：`Docs/architecture/03-hit-detection-test.md`
 
 - [ ] **步骤 1：场景接线表增加 Boss 肢体行，并写明 slot + 引用、同时只亮一把、缺槽回退刀。**
 
-- [ ] **步骤 2：验收清单增加 Elbow 条目（规格「验收」表原样搬过去）。**
-
----
-
 ### 任务 5：交接（用户 Unity）
 
-代码完成后列出验收清单。AI 不代挂场景 Hitbox。用户按规格「场景接线」在肘骨下建空物体、挂 `Hitbox`、拖到 `elbowHitbox`，再用时间轴对 Elbow 接触帧。
+AI 不代挂场景 Hitbox。用户按规格「场景接线」在肘骨下建空物体、挂 `Hitbox`、拖到 `elbowHitbox`，再用时间轴对 Elbow 接触帧。

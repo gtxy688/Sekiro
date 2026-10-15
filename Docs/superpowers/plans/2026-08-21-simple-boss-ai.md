@@ -41,9 +41,7 @@
 **文件：**
 - 修改：`Assets/Scripts/FrameWork/Body/CharacterBody.cs`
 - 修改：`Docs/architecture/01-states.md`
-- 修改：`Docs/architecture/04-behavior-tree-ai-test.md`
 
 - [x] `PostureBreakSource.Mikiri` 使用 `Stagger_Broken_Miriki`。
 - [x] 保持识破忍杀确认窗口、红点和超时恢复逻辑不变。
 - [x] 强制刷新 Unity 并编译；Console 预期 0 error。
-- [x] 交付追击、攻击、格挡、锁定与识破崩解的手动验收清单。

@@ -94,7 +94,7 @@
 | 追问 | 要点 |
 |------|------|
 | 工具怎么保证不出错？ | 三层拦截：导入期（AssetPostprocessor）、编辑期（体检窗口）、构建期（`IPreprocessBuildWithReport` 失败即中断） |
-| 怎么测编辑器工具？ | 纯逻辑（如 `AttackWindowSync.ClampPulses`）适合 Edit Mode 单测；UI 交互靠人工验收清单；导入处理可用 `-batchmode -executeMethod` 在 CI 跑。**诚实说**：本项目只做了人工验收清单 |
+| 怎么测编辑器工具？ | 纯逻辑适合 Edit Mode 单测；UI 交互需要在 Unity 中实际操作确认；导入处理可用 `-batchmode -executeMethod` 验证。只描述实际执行过的检查。 |
 | 团队协作下怎么用？ | 工具不写场景，配置走 SO 便于 diff；但 SO 多人同时改会冲突，大规模团队通常配数值表工具 |
 | 重做一次会改什么？ | ① 一开始就用 UI Toolkit 而非 IMGUI（1000 行后事件处理和布局会失控）② 布局参数一开始就抽成配置 SO ③ 先做校验再做生成工具 |
 

@@ -6,10 +6,10 @@
 
 **架构：** 静态类 `AudioVolumeSettings` 存两档 0–1。`AudioManager` 只改 `AudioSource.volume`。`BGMManager` 用 `用户音量 × fadeWeight`，DOTween 只 tween `fadeWeight`。暂停菜单加分类页和声音页，不上 AudioMixer。
 
-**技术栈：** Unity 2022 LTS、uGUI Slider、PlayerPrefs、DOTween。本项目无自动化测试；每个任务用 Unity 编译 0 error + 手测。不要新建 Test Runner。不要擅自 git commit（仅当用户本会话明确要求时才提交）。
+**技术栈：** Unity 2022 LTS、uGUI Slider、PlayerPrefs、DOTween。本项目无自动化测试；每个任务用 Unity 编译 0 error。不要新建 Test Runner。不要擅自 git commit（仅当用户本会话明确要求时才提交）。
 
 **规格：** `Docs/superpowers/specs/2026-08-26-audio-volume-settings-design.md`  
-**本任务只改这些架构文档：** `Docs/architecture/05-input-lockon.md`、`Docs/architecture/05-input-lockon-test.md`、`Docs/architecture/06-presentation.md`、`Docs/architecture/06-presentation-test.md`
+**本任务涉及的架构文档：** `Docs/architecture/05-input-lockon.md``Docs/architecture/06-presentation.md`
 
 **不要改：** CombatEventBus、PlayOneShot 调用点、AudioMixer 资源、改键逻辑本身。
 
@@ -32,7 +32,6 @@
 | 修改 `Assets/Scripts/Audio/AudioManager.cs` | Source.volume = Sfx |
 | 修改 `Assets/Scripts/Audio/BGMManager.cs` | `source.volume = Bgm * fadeWeight` |
 | 修改 `Assets/Scripts/UI/PauseMenuController.cs` | 分类页 + 声音滑条 + B 返回多层 |
-| 修改上述 4 份 `Docs/architecture/` | 结构和验收 |
 
 不要做：Mixer、总音量、音效拖条预览音、声音页「恢复默认」。
 
@@ -491,7 +490,7 @@ private void ApplySliderVisual(Slider slider, Image fill, TextMeshProUGUI valueL
 
 - [ ] **步骤 6：编译**
 
-`refresh_unity` + error = 0。不要进 Play 替用户验收手柄，交给任务 4 的验收表。
+`refresh_unity` + error = 0。
 
 ---
 
@@ -499,28 +498,11 @@ private void ApplySliderVisual(Slider slider, Image fill, TextMeshProUGUI valueL
 
 **文件：**
 - 修改：`Docs/architecture/05-input-lockon.md`「三、暂停与自定义键位」
-- 修改：`Docs/architecture/05-input-lockon-test.md` 暂停表
 - 修改：`Docs/architecture/06-presentation.md` 文末
-- 修改：`Docs/architecture/06-presentation-test.md` M15
 
 - [ ] **步骤 1：05 暂停段改成**
 
 Esc / 手柄 Start 打开暂停。点「设置」先进入分类页（键位设置 / 声音设置 / 返回），不再直接改键。Esc / B 返回上一级：声音或改键 → 分类 → 根页 → 继续战斗。Start 任意页直接关暂停。声音页两条滑条（音乐 / 音效，0–100），左右调值，立刻作用到 `BGMManager` / `AudioManager` 的 Source 音量，存 `PlayerPrefs`（`audio.bgm` / `audio.sfx`）。不上 AudioMixer。
-
-- [ ] **步骤 2：05-test 表改/增**
-
-| # | 操作 | 预期 |
-|---|------|------|
-| P2b | 分类页按 B | 回到根页，不关暂停 |
-| P2e | 声音页按 B | 回到分类页 |
-| P3 | 点「设置」 | 分类页：键位设置 / 声音设置 / 返回 |
-| P3b | 点「键位设置」 | 现有改键页，默认键盘鼠标 Tab |
-| P11 | 点「声音设置」，拖音乐条 | 旁标 0–100；BGM 立刻变响或变轻 |
-| P12 | 音效拉到 0，继续后弹反 | 无音效；BGM 仍按音乐条 |
-| P13 | 退出 Play 再进声音页 | 两条滑条仍是上次的值 |
-| P14 | 手柄选中音乐滑条左右 | 音量变，焦点不跳到音效条 |
-
-原 P3「点设置进入键位页」必须改掉，否则和分类页矛盾。
 
 - [ ] **步骤 3：06-presentation.md 在「震屏」后追加**
 
@@ -529,16 +511,6 @@ Esc / 手柄 Start 打开暂停。点「设置」先进入分类页（键位设�
 - `AudioVolumeSettings`：音乐默认 0.8，音效默认 1.0，`PlayerPrefs` 键 `audio.bgm` / `audio.sfx`。
 - 音效：`AudioManager` 的 `AudioSource.volume`。
 - 音乐：`BGMManager` 实际音量 = 用户音乐音量 × 淡入淡出 `fadeWeight`。不要用 Mixer。
-
-- [ ] **步骤 4：06-presentation-test.md M15 增加**
-
-| # | 操作 | 预期 |
-|---|------|------|
-| 23 | 暂停声音页把音乐拉到 0 | 战斗 BGM 静音 |
-| 24 | 音效拉到 0 后弹反 / 受击 | 无音效 |
-| 25 | 两条都不是 0 | 弹反叮、BGM 都在，响度跟滑条走 |
-
----
 
 ## 自检
 

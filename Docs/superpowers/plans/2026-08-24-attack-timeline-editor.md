@@ -6,11 +6,11 @@
 
 **架构：** 时间数据留在招式 SO / 招式表。`AttackAnimClock` 从 Animator 第 0 层读秒数；`AttackState` 用该秒数开关刀、出声、取消、连招、结束。出声走 `CombatEventBus.OnAttackSfx` → `AudioManager`。编辑器隔离预览，不写 Animation Event、不上 Timeline。
 
-**技术栈：** Unity 2022.3、C#、HFSM、`PreviewRenderUtility`、ScriptableObject。本项目无自动化测试；每个任务用 Unity 编译 0 error + 手测。不要新建 Test Runner 程序集。不要擅自 git commit（仅当用户本会话明确要求时才提交）。
+**技术栈：** Unity 2022.3、C#、HFSM、`PreviewRenderUtility`、ScriptableObject。本项目无自动化测试；每个任务用 Unity 编译 0 error。不要新建 Test Runner 程序集。不要擅自 git commit（仅当用户本会话明确要求时才提交）。
 
 **规格：** `Docs/superpowers/specs/2026-08-24-attack-timeline-editor-design.md`
 
-**本任务只改这些架构文档：** `01-states.md`、`03-hit-detection.md`、`06-presentation.md`、`06-presentation-test.md`、`07-anim-events.md`、`07-anim-events-test.md`
+**本任务涉及的架构文档：** `01-states.md`、`03-hit-detection.md`、`06-presentation.md``07-anim-events.md`
 
 **现有 API（必须按此写，不要发明别名）：**
 
@@ -45,7 +45,7 @@
 | 创建 `Assets/Editor/AttackTimelineWindow.cs` | 窗口：预览 + 判定轨 + 音效轨 |
 | 创建 `Assets/Editor/AttackConfigEditor.cs` | Inspector 按钮打开窗口 |
 | 修改 `Assets/Editor/BossMoveTableEditor.cs` | Inspector 按钮打开窗口 |
-| 修改上列架构文档 + 对应 test | 时钟、玩家 pulse、新事件、手测清单 |
+| 修改上列架构文档 | 时钟、玩家 pulse、新事件 |
 
 ---
 
@@ -326,10 +326,6 @@ git commit -m "feat: 出招音效走 CombatEventBus"
         }
     }
 ```
-
-- [ ] **步骤 3：验证（手测）**
-
-进 Play 打玩家轻击：仍有判定、仍能弹刀取消、连招仍能接。若某招 `StateDuration` 明显短于动画，会更早回 Idle（这是规格：结束也跟 `t`）。旧 SO 空 `hitPulses` 仍能开刀。
 
 - [ ] **步骤 4：Commit（仅用户明确要求时）**
 
@@ -731,15 +727,6 @@ public class AttackConfigEditor : Editor
 
 在该按钮下方加一句 `EditorGUILayout.HelpBox("「填入弦一郎默认招式表」会覆盖已对过的判定和音效。", MessageType.Warning);`
 
-- [ ] **步骤 5：验证（手测）**
-
-1. `ARPG/攻击时间轴` 能打开。第一次没 Prefab 时预览区提示去填，不改场景。
-2. 选中玩家 `AttackConfig` 点按钮，拖进度，刀姿势变化。
-3. 拖红条两端，点保存，SO 上 `hitPulses.Length >= 1`，`HitStartTime`/`RecoveryWindowStart` 已回填。
-4. 加一个音符拖 clip，保存后 `sfxCues` 有数据。
-5. Boss 表选飞舟某一段，能加多段红。
-6. 非法拖反（起点超过终点）保存后仍 `start < end`。
-
 - [ ] **步骤 6：Commit（仅用户明确要求时）**
 
 ```bash
@@ -762,17 +749,6 @@ git commit -m "feat: 攻击时间轴窗口，对着动画编辑判定与出招�
 - 技术方案开头的 Animation Event 开关改为：`AttackState` 按动画时间 `t` 开关。扫描方式仍是每帧 Cast，不要改成 OnTrigger。
 - 「玩家招式不要填」改为：玩家通常 `hitPulses` 长度 1；空数组仍回退一对开/关。
 
-- [ ] **步骤 3：`07-anim-events.md` 与 `07-anim-events-test.md`**
-
-- 删除/改写「在 Clip 上加 EnableHitbox」作为攻击判定流程。注意事项已有的 M8 句扩展为：判定与出招音效由 `AttackState` 读动画时间；时间轴工具写 SO。动画事件只保留射箭生成帧。
-- test 表第 1、2、4 行和「伤害提前/延后」改为：用 `ARPG/攻击时间轴` 拖红条，进 Play 对刀。
-
-- [ ] **步骤 4：`06-presentation.md` 与 `06-presentation-test.md`**
-
-事件列表增加：`OnAttackSfx(AudioClip clip, Vector3 worldPos)`。test M15 增加一行：招式 `sfxCues` 有 clip 时，播到该时刻出声。
-
-把规格第 6 节 7 条验收拷进 `07-anim-events-test.md` 或新建小节「攻击时间轴」，不要另造验收标准。
-
 - [ ] **步骤 5：验证**
 
 文档与规格一致：不出现「请在 Clip 上加 EnableHitbox 来开刀」作为现行流程。
@@ -780,8 +756,8 @@ git commit -m "feat: 攻击时间轴窗口，对着动画编辑判定与出招�
 - [ ] **步骤 6：Commit（仅用户明确要求时）**
 
 ```bash
-git add Docs/architecture/01-states.md Docs/architecture/03-hit-detection.md Docs/architecture/06-presentation.md Docs/architecture/06-presentation-test.md Docs/architecture/07-anim-events.md Docs/architecture/07-anim-events-test.md
-git commit -m "docs: 攻击判定与出招音效改为动画时间，并增加时间轴验收"
+git add Docs/architecture/01-states.md Docs/architecture/03-hit-detection.md Docs/architecture/06-presentation.md Docs/architecture/07-anim-events.md
+git commit -m "docs: 攻击判定与出招音效改为动画时间"
 ```
 
 ---
@@ -795,7 +771,6 @@ git commit -m "docs: 攻击判定与出招音效改为动画时间，并增加�
 | 3 运行时时钟、判定、取消、连招、结束、音效、旧 SO 回退、射箭不动 | 任务 2、3、4（射箭：不改相关脚本） |
 | 4 编辑器窗口、Prefab、轨、Boss 选段、默认表警告 | 任务 5、6 |
 | 5 错误表 | 任务 5 HelpBox、任务 1 Clamp、任务 4 空 pulse、任务 3 clip==null |
-| 6 验收 | 任务 4/6 手测 + 任务 7 写入 test 文档 |
 | 红线：不写 Anim Event / 不上 Timeline / 总线出声 | 全任务都不创建 Timeline 资源；音效仅 TriggerAttackSfx |
 
 无 TODO/待定。类型名锁定：`AttackSfxCue`、`sfxCues`、`AttackWindowSync.ApplyPulses`、`AttackAnimClock.ReadSeconds`、`CombatEventBus.TriggerAttackSfx`。

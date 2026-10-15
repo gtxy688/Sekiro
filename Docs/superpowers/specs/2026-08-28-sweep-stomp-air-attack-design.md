@@ -89,9 +89,7 @@ AirState
 | 文件 | 改什么 |
 |------|--------|
 | `Docs/architecture/01-states.md` | AirState 树加上 AirAttackState / Jump2；删「AirAttackState 已移除」；空中可平 A、Jump2 一次、落地掐连段 |
-| `Docs/architecture/01-states-test.md` | Animator 表加 Jump2、AirAttack1/2/3；空中平 A / 落地取消 / Jump2 无踩不上升 |
 | `Docs/architecture/03-hit-detection.md` | Sweep：先跳再 Jump2 踩头；关判定、招继续；空中挨扫不再自动反制 |
-| `Docs/architecture/03-hit-detection-test.md` | 横扫踩头成功 / 只跳一次挨扫 / 空中三连伤害对齐地面 |
 
 ## 六、明确不做
 
@@ -100,13 +98,3 @@ AirState
 - 把 Jump2 做成无限二段跳
 - 非 Sweep 时踩 Boss 给上升（没横扫就只播 Jump2）
 - 踩头走 `MikiriCounterState` 或 `ForceParryStun`
-
-## 验收要点（实现后写入上述 test 文档）
-
-1. 地面轻跳，空中点攻击：播 AirAttack1，伤害与地面第一刀相同；可接 2、3。
-2. 空中三连没打完就落地：立刻回地面，不在地上把空中刀挥完。
-3. 普通跳空中点跳：播 Jump2，高度不明显再跳一次。
-4. Boss 放 Sweep，跳起再 Jump2 踩中：玩家上升；Boss 掉与轻砍第一刀相同的血/架势、不播受击；横扫继续但后续扫不中。
-5. 只跳一次、空中被 Sweep 扫到：挨打，不再自动把 Boss 弹开。
-6. 无方向垫步仍只识破突刺，不识破横扫。
-7. 同一段滞空第二次点跳：不再播 Jump2。

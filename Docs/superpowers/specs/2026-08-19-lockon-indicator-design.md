@@ -25,7 +25,7 @@
 - `LockOnIndicatorView.cs`：跟 `Spine1`；`WorldToScreenPoint`；去掉挂 Boss 上的 billboard
 - `CombatUIController.cs`：注入 Boss `CharacterBody` 给 View（或 View 从已有 `bossBody` 取骨骼）
 - `CombatHUDBuilder.cs`：不再把锁定点建在 Boss 身上
-- `Docs/architecture/05-input-lockon.md`、`06-presentation.md`、`Docs/验收清单.md`：世界空间挂 Boss → 屏幕 UI 跟随骨骼
+- `Docs/architecture/05-input-lockon.md`、`06-presentation.md`：世界空间挂 Boss → 屏幕 UI 跟随骨骼
 
 ## 你在 Unity 里要做的（代码改完后）
 
@@ -34,13 +34,3 @@
 3. 进 Play 前先调 `FocusOn` / `Finsher` 的屏幕尺寸（从世界 Canvas 挪过来会显得很小或很大）。
 4. `CombatHUD` 上 `Lock On Indicator View` 仍指向这个物体。
 5. Boss Prefab 上那份旧 `LockOnIndicator` 关掉或删掉，避免两套。
-
-## 验收
-
-| 操作 | 预期 |
-|---|---|
-| 不锁定 | 没有白点、没有忍杀标 |
-| 锁定，Boss 正对 / 背对 / 侧对 | 都能锁；白点在人身上，不被模型挡住 |
-| Boss 播攻击、弓、倒地 | 白点跟着躯干走，不留在原地 |
-| 架势崩解 | 白点换成 `Finsher`，同样跟身体、不被挡 |
-| 处决结束 / 解锁 | 图标按规则关掉或回到 `FocusOn` |

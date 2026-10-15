@@ -1,6 +1,6 @@
 # 04 Boss 行为树与选招
 
-> 现状依据：Boss/BehaviourTree、BossMovePicker 与 BossMoveTable。手动验收见 04-behavior-tree-ai-test.md。
+> 现状依据：Boss/BehaviourTree、BossMovePicker 与 BossMoveTable。
 
 ## 职责划分
 

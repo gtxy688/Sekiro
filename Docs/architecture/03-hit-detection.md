@@ -1,6 +1,6 @@
 # 03 命中检测与结算
 
-> 当前近战路径是动画时间驱动的 Hitbox 扫描，不是 BoxCast + Animation Event。手动验收见 03-hit-detection-test.md。
+> 当前近战路径是动画时间驱动的 Hitbox 扫描，不是 BoxCast + Animation Event。
 
 ## 近战命中
 

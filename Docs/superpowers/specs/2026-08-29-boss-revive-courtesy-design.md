@@ -1,7 +1,7 @@
 # Boss 死亡绕圈与复活礼节
 
 日期：2026-08-29  
-状态：已实现（待 Unity 手测验收）  
+状态：已实现（运行效果未确认）
 依据：`Docs/architecture/04-behavior-tree-ai.md`、`Docs/architecture/02-combat-data.md`、`Docs/architecture/06-presentation.md`
 
 ## 1. 需求摘要
@@ -135,20 +135,6 @@ sequenceDiagram
     BB->>BB: postRevivePhase=None, active_gap
     BB->>BB: behaviorTreeRoot 正常出招
 ```
-
-## 5. 验收清单
-
-在 Unity Play 模式中逐条验证：
-
-| # | 操作 | 预期 |
-|---|------|------|
-| 1 | 正常开战，开场语音结束后 | Boss **主动出招**（不只被动格挡） |
-| 2 | 被 Boss 打死，仍有复活次数 | Boss **单侧绕圈**，不左右来回；**不出招** |
-| 3 | 同上，观察复活点 UI | 死亡后点数**不变** |
-| 4 | 选择「起死回生」 | 点数 **减 1**；Boss **停步面向**玩家 |
-| 5 | 玩家起身动画结束 | Boss **垫步后退**，再恢复主动 AI |
-| 6 | 复活次数用尽真死 | UI 显示 **0** 点 |
-| 7 | 战斗中暂停 → 根页 | 按钮为「**重新开始**」，点击重开场景 |
 
 ## 6. 已知问题与修复记录
 

@@ -106,18 +106,6 @@ Awake：
 ## 文档
 
 - `Docs/architecture/03-hit-detection.md`：场景接线表增加 Boss 肢体 Hitbox；写明「配置 slot + CharacterBody 引用；同时只亮一把；缺槽回退刀」。
-- `Docs/architecture/03-hit-detection-test.md`：补 Elbow 验收（见下）。
-
-## 验收
-
-| 操作 | 预期 |
-|------|------|
-| 普通挥砍（玩家或 Boss 刀） | 仍用刀 Hitbox，手感与现在一致 |
-| `Slash_SpinElbow` 第一段 `Slash_Spin` | 刀扫到才结算；肘采样点不开 |
-| 第二段 `Elbow`，贴身让肘撞玩家 | 结算一次；危字 Grab；可弹反/格挡；垫步可躲；识破不触发 |
-| `Elbow` 段刀从身侧刮过、肘没碰到 | 不结算（证明切到了肘槽） |
-| Boss 未拖 `elbowHitbox` 仍放肘击 | 回退刀 + Console Warning，不报错 |
-| 退出攻击 / 被弹开 | 肘 Hitbox 关闭，不会残留扫描 |
 
 ## 错误处理
 

@@ -33,22 +33,8 @@
 
 - 改 `Assets/Scripts/Audio/AudioManager.cs`：Awake 加载两池；`HandleWeaponDeflected` 按类型抽 clip 再 `PlayOneShot`；`HandleTakeDamage` 按受害者选玩家/Boss clip
 - 改 `Docs/architecture/06-presentation.md`：补 M15——格挡/弹反从 Resources 池随机，不连抽同一条；受击两条 Inspector
-- 改 `Docs/architecture/06-presentation-test.md`：#17/#18 改为多 clip + 连打不重复；#19/#19b 玩家/Boss 受击；「没声音」补文件夹空则 Warning
 
 抽取写成小函数（两池共用），避免 `HandleWeaponDeflected` 里复制两套随机逻辑。
-
-## 验收
-
-| 操作 | 预期 |
-|------|------|
-| 普通格挡 | 从 Block 池出声，不是弹反那组 |
-| 完美弹反 | 从 Deflect 池出声，不是格挡那组 |
-| 连续格挡 ≥ 3 次 | 相邻两次不是同一条（池 ≥ 2 时） |
-| 连续弹反 ≥ 3 次 | 同上 |
-| 玩家受击 | 播 `playerHitSfx` |
-| Boss 受击 | 播 `bossHitSfx` |
-| 音效滑条拉到 0 后格挡 | 无声（仍走 Source.volume） |
-| 对应文件夹空 | 无声 + Console Warning |
 
 ## 风险
 

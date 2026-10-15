@@ -94,21 +94,7 @@ source.volume = AudioVolumeSettings.Bgm * fadeWeight
 ## 文档
 
 - `Docs/architecture/05-input-lockon.md`：设置 = 分类页（键位 / 声音）；B 返回多一层
-- `Docs/architecture/05-input-lockon-test.md`：分类页、声音滑条、B 从声音页回到分类
 - `Docs/architecture/06-presentation.md`：M15 增加用户音量（音乐 / 音效，PlayerPrefs，无 Mixer）
-- `Docs/architecture/06-presentation-test.md`：拖音乐条 BGM 变；音效条拉到 0 后弹反无声
-
-## 验收
-
-| 操作 | 预期 |
-|------|------|
-| 暂停 → 设置 | 看到「键位设置 / 声音设置 / 返回」，不是直接改键页 |
-| 声音设置：拖音乐条 | BGM 立刻变响或变轻；旁标 0–100 |
-| 声音设置：音效拉到 0，继续战斗后弹反 | 无音效；BGM 仍按音乐条 |
-| 音乐拉到 0，弹反 | 无 BGM；弹反仍有声 |
-| 退出 Play 再进 | 两条滑条仍是上次的值 |
-| 声音页按 B | 回到分类页，不关暂停 |
-| 手柄选中滑条左右 | 音量变化，焦点不跑到另一条 |
 
 ## 风险
 

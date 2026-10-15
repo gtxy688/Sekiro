@@ -24,4 +24,4 @@
 - `AttackConfig.cs`：新增 `HitStartTime`
 - `AttackState.cs`：延迟开判定；前摇内取消
 - `DeflectState.cs`：不再吞掉格挡/垫步命令
-- `Docs/architecture/01-states.md`、`Docs/验收清单.md`：同步规则
+- `Docs/architecture/01-states.md`：同步规则

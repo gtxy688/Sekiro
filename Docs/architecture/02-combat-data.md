@@ -1,6 +1,6 @@
 # 02 角色属性与战斗数据
 
-> 现状依据：CharacterBody、CombatStats、SO 与 Boss 招式数据源码。手动验收见 02-combat-data-test.md。
+> 现状依据：CharacterBody、CombatStats、SO 与 Boss 招式数据源码。
 
 ## 数据归属
 

@@ -364,7 +364,7 @@ public class CombatConfigValidationTest
 - [ ] **步骤 6：验证**
 Unity Test Runner（Window → General → Test Runner → EditMode）运行 `CombatConfigValidationTest`：
 - `BossDefenseProbabilities_SumNotExceedOne` PASS
-- `DefaultAttack_HasPositiveDamage` 预期 FAIL（playerAttack 默认 null）→ 需要在下一步创建资产并注入，或临时将 playerAttack 改为可在代码内建。**修正方案**：将 `playerAttack` 字段改为 `[Tooltip] public AttackData playerAttack;` 并在步骤 7 创建资产引用；测试保留为"资产非空"验收项。
+- `DefaultAttack_HasPositiveDamage` 预期 FAIL（playerAttack 默认 null）→ 需要在下一步创建资产并注入，或临时将 playerAttack 改为可在代码内建。**修正方案**：将 `playerAttack` 字段改为 `[Tooltip] public AttackData playerAttack;` 并在步骤 7 创建资产引用；测试保留为"资产非空"断言。
 
 - [ ] **步骤 7：创建 SO 资产**
 Unity Editor 右键 → Create → Combat → 各项，生成：
@@ -2000,7 +2000,7 @@ git commit -m "feat: 场景一键搭建 SceneBuilder（任务11）"
 
 ---
 
-### 任务 12：PlayMode 集成测试 + 验收
+### 任务 12：PlayMode 集成测试
 
 **文件：**
 - 创建：`Assets/Tests/PlayMode/CombatIntegrationTest.cs`
@@ -2033,7 +2033,7 @@ public class CombatIntegrationTest
 }
 ```
 
-> **说明：** 完整 PlayMode 测试需要装配全套组件。**简化策略**：PlayMode 测状态转换核心（StateMachine 已有 EditMode 可测），此处以「场景装配无异常 + 关键事件触发」为验收，深度场景测试留给用户手工验收（符合本项目「AI 实现→用户验收」工作流）。
+> **说明：** 完整 PlayMode 测试需要装配全套组件；此处的自动化测试只覆盖状态机核心逻辑。
 
 - [ ] **步骤 2：StateMachine EditMode 测试（补充，任务1 补）**
 
@@ -2066,19 +2066,6 @@ public class StateMachineTest
     }
 }
 ```
-
-- [ ] **步骤 3：验收清单（交付用户）**
-
-M1 完成后交付以下验收清单：
-
-1. **移动**：WASD 移动，角色朝移动方向转向 → 预期：流畅移动无抖动
-2. **攻击**：左键 → 前摇→判定→后摇；命中 Boss → Boss 血/架势变化 → 预期：判定帧命中，Console 无报错
-3. **防御**：Boss 攻击时按住右键 → 血减 30%、架势涨 → 预期：减伤生效
-4. **弹刀**：Boss 攻击判定前窗口内按右键 → 完美弹刀（玩家不掉血，Boss 架势大涨） → 预期：窗口判定正确
-5. **Boss AI**：玩家在远处 → Boss 靠近；近身 → 出招；玩家连攻 → Boss 按概率招架/格挡/受击 → 预期：读指令生效
-6. **架势崩**：持续攻击打崩 Boss 架势 → Boss 倒下 → 预期：Collapse 状态
-7. **忍杀**：崩后靠近按攻击 → 处决演出 → Boss 死亡 → 预期：Executed 事件
-8. **UI**：血条/架势条随战斗实时更新，架势>80% 变红 → 预期：UI 正确
 
 - [ ] **步骤 4：Commit**
 ```bash

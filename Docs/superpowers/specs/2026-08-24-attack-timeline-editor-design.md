@@ -22,7 +22,7 @@
 - 忍杀、弹刀、垫步、受击不是本工具的编辑对象。
 - 表现层出声只走 `CombatEventBus` → `AudioManager`，`AttackState` 不直接 `PlayOneShot`。
 
-成功标准：拖进度姿势跟上；红条对到刀挥平，进游戏也是那时才有判定；插了音符能在那一帧听到；玩家一条红、Boss 可多段；没重存的旧招式不会突然没判定。验收为 Unity 手测，无自动化测试。
+成功标准：拖进度姿势跟上；红条对到刀挥平，进游戏也是那时才有判定；插了音符能在那一帧听到；玩家一条红、Boss 可多段；没重存的旧招式不会突然没判定。
 
 ## 2. 数据
 
@@ -113,7 +113,7 @@ Boss：必须先选表中哪一行招、哪一段窗口（与 `sequences` 里对
 
 ### 4.4 与「填入默认招式」
 
-`BossMoveTableEditor` 的「填入弦一郎默认招式表」会整表覆盖，包括已对过的 `hitPulses` / `sfxCues`。规格不改这个按钮；验收说明写清：对完刀后不要按，除非要恢复目录默认值。
+`BossMoveTableEditor` 的「填入弦一郎默认招式表」会整表覆盖，包括已对过的 `hitPulses` / `sfxCues`。规格不改这个按钮；使用时注意：对完刀后不要按，除非要恢复目录默认值。
 
 ## 5. 错误与兼容
 
@@ -126,20 +126,10 @@ Boss：必须先选表中哪一行招、哪一段窗口（与 `sequences` 里对
 | 旧 SO `hitPulses` 为空 | 运行时用 `HitStartTime` / `RecoveryWindowStart` 一对开关 |
 | Clip 长度与 `StateDuration` 不一致 | 不自动改；可选手动「用动画长度填写」 |
 
-## 6. 验收清单（手测）
-
-1. 打开窗口，拖进度，刀停在对应姿势。
-2. 把红条拖到刀刃挥平附近，进 Play 砍人：判定开始时刻与预览一致（目视可接受一帧误差）。
-3. 插一个音符并指定 clip，进 Play 在该帧附近听到。
-4. 玩家轻击：时间轴上一条红；保存后 `hitPulses.Length == 1`，且 `HitStartTime` / `RecoveryWindowStart` 已回填。
-5. Boss 飞舟 Boat1：可加多段红，进 Play 同一段动画能多段出伤。
-6. 未改过的旧 `AttackConfig`（空 `hitPulses`）进 Play 仍有判定。
-7. 不按「填入默认招式」时，重开窗口仍看到上次拖的红条和音符。
-
 ## 7. 涉及文件（实现时）
 
 - 改：`AttackConfig.cs`、`BossMoveWindow.cs`、`BossAttackBaker.cs`、`AttackState.cs`、`CombatEventBus.cs`、`AudioManager.cs`
 - 增：`Assets/Editor/AttackTimelineWindow.cs`（及预览/设置所需的同目录 Editor 脚本）
-- 改文档：`07-anim-events.md`（时钟与事件范围）、`03-hit-detection.md`（玩家也用 `hitPulses`，长度为 1）、`06-presentation.md`（`OnAttackSfx`）、`01-states.md`（窗口时钟改为动画时间）、对应 `*-test.md` 增本工具条目
+- 改文档：`07-anim-events.md`（时钟与事件范围）、`03-hit-detection.md`（玩家也用 `hitPulses`，长度为 1）、`06-presentation.md`（`OnAttackSfx`）、`01-states.md`（窗口时钟改为动画时间）、
 
 不改：CombatManager 结算、Hitbox 扫描方式、行为树选招。

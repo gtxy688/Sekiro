@@ -55,7 +55,6 @@ Boss 放出危字招式时，在 **Boss 头顶** 弹出只狼式红色「危」�
 - 改 `PerilousWarningView.cs`：去掉对屏幕中央 TMP/Image 的依赖；驱动两层 Renderer 的弹出/淡出；`BindFollowTarget(CharacterBody boss)`；Billboard
 - 改 `CombatUIController.cs`：`HandlePerilousAttack` 时 `BindFollowTarget(bossBody)`，不再假定 HUD 中央字
 - 改 `Docs/architecture/06-presentation.md`：危字 = Boss 头顶 Billboard，不是 Overlay 中央字
-- 改 `Docs/architecture/06-presentation-test.md`：恢复危字视觉验收（#14），与「M17 已移除」注释脱钩
 - 不改 `03-hit-detection.md` 的判定规则；仅表现层文档
 
 场景里旧的 HUD `PerilousWarning`（中央「危」字）关掉或删掉，避免两套。
@@ -67,18 +66,6 @@ Boss 放出危字招式时，在 **Boss 头顶** 弹出只狼式红色「危」�
 3. Play 一次：Boss 放突刺或横扫危字，看头顶红字。
 4. 字偏高/偏低：调 `PerilousWarningView.headOffset`。偏大/偏小：调两层 Quad 的本地 Scale。
 5. Ctrl+S 保存场景 / Prefab。
-
-## 验收
-
-| 操作 | 预期 |
-|---|---|
-| Boss 放突刺危字 | 红「危」出现在 Boss 头顶，不在玩家头上、不在屏幕正中 |
-| Boss 放横扫危字 | 同样在 Boss 头顶弹出 |
-| 绕到 Boss 侧面 / 背后 | 字始终正对相机 |
-| 字与头盔重叠的机位 | 字仍完整可见 |
-| 弹出后约 0.8 秒 | 淡出消失 |
-| 连续两次危字 | 第一次被打断，重新弹出 |
-| 玩家普通攻击 | 不出现危字 |
 
 ## 错误处理
 

@@ -1,6 +1,6 @@
 # 05 玩家输入与锁定
 
-> 现状依据：PlayerBrain、BrainBase、Input System 资源与 LockOnManager。手动验收见 05-input-lockon-test.md。
+> 现状依据：PlayerBrain、BrainBase、Input System 资源与 LockOnManager。
 
 ## 输入路径
 

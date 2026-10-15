@@ -6,10 +6,10 @@
 
 **架构：** 仍订阅 `CombatEventBus.OnWeaponDeflected`。`AudioManager.Awake` 用 `Resources.LoadAll` 装两池；`HandleWeaponDeflected` 按 `DeflectType` 选池，共用 `Pick` 避开上次下标，再 `PlayOneShot(clip)`（不传 volume）。
 
-**技术栈：** Unity 2022 LTS、`Resources.LoadAll<AudioClip>`、现有 `AudioSource`。本项目无自动化测试；每个任务用 Unity 编译 0 error + 手测验证。不要新建 Test Runner 程序集。不要擅自 git commit（仅当用户本会话明确要求时才提交）。
+**技术栈：** Unity 2022 LTS、`Resources.LoadAll<AudioClip>`、现有 `AudioSource`。本项目无自动化测试；每个任务用 Unity 编译 0 error。不要新建 Test Runner 程序集。不要擅自 git commit（仅当用户本会话明确要求时才提交）。
 
 **规格：** `Docs/superpowers/specs/2026-08-26-block-deflect-sfx-pool-design.md`  
-**本任务只改这两份架构文档：** `Docs/architecture/06-presentation.md`、`Docs/architecture/06-presentation-test.md`  
+**本任务涉及的架构文档：** `Docs/architecture/06-presentation.md`
 **不要改：** `CombatEventBus`、`DeflectState`、`CombatManager`、`GameScene.unity` YAML、其它音效字段、音高、Mixer。
 
 **现有 API（必须按此写，不要发明别名）：**
@@ -34,7 +34,6 @@
 | --- | --- |
 | 修改 `Assets/Scripts/Audio/AudioManager.cs` | 删单 clip 字段；Awake 装池；Pick + 事件播放 |
 | 修改 `Docs/architecture/06-presentation.md` | 补 M15：Resources 池 + 不连抽 |
-| 修改 `Docs/architecture/06-presentation-test.md` | #17/#18 多 clip；FAQ 文件夹空 |
 
 不要做：Inspector 数组、SO、改事件签名、改 `GameScene.unity`、音高随机。
 
@@ -260,62 +259,6 @@ public class AudioManager : MonoBehaviour
 
 ---
 
-### 任务 2：架构文档与验收清单
-
-**文件：**
-- 修改：`Docs/architecture/06-presentation.md`
-- 修改：`Docs/architecture/06-presentation-test.md`
-
-- [ ] **步骤 1：在 `06-presentation.md` 震屏小节之后追加 M15 音效（不要改相机章节）**
-
-文件目前在「震屏」处结束。在最后追加：
-
-```markdown
-
-## 三、音效（M15）
-
-- 订阅 `OnWeaponDeflected`：`DeflectType.Normal` 从 `Resources/Sounds/Block` 随机一条；`Perfect` 从 `Resources/Sounds/Deflect` 随机一条。
-- `AudioManager.Awake` 用 `Resources.LoadAll<AudioClip>` 各装一次；事件里不重载。
-- 同一池连打不连抽同一条（池长 ≥ 2）。第一次全池均匀随机。池空则本发不播并 `LogWarning`。
-- `PlayOneShot(clip)` 不传 volume，音量走 `AudioSource.volume`。
-- 受击 / 处决 / 出招等其它 clip 仍 Inspector 拖，本规则只管格挡和弹反。
-```
-
-- [ ] **步骤 2：改 `06-presentation-test.md` 的 M15 表和 FAQ**
-
-把 M15 表里 #17、#18 换成下面四行（保留 #19/#21/#22/#23 不动）：
-
-```markdown
-| 17 | 弹反成功 | 从 Deflect 池出声（清脆打铁），不是格挡那组 |
-| 17b | 连续弹反 ≥ 3 次 | 相邻两次不是同一条（池 ≥ 2） |
-| 18 | 普通防御 | 从 Block 池出声（沉闷格挡），不是弹反那组 |
-| 18b | 连续格挡 ≥ 3 次 | 相邻两次不是同一条（池 ≥ 2） |
-```
-
-把 FAQ「没声音」那行换成：
-
-```markdown
-- **没声音**：AudioManager 没订阅；或 `Resources/Sounds/Block`、`Resources/Sounds/Deflect` 为空（应有 Warning）；或路径写成了 `Block` 而不是 `Sounds/Block`。其它音效仍看 Inspector 有没有拖 clip。
-```
-
-不要在这份文档里加音量滑条验收（那是另一份规格）。手测时若暂停菜单已有音效滑条，拉到 0 后格挡应无声——那是滑条方案的回归，不是本任务要写进 06 测试表的条目。
-
----
-
-## 验收（交付给用户）
-
-| 操作 | 预期 |
-|------|------|
-| 普通格挡 | Block 池出声 |
-| 完美弹反 | Deflect 池出声 |
-| 连续格挡 ≥ 3 次 | 相邻两次听得出不是同一条 |
-| 连续弹反 ≥ 3 次 | 同上 |
-| Play 时两文件夹都在 | Console 无「音效池为空」Warning |
-
-实现者不要宣称完成；把上表交给用户在 Unity 里勾。
-
----
-
 ## 自检
 
 | 规格条目 | 任务 |
@@ -326,5 +269,5 @@ public class AudioManager : MonoBehaviour
 | 删除 `blockSfx` / `deflectSfx` | 任务 1 字段 |
 | `PlayOneShot` 不传 volume | 任务 1 |
 | 共用 Pick，不复制两套 | 任务 1 |
-| `06-presentation.md` / `-test.md` | 任务 2 |
+| `06-presentation.md` | 任务 2 |
 | 不改事件签名、不改判定、不改其它 clip | 文件结构「不要做」 |

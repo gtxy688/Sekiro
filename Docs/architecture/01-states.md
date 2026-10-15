@@ -1,6 +1,6 @@
 # 01 状态机与角色动作
 
-> 现状依据：FrameWork/Body、FrameWork/States 中的当前源码。手动验收见 01-states-test.md。
+> 现状依据：FrameWork/Body、FrameWork/States 中的当前源码。
 
 ## HFSM 结构
 

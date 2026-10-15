@@ -6,10 +6,10 @@
 
 **架构：** 沿用 `OnPerilousAttack`。`CombatUIController` 把跟随目标绑到 Boss。`PerilousWarningView` 用世界空间两层 Quad + 加法 Shader（亮度当遮罩），`LateUpdate` 钉头骨、朝向相机。编辑器菜单生成材质/预制体，对标格挡火花 Builder。
 
-**技术栈：** Unity 2022 LTS、URP、DoTween、现有 CombatEventBus。本项目无自动化测试；每个任务用 Unity 编译 0 error + 手测验证。不要新建 Test Runner 程序集。不要擅自 git commit（仅当用户本会话明确要求时才提交）。
+**技术栈：** Unity 2022 LTS、URP、DoTween、现有 CombatEventBus。本项目无自动化测试；每个任务用 Unity 编译 0 error。不要新建 Test Runner 程序集。不要擅自 git commit（仅当用户本会话明确要求时才提交）。
 
 **规格：** `Docs/superpowers/specs/2026-08-26-perilous-kanji-vfx-design.md`  
-**本任务只改这两份架构文档：** `Docs/architecture/06-presentation.md`、`Docs/architecture/06-presentation-test.md`  
+**本任务涉及的架构文档：** `Docs/architecture/06-presentation.md`
 **不要改：** `03-hit-detection.md`、`AttackState`、`CombatEventBus` 签名、危字 Hit 结算。
 
 **现有 API（必须按此写，不要发明别名）：**
@@ -36,7 +36,6 @@
 | 修改 `Assets/Scripts/UI/CombatUIController.cs` | 弹出前 `BindFollowTarget(bossBody)` |
 | 修改 `Assets/Editor/CombatHUDBuilder.cs` | 不再生成屏幕中央 TMP「危」；复用场景里已有 View |
 | 修改 `Docs/architecture/06-presentation.md` | 危字 = Boss 头顶 Billboard |
-| 修改 `Docs/architecture/06-presentation-test.md` | 恢复 #14 视觉验收 |
 | 用户放入 `Assets/Art/FX/危.png` | Builder 的输入；不要手写 PNG |
 | Builder 生成 `Assets/Prefabs/FX/PerilousKanji.prefab` 与 `.mat` | 不要手写 YAML Prefab |
 
@@ -639,7 +638,6 @@ git commit -m "fix: stop generating screen-center perilous text in HUD builder"
 
 **文件：**
 - 修改：`Docs/architecture/06-presentation.md`
-- 修改：`Docs/architecture/06-presentation-test.md`
 
 - [ ] **步骤 1：在 `06-presentation.md` 里这句下面追加一小节，不要改「二、相机」编号**
 
@@ -659,31 +657,10 @@ git commit -m "fix: stop generating screen-center perilous text in HUD builder"
 - 生成：`Tools/战斗/生成危字特效`。贴图放 `Assets/Art/FX`。
 ```
 
-- [ ] **步骤 2：改 `06-presentation-test.md`**
-
-删掉：
-
-```markdown
-> #14（危字 UI）已移除：M17 不在本项目范围。
-```
-
-在 M13 表 #13 后插入：
-
-```markdown
-| 14 | Boss 放突刺/横扫危字 | 红色「危」出现在 **Boss 头顶**（不在玩家头上、不在屏幕正中）；始终朝向相机；头盔挡不住；约 0.8 秒淡出 |
-| 14b | 绕到 Boss 侧面后再放危字 | 字仍正对相机 |
-| 14c | 连续两次危字 | 第一次被打断，重新弹出 |
-| 14d | 玩家普通攻击 | 不出现危字 |
-```
-
-不要恢复 #20 危字音效（本计划不做音频）。#20 那行注释可留。
-
-- [ ] **步骤 3：对照规格验收表，确认 06-presentation-test 覆盖规格「验收」每一行**
-
 - [ ] **步骤 4：Commit（仅用户明确要求时）**
 
 ```bash
-git add Docs/architecture/06-presentation.md Docs/architecture/06-presentation-test.md
+git add Docs/architecture/06-presentation.md
 git commit -m "docs: specify perilous kanji as boss-head billboard"
 ```
 
@@ -698,20 +675,6 @@ git commit -m "docs: specify perilous kanji as boss-head billboard"
 5. Play → 引 Boss 放突刺/横扫危字。
 6. 高低不对调 `headOffset`；大小不对调 Glow/Core 的 localScale。
 7. Ctrl+S。
-
-## 手测验收（规格原文）
-
-| 操作 | 预期 |
-|---|---|
-| Boss 放突刺危字 | 红「危」在 Boss 头顶，不在玩家头上、不在屏幕正中 |
-| Boss 放横扫危字 | 同样在 Boss 头顶 |
-| 绕到侧面 / 背后 | 字始终正对相机 |
-| 字与头盔重叠的机位 | 字仍完整可见 |
-| 弹出后约 0.8 秒 | 淡出消失 |
-| 连续两次危字 | 第一次被打断，重新弹出 |
-| 玩家普通攻击 | 不出现危字 |
-
----
 
 ## 规格覆盖自检
 

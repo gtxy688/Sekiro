@@ -57,7 +57,6 @@
 - 新建 `Assets/Editor/HealKanjiBuilder.cs`：菜单 **Tools/战斗/生成治愈特效**。输出 `Assets/Prefabs/FX/Heal/`（`HealKanji.prefab`、Core/Glow/Aura 材质）。场景实例名 `HealKanji`，挂到 `CombatUIController.healKanjiView`
 - 改 `CombatUIController.cs`：`HandleGourdUsed` 在刷新葫芦数字后 `BindFollowTarget(playerBody)` + `ShowHeal()`；`Start` 里 `BindHealKanjiView`（按名字 `HealKanji` 查找，与危字同一套路）
 - 改 `Docs/architecture/06-presentation.md`：补治愈 Billboard 小节
-- 改 `Docs/architecture/06-presentation-test.md`：#15 旁加治字视觉项
 - 不改 `02-combat-data.md` 的葫芦数值规则
 
 ## 你在 Unity 里要做的（代码改完后）
@@ -67,19 +66,6 @@
 3. Play：挨一刀后按 E，玩家头顶出绿「治」。
 4. 高低调 `HealKanjiView.headOffset`；大小调 Core/Glow/Aura 的 Scale。
 5. Ctrl+S 保存场景 / Prefab。
-
-## 验收
-
-| 操作 | 预期 |
-|---|---|
-| 受伤后按 E 喝药 | 绿「治」出现在 **玩家头顶**（不在 Boss 头上、不在屏幕正中）；芯近白、边绿、外圈绿雾在转、有几点绿火星；始终朝向相机 |
-| 绕到玩家侧面再喝 | 字仍正对相机 |
-| 弹出后约 0.8 秒 | 淡出消失 |
-| 连续两次喝药（有剩余次数） | 当前 `HealState` 禁止喝药中再喝，两次特效通常不重叠；若 0.8s 内再次收到 `OnGourdUsed`，第一次被打断并重新弹出 |
-| 没药时按 E | 不出现治字 |
-| Boss 放危字 | 仍只在 Boss 头顶出红「危」，玩家头上不出现「治」 |
-| 喝药中被打断 | 治字继续播完淡出，不跟受击一起立刻消失 |
-| 右下角葫芦 | 次数仍减少、数字仍闪烁（旧 #15 不变） |
 
 ## 错误处理
 

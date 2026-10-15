@@ -2,9 +2,9 @@
 
 > **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法来跟踪进度。
 
-**目标：** 重构文档体系，使 CLAUDE.md 规则可判定、specs 带人工验收清单、消除大小写分裂与文档-代码冲突。
+**目标：** 重构文档体系，使 CLAUDE.md 规则可判定、消除大小写分裂与文档-代码冲突。
 
-**架构：** 按 L0-L4 分层（规则/架构/规格/参考/计划）。CLAUDE.md 改为短硬规则 + 文档访问纪律；22 份 specs 中 21 份保留补验收、2 份重写；统一目录大小写为 `Docs`。
+**架构：** 按 L0-L4 分层（规则/架构/规格/参考/计划）。CLAUDE.md 改为短硬规则 + 文档访问纪律；22 份 specs 中 21 份保留整理、2 份重写；统一目录大小写为 `Docs`。
 
 **技术栈：** Markdown、git、Unity 项目文档。
 
@@ -20,11 +20,10 @@
 | 文件 | 职责 | 处理 |
 |------|------|------|
 | `CLAUDE.md` | L0 规则层：可判定架构约束 + 代码规范 + 文档访问纪律 + 加载指引 | 重写 |
-| `Docs/README.md` | 总导航：模块→spec→验收清单 总表 | 新建 |
+| `Docs/README.md` | 总导航：模块→spec 总表 | 新建 |
 | `Docs/architecture/*` | L1 架构层 | 保留（tech-stack.md 已 untracked，任务 0 一并纳入） |
-| `Docs/specs/**` | L2 规格层，每份末尾带验收清单 | 补验收 / 重写 |
+| `Docs/specs/**` | L2 规格层 | 整理 / 重写 |
 | `Docs/references/sekiro-genichiro-ai.md` | L3 参考层（原始 Lua 分析） | 自 `Docs/md/` 移动 |
-| `Docs/testing/test-plan.md` | 验收清单总表 | 保留 |
 | `.gitignore` | 美术资源忽略 | 已完成（commit 75a041b） |
 
 **git 目录改名注意事项（Windows 大小写不敏感）：**
@@ -72,7 +71,7 @@ git commit -m "refactor: 统一文档目录大小写为 Docs"
 ````markdown
 # ARPG 战斗 Demo — 只狼弦一郎 Boss 战
 
-AI 辅助开发，**用户负责测试与验收（按模块）**。AI 每完成一个模块，交付「验收清单」供用户逐条验证，验收通过才算完成。
+AI 辅助开发。
 
 ## 架构约束（可判定红线，违反即打回）
 
@@ -89,13 +88,6 @@ AI 辅助开发，**用户负责测试与验收（按模块）**。AI 每完成�
 - 单文件 ≤ 300 行
 - 一次提交只做一件事（原子提交）
 
-## 工作流（AI 实现 → 用户验收）
-
-1. 收到任务 → 按「文档加载指引」读对应 spec，只读需要的章节
-2. 实现代码 → 不自己宣称"完成"
-3. 在交付说明中附「验收清单」：操作步骤 + 预期结果（供用户在 Unity 中逐条验证）
-4. 用户验收通过 → 提交；验收不通过 → 修正后重新交付
-
 ## 文档访问纪律（硬规则）
 
 1. 收到任务 → 在下方加载指引表定位对应 spec，**只读该文件**，禁止通读 `Docs/` 下所有文档
@@ -109,23 +101,23 @@ AI 辅助开发，**用户负责测试与验收（按模块）**。AI 每完成�
 |---------|---------|
 | 弹刀判定 | `Docs/specs/deflect/deflect-mechanics.md` |
 | 抖刀惩罚/加成链 | `Docs/specs/deflect/deflect-penalties.md` |
-| 弹刀参数/验收 | `Docs/specs/deflect/deflect-params.md` |
+| 弹刀参数 | `Docs/specs/deflect/deflect-params.md` |
 | 架势条规则 | `Docs/specs/posture/posture-rules.md` |
-| 架势参数/验收 | `Docs/specs/posture/posture-params.md` |
+| 架势参数 | `Docs/specs/posture/posture-params.md` |
 | Boss 状态机 | `Docs/specs/boss/boss-state-machine.md` |
 | Boss AI 决策+权重表 | `Docs/specs/boss/boss-ai-decision.md` |
 | Boss 招式表 | `Docs/specs/boss/boss-attacks.md` |
 | Boss 弹刀 AI | `Docs/specs/boss/boss-deflect.md` |
-| Boss 数值/验收 | `Docs/specs/boss/boss-params.md` |
+| Boss 数值 | `Docs/specs/boss/boss-params.md` |
 | 危字类型+提示 | `Docs/specs/danger/danger-types.md` |
 | 识破+踩头判定 | `Docs/specs/danger/mikiri-stomp.md` |
-| 危字参数/验收 | `Docs/specs/danger/danger-params.md` |
+| 危字参数 | `Docs/specs/danger/danger-params.md` |
 | 输入优先级+打断 | `Docs/specs/input/input-priority.md` |
 | 输入缓冲 | `Docs/specs/input/input-buffer.md` |
 | 帧冻结 | `Docs/specs/input/hitstop.md` |
 | 回血系统 | `Docs/specs/input/healing.md` |
 | 动画策略+事件 | `Docs/specs/animation/animation-strategy.md` |
-| 动画参数/验收 | `Docs/specs/animation/animation-params.md` |
+| 动画参数 | `Docs/specs/animation/animation-params.md` |
 | UI 布局+元素 | `Docs/specs/ui/ui-overview.md` |
 | UI 事件映射 | `Docs/specs/ui/ui-events.md` |
 | 伤害数字 | `Docs/specs/ui/ui-damage-numbers.md` |
@@ -167,7 +159,7 @@ git commit -m "docs: 重写 CLAUDE.md 为可判定规则 + 文档访问纪律"
 ````markdown
 # ARPG 战斗 Demo 文档导航
 
-复刻只狼弦一郎 Boss 战。AI 辅助开发，用户按模块验收。
+复刻只狼弦一郎 Boss 战。AI 辅助开发。
 
 ## 文档层级
 
@@ -175,28 +167,9 @@ git commit -m "docs: 重写 CLAUDE.md 为可判定规则 + 文档访问纪律"
 |----|------|------|
 | L0 规则 | `CLAUDE.md` | 架构红线 + 代码规范 + 访问纪律 |
 | L1 架构 | `Docs/architecture/` | 技术选型与设计决策 |
-| L2 规格 | `Docs/specs/` | 各模块机制 + 参数 + 验收清单 |
+| L2 规格 | `Docs/specs/` | 各模块机制 + 参数 |
 | L3 参考 | `Docs/references/` | 原始素材（天守阁弦一郎 AI 分析） |
 | L4 计划 | `Docs/superpowers/` | 设计规格 + 实现计划 |
-
-## 模块 → 规格 → 验收清单 总表
-
-| 模块 | 规格文档 | 验收清单 |
-|------|---------|---------|
-| 弹刀 | `specs/deflect/deflect-mechanics.md` | `deflect-params.md` 末尾 |
-| 架势 | `specs/posture/posture-rules.md` | `posture-params.md` 末尾 |
-| Boss 状态机 | `specs/boss/boss-state-machine.md` | 各状态 Enter/Execute 验收 |
-| Boss AI | `specs/boss/boss-ai-decision.md` | `boss-params.md` 末尾 |
-| 危字 | `specs/danger/danger-types.md` | `danger-params.md` 末尾 |
-| 输入 | `specs/input/input-priority.md` | 各 input spec 末尾 |
-| 动画 | `specs/animation/animation-strategy.md` | `animation-params.md` 末尾 |
-| UI | `specs/ui/ui-overview.md` | `ui-damage-numbers.md` 末尾 |
-
-## 验收流程
-
-1. AI 交付模块时附「验收清单」
-2. 用户在 Unity 打开场景，逐条操作验证
-3. 验收通过 → AI 提交；不通过 → 返回修正
 
 ## 美术资源
 
@@ -291,14 +264,6 @@ Idle → Move → Attack(Startup→Active→Recovery) / Stagger → Collapse →
 - 状态间通过 `_stateMachine.TransitionTo<T>()` 切换
 - Boss 与玩家不直接引用，通过 `CombatEvents` 通信
 
-## 验收清单
-
-- [ ] 操作：打开 GameScene，按 Play
-      预期：场景中存在 Boss 对象，Boss 进入 Idle，不报错
-- [ ] 操作：把玩家移动到 Boss 攻击距离内
-      预期：Boss 从 Idle 切到 Attack，播放攻击动画
-- [ ] 操作：观察 Boss 状态（Debug 或 Inspector）
-      预期：Attack 内完成 Startup→Active→Recovery 三段后回到 Idle
 ````
 
 - [ ] **步骤 3：Commit**
@@ -352,14 +317,6 @@ grep -n "Priority =>" Assets/Scripts/Player/StateMachine/*.cs
 | 架势崩溃/硬直 (8) | ❌ |
 | 忍杀 (9) | ❌ |
 
-## 验收清单
-
-- [ ] 操作：攻击前摇中按弹刀键
-      预期：立即中断攻击进入弹刀（4 > 1）
-- [ ] 操作：攻击判定帧内按闪避
-      预期：攻击判定不可被打断，闪避不生效或等后摇
-- [ ] 操作：Boss 架势归零后按攻击键
-      预期：触发忍杀（9），而非普通攻击（1）
 ````
 
 - [ ] **步骤 3：Commit**
@@ -367,376 +324,6 @@ grep -n "Priority =>" Assets/Scripts/Player/StateMachine/*.cs
 ```bash
 git add Docs/specs/input/input-priority.md
 git commit -m "docs: 重写 input-priority 修正优先级数字与打断矩阵"
-```
-
----
-
-### 任务 6：deflect 模块补验收清单
-
-**文件：** 修改 `Docs/specs/deflect/deflect-mechanics.md`、`Docs/specs/deflect/deflect-penalties.md`、`Docs/specs/deflect/deflect-params.md`
-
-- [ ] **步骤 1：在 deflect-mechanics.md 末尾追加**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：打开 GameScene，玩家按住右键（Deflect）
-      预期：播放格挡动画，进入格挡状态（DeflectSystem.IsBlocking = true）
-- [ ] 操作：Boss 普通攻击判定前 12 帧内点右键
-      预期：PerfectDeflect，0 伤害，HitStop 生效，Boss 架势条涨
-- [ ] 操作：Boss 攻击时保持按住右键
-      预期：NormalBlock，HP×0.4 减伤，双方架势稍增
-- [ ] 操作：攻击从玩家背后方向来袭（夹角 >90°）
-      预期：DeflectResult.None，全额伤害
-````
-
-- [ ] **步骤 2：在 deflect-penalties.md 末尾追加**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：0.5s 内连续点右键 ≥2 次（未成功弹刀）
-      预期：抖刀计数增加，弹刀窗口逐步缩小至 1 帧下限
-- [ ] 操作：连续成功弹刀 2/3/4 次
-      预期：对 Boss 架势伤害倍率 1.2/1.4/1.5
-- [ ] 操作：停止按键或成功弹刀后等 0.5s
-      预期：抖刀计数归零
-````
-
-- [ ] **步骤 3：在 deflect-params.md 的「验收标准」小节后追加「验收清单」**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：新右键轻点 → 弹刀窗口 0.2s 内受击
-      预期：PerfectDeflect（对应"验收标准"第1-2条）
-- [ ] 操作：连续快速点右键 5 次
-      预期：窗口缩至最小 0.016s（第4条）
-- [ ] 操作：攻击夹角 >90°
-      预期：None（第7条）
-````
-
-- [ ] **步骤 4：Commit**
-
-```bash
-git add Docs/specs/deflect/
-git commit -m "docs: deflect 模块补充验收清单"
-```
-
----
-
-### 任务 7：posture 模块补验收清单
-
-**文件：** 修改 `Docs/specs/posture/posture-rules.md`、`Docs/specs/posture/posture-params.md`
-
-- [ ] **步骤 1：在 posture-rules.md 末尾追加**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：玩家普攻命中 Boss
-      预期：Boss 架势条增加 postureDamage
-- [ ] 操作：玩家完美弹刀
-      预期：玩家自身架势 -8% max，Boss 架势大幅增加
-- [ ] 操作：玩家普通格挡
-      预期：玩家自身架势稍增（×0.3）
-- [ ] 操作：脱战 2s 后观察架势条
-      预期：架势以 15%/s 恢复
-- [ ] 操作：把玩家/ Boss 架势打到满
-      预期：触发 OnPostureBroken，玩家进 StunState，Boss 进 CollapseState
-````
-
-- [ ] **步骤 2：在 posture-params.md 的「验收标准」小节后追加「验收清单」**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：把玩家架势打到满
-      预期：玩家进入 StunState，硬直 1.5s（对应验收标准第5-6条）
-- [ ] 操作：把 Boss 架势打到满
-      预期：Boss 进入 CollapseState 2s，可被忍杀
-````
-
-- [ ] **步骤 3：Commit**
-
-```bash
-git add Docs/specs/posture/
-git commit -m "docs: posture 模块补充验收清单"
-```
-
----
-
-### 任务 8：animation 模块补验收清单
-
-**文件：** 修改 `Docs/specs/animation/animation-strategy.md`
-
-- [ ] **步骤 1：在 animation-strategy.md 末尾追加**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：打开 GameScene，玩家按 WASD
-      预期：角色平滑移动，Blend Tree 在 moveX/moveZ/speed 间平滑过渡
-- [ ] 操作：玩家按左键攻击
-      预期：攻击动画用 Root Motion，位移符合招式
-- [ ] 操作：玩家按右键弹刀
-      预期：弹刀动画 + 可被完美弹刀打断
-- [ ] 操作：玩家闪避/识破/喝药
-      预期：对应动画为 Root Motion
-- [ ] 操作：观察 Animator 面板
-      预期：EnableHitbox/OnAttackHit 等 Animation Event 在正确帧触发
-````
-
-- [ ] **步骤 2：Commit**
-
-```bash
-git add Docs/specs/animation/animation-strategy.md
-git commit -m "docs: animation 模块补充验收清单"
-```
-
----
-
-### 任务 9：input 模块补验收清单
-
-**文件：** 修改 `Docs/specs/input/input-buffer.md`、`Docs/specs/input/hitstop.md`、`Docs/specs/input/healing.md`
-
-- [ ] **步骤 1：在 input-buffer.md 末尾追加**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：攻击动画播放中快速按下一次弹刀
-      预期：弹刀输入进入缓冲队列（150ms 窗口），动画到可取消点后取出执行
-- [ ] 操作：等 150ms 后再按
-      预期：陈旧输入被丢弃
-- [ ] 操作：缓冲队列中同时有多个输入
-      预期：取出最高优先级（Deathblow > Deflect > Attack...）
-````
-
-- [ ] **步骤 2：在 hitstop.md 末尾追加**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：玩家普攻命中 Boss
-      预期：画面定格约 0.033s，期间 UI 继续渲染
-- [ ] 操作：玩家完美弹刀
-      预期：帧冻结约 0.05s
-- [ ] 操作：识破成功
-      预期：帧冻结约 0.067s
-````
-
-- [ ] **步骤 3：在 healing.md 末尾追加**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：玩家按 E 喝药（有剩余次数）
-      预期：扣除 1 次，播放喝药动画 0.8s，播完回复 30% MaxHP
-- [ ] 操作：喝药动画中受击
-      预期：动画打断，次数不退还，生命不恢复
-- [ ] 操作：剩余次数为 0 时按 E
-      预期：无反应，UI 药葫芦计数为 0
-````
-
-- [ ] **步骤 4：Commit**
-
-```bash
-git add Docs/specs/input/
-git commit -m "docs: input 模块补充验收清单"
-```
-
----
-
-### 任务 10：boss 模块补验收清单
-
-**文件：** 修改 `Docs/specs/boss/boss-ai-decision.md`、`Docs/specs/boss/boss-attacks.md`、`Docs/specs/boss/boss-deflect.md`、`Docs/specs/boss/boss-params.md`
-
-- [ ] **步骤 1：在 boss-ai-decision.md 末尾追加**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：玩家距离 Boss 3m 内
-      预期：Boss 在横斩/上挑/三连斩/突刺/下劈/跳跃劈/扫击间按权重随机选招
-- [ ] 操作：玩家距离 Boss >4m
-      预期：Boss 大概率选择射箭
-- [ ] 操作：玩家连续攻击 3 段+
-      预期：Boss 有较高概率进入弹刀姿态
-- [ ] 操作：玩家喝药
-      预期：Boss 大概率突进攻击
-````
-
-- [ ] **步骤 2：在 boss-attacks.md 末尾追加**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：Boss 使出横斩/上挑/下劈/跳跃劈
-      预期：对应动画播放，判定帧 OverlapSphere 命中玩家
-- [ ] 操作：Boss 使出突刺
-      预期：触发 Thrust 危字，玩家可识破（Shift 无方向）
-- [ ] 操作：Boss 使出扫击
-      预期：触发 Sweep 危字，玩家可跳跃踩头
-- [ ] 操作：Boss 射箭（isRanged）
-      预期：播放射箭动画（注：当前代码射箭无投射物无伤害，属待实现，见代码注释）
-````
-
-- [ ] **步骤 3：在 boss-deflect.md 末尾追加**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：玩家普攻命中 Boss
-      预期：Boss 有 40% 概率进入弹刀姿态
-- [ ] 操作：玩家连招 2 段+
-      预期：Boss 弹刀概率升至 60%
-- [ ] 操作：Boss HP <30%
-      预期：弹刀概率降至 25%
-- [ ] 操作：Boss 弹刀成功
-      预期：玩家架势 ×1.5、硬直 0.3s，Boss 获得反击窗口
-````
-
-- [ ] **步骤 4：在 boss-params.md 的「验收标准」小节后追加「验收清单」**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：观察 Boss AI 决策（Debug 日志）
-      预期：按距离和权重动态选招，覆盖 9 种招式（验收标准第1条）
-- [ ] 操作：对比玩家与 Boss 弹刀窗口
-      预期：Boss 9 帧 < 玩家 12 帧（第2条）
-- [ ] 操作：Boss 架势归零
-      预期：崩溃 → 忍杀（第6条）
-````
-
-- [ ] **步骤 5：Commit**
-
-```bash
-git add Docs/specs/boss/
-git commit -m "docs: boss 模块补充验收清单"
-```
-
----
-
-### 任务 11：danger 模块补验收清单
-
-**文件：** 修改 `Docs/specs/danger/danger-types.md`、`Docs/specs/danger/mikiri-stomp.md`、`Docs/specs/danger/danger-params.md`
-
-- [ ] **步骤 1：在 danger-types.md 末尾追加**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：Boss 使出突刺危
-      预期：屏幕出现红色↓ 危字提示，持续整个前摇+判定帧
-- [ ] 操作：Boss 使出扫击危
-      预期：红色→ 危字提示
-- [ ] 操作：Boss 使出投技（如有）
-      预期：红色↑ 危字提示
-- [ ] 操作：危字攻击后摇开始
-      预期：危字提示隐藏
-````
-
-- [ ] **步骤 2：在 mikiri-stomp.md 末尾追加**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：突刺危判定帧内按 Shift（无方向）
-      预期：识破成功：踩刀动画 + 音效 + 帧冻结 0.067s + 敌方架势+50 + 硬直0.5s
-- [ ] 操作：突刺危判定帧内按 Shift（带方向）
-      预期：普通闪避，无识破
-- [ ] 操作：突刺危不按 Shift
-      预期：被刺中，受伤+架势上升
-- [ ] 操作：下段扫击时跳跃（下落经过敌人头顶，Y偏移<0.5m、水平<1.5m）
-      预期：踩头成功，敌方架势+30，帧冻结 0.05s
-````
-
-- [ ] **步骤 3：在 danger-params.md 的「验收标准」小节后追加「验收清单」**
-
-````markdown
-## 验收清单
-
-- [ ] 操作：触发突刺危后按 Shift 识破
-      预期：对应参数生效（距离<3m + 角度<60°，验收标准第3-4条）
-- [ ] 操作：下段扫击跳跃踩头
-      预期：敌方架势+30（第2条）
-- [ ] 操作：非突刺按 Shift
-      预期：普通闪避无惩罚（第5条）
-````
-
-- [ ] **步骤 4：Commit**
-
-```bash
-git add Docs/specs/danger/
-git commit -m "docs: danger 模块补充验收清单"
-```
-
----
-
-### 任务 12：ui 模块补验收清单
-
-**文件：** 修改 `Docs/specs/ui/ui-overview.md`、`Docs/specs/ui/ui-events.md`、`Docs/specs/ui/ui-damage-numbers.md`
-
-- [ ] **步骤 1：在 ui-overview.md 末尾追加**
-
-````markdown
-## 验收清单
-
-> 注：UI 系统当前未实现（无 UI 脚本），以下为验收目标。实现后逐条验证。
-
-- [ ] 操作：玩家受伤
-      预期：左上角血条缩减，0.3s 后白色残影条跟随
-- [ ] 操作：玩家架势 >80%
-      预期：架势条变红闪烁预警
-- [ ] 操作：Boss 架势归零
-      预期：Boss 血条上方忍杀提示闪烁
-- [ ] 操作：玩家喝药
-      预期：右下角药葫芦计数更新
-- [ ] 操作：Boss 使出危字攻击
-      预期：屏幕中央红色危字提示
-````
-
-- [ ] **步骤 2：在 ui-events.md 末尾追加**
-
-````markdown
-## 验收清单
-
-> 注：UI 事件订阅当前未实现，以下为验收目标。
-
-- [ ] 操作：完美弹刀
-      预期：伤害数字(黄"弹") + 屏幕闪光
-- [ ] 操作：普通格挡
-      预期：伤害数字(灰"挡")
-- [ ] 操作：识破成功
-      预期：伤害数字(蓝"识破") + 屏幕震动
-- [ ] 操作：忍杀
-      预期：全屏闪白 + 隐藏忍杀提示
-````
-
-- [ ] **步骤 3：在 ui-damage-numbers.md 的「验收」小节后追加「验收清单」**
-
-````markdown
-## 验收清单
-
-> 注：伤害数字系统当前未实现，以下为验收目标。
-
-- [ ] 操作：普攻命中
-      预期：白色 24pt 数字在命中点弹出，上飘 2单位/s，1.0s 淡出
-- [ ] 操作：弹刀
-      预期：黄色 28pt 数字
-- [ ] 操作：识破
-      预期：蓝色 32pt 数字
-- [ ] 操作：多个数字同时弹出
-      预期：随机偏移避免重叠（对象池复用）
-````
-
-- [ ] **步骤 4：Commit**
-
-```bash
-git add Docs/specs/ui/
-git commit -m "docs: ui 模块补充验收清单（标注待实现）"
 ```
 
 ---
@@ -751,15 +338,6 @@ git commit -m "docs: ui 模块补充验收清单（标注待实现）"
 grep -rn 'DOCS/' --include="*.md" CLAUDE.md Docs/ | head
 ```
 预期：无输出（或仅设计文档内的历史描述）。
-
-- [ ] **步骤 2：验证每份 spec 有验收清单**
-
-```bash
-for f in $(find Docs/specs -name "*.md"); do
-  if ! grep -q "验收清单" "$f"; then echo "缺少验收清单: $f"; fi
-done
-```
-预期：无输出（22 份 specs 全部含验收清单）。
 
 - [ ] **步骤 3：验证 git 工作区干净**
 

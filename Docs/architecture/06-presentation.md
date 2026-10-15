@@ -1,6 +1,6 @@
 # 06 UI、音效与相机表现
 
-> 现状依据：UI、Audio、Camera 与事件总线源码。手动验收见 06-presentation-test.md。
+> 现状依据：UI、Audio、Camera 与事件总线源码。
 
 ## 事件驱动边界
 

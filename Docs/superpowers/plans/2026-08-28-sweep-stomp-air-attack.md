@@ -6,11 +6,11 @@
 
 **架构：** Jump2 与空中刀都是 `AirState` 叶子。踩头走 `CombatManager.ApplySweepStomp`（`TakeDamage`，不 `ReceiveHit`）并置 `SuppressAttackHitbox`。空中三连是独立 `AirAttackState`，落地立刻回 `GroundedState`。
 
-**技术栈：** Unity 2022 LTS、现有 HFSM、`AttackConfig` SO。本项目无自动化测试；用 Unity 编译 0 error + 架构验收清单。不要新建 Test Runner。不要擅自 git commit。
+**技术栈：** Unity 2022 LTS、现有 HFSM、`AttackConfig` SO。本项目无自动化测试；用 Unity 编译 0 error。不要新建 Test Runner。不要擅自 git commit。
 
 **规格：** `Docs/superpowers/specs/2026-08-28-sweep-stomp-air-attack-design.md`
 
-**本任务只改这些架构文档：** `01-states.md`、`01-states-test.md`、`03-hit-detection.md`、`03-hit-detection-test.md`
+**本任务涉及的架构文档：** `01-states.md``03-hit-detection.md`
 
 **不要做：** JumpThrust 镜头/迷雾/落地分叉；空中格挡/垫步/空中受击片；非 Sweep 踩 Boss 给上升；踩头进 `MikiriCounterState` / `ForceParryStun`。
 
@@ -491,64 +491,6 @@ Unity MCP Import `AirAttackState.cs`，`read_console` error 为空。
 - [ ] **步骤 3：确认 Animator**
 
 玩家 controller 已有短名 `Jump2`、`AirAttack1/2/3`。没有就停下来问用户，不要改名去迁就错误短名。
-
----
-
-### 任务 6：架构文档 + 验收清单
-
-**文件：**
-- `Docs/architecture/01-states.md`
-- `Docs/architecture/01-states-test.md`
-- `Docs/architecture/03-hit-detection.md`
-- `Docs/architecture/03-hit-detection-test.md`
-
-- [ ] **步骤 1：01-states.md**
-
-HFSM 树 `AirState` 改为：
-
-```
-├─ AirState（父状态）
-│  └─ SubStateMachine
-│     ├─ AirIdleState     ← Jump / Jumping / Jump2 / Fall
-│     └─ AirAttackState   ← AirAttack1→2→3
-```
-
-「已移除」一句改成：`AirDeflectState` / `AirStunnedState` / 独立 `JumpState`/`FallState` 仍不恢复。`AirAttackState` 已恢复。
-
-空中命令：滞空可 `AttackCommand`（随时）与一次 `JumpCommand`（Jump2）。落地立刻离开 `AirAttackState`。Jump2 没踩中不给垂直速度。踩中见 03。
-
-- [ ] **步骤 2：01-states-test.md**
-
-Animator 表增加 `Jump2`、`AirAttack1`、`AirAttack2`、`AirAttack3`。验收表增加：
-
-| # | 操作 | 预期 |
-|---|------|------|
-| A1 | 普通跳，空中点攻击 | 播 AirAttack1，可接 2、3；伤害与地面对应轻砍相同 |
-| A2 | 空中三连未完落地 | 立刻回地面 Idle，不在地上把空中刀挥完 |
-| A3 | 普通跳空中点跳 | 播 Jump2，人不再明显升高 |
-| A4 | 同一跳第二次点跳 | 不再播 Jump2 |
-
-- [ ] **步骤 3：03-hit-detection.md**
-
-Sweep 那一行改成：
-
-- `Sweep` 横扫 → 先跳，空中再 `Jump2` 踩在 Boss 身上（上升 + 轻砍第一刀伤害，Boss 不播受击，本招判定关闭但动画继续）或垫步无敌躲避；**不可防御、不可弹反、不可 Mikiri**；只跳一次空中挨扫 = 没防。
-
-删「空中被 Sweep 命中自动反制」。
-
-- [ ] **步骤 4：03-hit-detection-test.md**
-
-M17 增加：
-
-| # | 操作 | 预期 |
-|---|------|------|
-| 10b | Boss 放 Sweep，跳起再 Jump2 踩中 | 玩家上升；Boss 掉与轻砍第一刀相同的血/架势、不播 Hurt；横扫继续但后续扫不中 |
-| 10c | Boss 放 Sweep，只跳一次空中挨扫 | 全额受伤，Boss 不被弹开 |
-| 10d | Sweep 时无方向垫步 | 不识破（仍只有突刺 Mikiri） |
-
-- [ ] **步骤 5：交付说明**
-
-不要自称 Play 过关。请用户按 A1–A4 与 10b–10d 验收。
 
 ---
 

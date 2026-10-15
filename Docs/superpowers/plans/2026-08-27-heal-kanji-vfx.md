@@ -6,10 +6,10 @@
 
 **架构：** 沿用 `OnGourdUsed`。`CombatUIController` 把跟随目标绑到玩家。`HealKanjiView` 照 `PerilousWarningView`：世界空间 Quad + 加法 Shader，另加旋转 Aura 与 ParticleSystem。`LateUpdate` 钉头骨、朝向相机。
 
-**技术栈：** Unity 2022 LTS、URP、DoTween、CombatEventBus。无自动化测试；交付验收清单。不要 commit。
+**技术栈：** Unity 2022 LTS、URP、DoTween、CombatEventBus。无自动化测试。不要 commit。
 
 **规格：** `Docs/superpowers/specs/2026-08-27-heal-kanji-vfx-design.md`  
-**只改架构文档：** `Docs/architecture/06-presentation.md`、`06-presentation-test.md`
+**只改架构文档：** `Docs/architecture/06-presentation.md`
 
 ---
 
@@ -23,7 +23,6 @@
 | 修改 `Assets/Scripts/UI/CombatUIController.cs` | `HandleGourdUsed` 播治字 |
 | 修改 `Assets/Editor/CombatHUDBuilder.cs` | 绑定 `healKanjiView` |
 | 修改 `Docs/architecture/06-presentation.md` | 治愈 Billboard 小节 |
-| 修改 `Docs/architecture/06-presentation-test.md` | #15 旁加治字项 |
 | 用户提供 `Assets/Sekiro/FX/治.png` | Builder 输入；不要手写 PNG |
 | Builder 生成 `Assets/Prefabs/FX/Heal/` | 不要手写 YAML Prefab |
 
@@ -45,4 +44,4 @@
 - [x] 查找并赋值 `healKanjiView`
 
 ### 任务 6：文档
-- [x] `06-presentation.md` / `06-presentation-test.md`
+- [x] `06-presentation.md`

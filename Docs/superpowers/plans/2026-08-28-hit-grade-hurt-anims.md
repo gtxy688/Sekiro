@@ -6,9 +6,9 @@
 
 **架构：** 等级是招式数据（`HitGrade`），随命中进 `HitData`。玩家受击走新规则；Boss 被打仍用 `Knockback > 0` → `Hurt_Ground` / `Hurt_Heavy`。箭走 `ReportProjectileHit` 的 `isProjectile`，用来区分箭 Heavy 的特殊格挡/弹反。
 
-**技术栈：** Unity 2022 LTS、现有 HFSM、`BossMoveDamageWindow`。本项目无自动化测试；用编译 0 error + 验收清单。不要新建 Test Runner。不要擅自 git commit。
+**技术栈：** Unity 2022 LTS、现有 HFSM、`BossMoveDamageWindow`。本项目无自动化测试；用编译 0 error。不要新建 Test Runner。不要擅自 git commit。
 
-**本任务只改这些架构文档：** `01-states.md`、`01-states-test.md`、`03-hit-detection.md`、`03-hit-detection-test.md`
+**本任务涉及的架构文档：** `01-states.md``03-hit-detection.md`
 
 **不要做：** 改 Boss 被打的受击套；把玩家招式改成表；拆 `Hurt_Mid` 为两个 Animator 状态；给 Heavy 标倒地结束点。
 
@@ -90,9 +90,7 @@ Boss 被玩家打：继续 `knockback > 0` → `Hurt_Heavy`，否则 `Hurt_Groun
 | 修改 `Assets/Scripts/Boss/GenichiroMoveCatalog.cs` | 默认表带等级 |
 | 修改 `Assets/SO/Boss/GenichiroMoveTable.asset` | 按分类表写入各段等级（只改 grade，不改时间） |
 | 修改 `Docs/architecture/01-states.md` | 受击/格挡规则 |
-| 修改 `Docs/architecture/01-states-test.md` | 验收 |
 | 修改 `Docs/architecture/03-hit-detection.md` | 等级随命中传递 |
-| 修改 `Docs/architecture/03-hit-detection-test.md` | 招式伤害窗口 + 几条代表招 |
 
 字段名锁定（后续任务禁止改名）：
 
@@ -736,7 +734,7 @@ Boss 格挡保持 `knockback > 0 ? GuardHeavy : Guard`。
 
 - [ ] **步骤 4：`MidToGuardState.OnHitReceived` 改为创建临时逻辑太重。改为切 `DeflectState(..., pendingHit: hit, mode: Normal)` 让 Deflect 处理这一击。窗口从进 Deflect 起算。可接受：起身防的弹反窗口在 MidToGuard 结束才开始。被打发生在 MidToGuard 期间：直接 `return false` 当没防打断（起身动作还没防好）。保持任务 3 的 `return false`。**
 
-不要在 MidToGuard 里复制一整份 Deflect。被打打断起身是可验收行为。
+不要在 MidToGuard 里复制一整份 Deflect。被打打断起身是可观察行为。
 
 - [ ] **步骤 5：编译。**
 
@@ -789,65 +787,6 @@ YAML 枚举：`hitGrade: 0` Light，`1` Mid，`2` Heavy。
 
 ---
 
-### 任务 6：架构文档 + 验收清单
-
-**文件：**
-- 修改：`Docs/architecture/01-states.md`
-- 修改：`Docs/architecture/01-states-test.md`
-- 修改：`Docs/architecture/03-hit-detection.md`
-- 修改：`Docs/architecture/03-hit-detection-test.md`
-
-- [ ] **步骤 1：`01-states.md`**
-
-替换「未格挡受击：按 knockback 选择 Hurt_Ground / Hurt_Heavy」为玩家三级表 + 连续受击规则 + Standing + MidToGuard + 格挡/弹反表。写明 Boss 被打仍 knockback。写明二次受击**扣血**（废止旧「拦截不掉血」仅对 Boss 有效）。
-
-`ReceiveHit` 伪代码补 `hitGrade` / `isProjectile`。
-
-涉及文件列表加上本计划新建/修改的脚本。
-
-- [ ] **步骤 2：`01-states-test.md`**
-
-Animator 表：`Hurt_Ground` → `Hurt_Light`；增加 `Hurt_Light2`、`Hurt_Mid`、`Hurt_HeavyRepeat`、`Standing`、`MidToGuard`、`Deflect_HeavyArrow`。
-
-改第 2 条：未防御 Light 播 `Hurt_Light`。
-
-改第 3 条：**二次受击掉血涨架势**；动画是否刷新看等级（Light 重播 Light2；Mid 同级不刷新；Heavy 同级播 Repeat）。
-
-新增验收：
-
-| # | 操作 | 预期 |
-|---|------|------|
-| 3a | Hurt_Light 中再吃 Light | 掉血，播 `Hurt_Light2`；再吃仍重播 `Hurt_Light2` |
-| 3b | Hurt_Mid 中再吃 Light/Mid | 掉血，动画不刷新；吃 Heavy 播 `Hurt_HeavyRepeat` |
-| 3c | Hurt_Heavy 中再吃 Light/Mid | 掉血，不刷新；再吃 Heavy 播 `Hurt_HeavyRepeat` |
-| 3d | Hurt_Mid / Hurt_Heavy 播完 | 播 `Standing` 再回 Idle；Standing 中挨刀按新一击完整播 |
-| 3e | Hurt_Mid 倒地结束前按防御 | `MidToGuard`；按住进举刀，松开回 Idle |
-| 3f | Hurt_Mid 躺地后再按防御 | 不进 MidToGuard |
-| 6a | 格挡 Light/Mid（刀或箭） | `Hurt_Guard` |
-| 6b | 格挡刀 Heavy | 防不住，等同没防，`Hurt_Heavy` |
-| 6c | 格挡箭 Heavy（Bow_Heavy） | `Stagger_Broken`，架势条不因这段动画而崩（伤害仍按格挡涨架势）；播完按住继续举刀 |
-| 7a | 弹反 Light | `Deflect_Slash` |
-| 7b | 弹反 Mid 或刀 Heavy | `Deflect_HeavySlash` |
-| 7c | 弹反箭 Heavy | `Deflect_HeavyArrow` |
-
-旧第 6/7 条（Knockback 分轻重视）改为指向 6a–7c。
-
-- [ ] **步骤 3：`03-hit-detection.md`**
-
-「段/刀伤害」段：`hitGrade` 与伤害同一套覆盖。`ARPG/招式伤害` 用等级枚举，不再勾重击。`ReportHit` / `ReportProjectileHit` 把 `HitGrade` 和 `isProjectile` 写入 `HitData`。玩家受击读等级；Boss 受击仍读 knockback。
-
-- [ ] **步骤 4：`03-hit-detection-test.md` 增加**
-
-| # | 操作 | 预期 |
-|---|------|------|
-| G1 | 打开 ARPG/招式伤害 | 每招有等级下拉；段勾覆盖后能改；不勾显示招默认 |
-| G2 | Bow_Shot 无覆盖应为 Mid | 玩家裸吃 `Hurt_Mid` |
-| G3 | 改 Bow_Shot 为 Light 存盘再打 | 裸吃变 `Hurt_Light`（改完测完改回 Mid） |
-
-- [ ] **步骤 5：对照本计划「已锁定规则」每一条，文档里都能找到对应句。没有占位「待定」。**
-
----
-
 ## 用户需在 Unity 里准备的动画状态（代码按短名 CrossFade）
 
 玩家 Animator（Boss 不必加）：
@@ -872,7 +811,6 @@ Animator 表：`Hurt_Ground` → `Hurt_Light`；增加 `Hurt_Light2`、`Hurt_Mid
 | 等级可在招式伤害编辑 | 1 |
 | 分类表写入各招 | 5 |
 | 只玩家、Boss 旧套 | 2 ReceiveHit 分支 |
-| 文档/验收 | 6 |
 | Elbow 特殊动画 | 5 按 Light，无新 Clip 名 |
 
 无「待定」、无「类似任务 N」。`HitGrade` / `overrideCombat` 继承规则任务 1 与任务 5 一致。

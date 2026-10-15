@@ -6,11 +6,11 @@
 
 **架构：** 行为树保持薄 Selector。选招是纯函数 `BossMovePicker`。出招节点把表行烤成运行时 `AttackConfig`，写入 `CharacterBody.ActiveAttack` 再 `TryExecuteCommand(new AttackCommand())`。多段招在同一节点内顺序进 `AttackState`。交锋：`ForceParryStun` 置 `KengekiArmed`，等 `ParriedState` 结束（`IsParried == false`）再抽招。正在播的招由叶子自己记住。Selector 只对实现 `ISelectorLock` 的 Running 子节点续跑；**禁止**记住 `BT_MoveToTarget` 的 Running，否则追击时招架永远抢不到。
 
-**技术栈：** Unity 2022.3、C#、HFSM、行为树、ScriptableObject。本项目无自动化测试；每个任务用 Unity 编译 0 error + 手测验证。不要新建 Test Runner 程序集。不要擅自 git commit（仅当用户本会话明确要求时才提交）。
+**技术栈：** Unity 2022.3、C#、HFSM、行为树、ScriptableObject。本项目无自动化测试；每个任务用 Unity 编译 0 error。不要新建 Test Runner 程序集。不要擅自 git commit（仅当用户本会话明确要求时才提交）。
 
 **规格：** `Docs/superpowers/specs/2026-08-23-genichiro-full-ai-design.md`  
 **资源表：** `Docs/architecture/04-boss-ai-move-assets.md`  
-**本任务只改这两份架构文档：** `Docs/architecture/04-behavior-tree-ai.md`、`Docs/architecture/04-behavior-tree-ai-test.md`
+**本任务涉及的架构文档：** `Docs/architecture/04-behavior-tree-ai.md`
 
 **现有 API（必须按此写，不要发明别名）：**
 
@@ -57,7 +57,7 @@
 | 修改 `Assets/Scripts/FrameWork/States/Ground/ParriedState.cs` | 进出维护 `IsParried` |
 | 修改 `Assets/Scripts/Boss/BehaviourTree/Selector.cs` | Running 时写入索引，且仅当子节点是 `ISelectorLock` |
 | 修改 `Assets/Scripts/Boss/BehaviourTree/BT/BT_Deflect.cs` | 公开 `IsActive`；冷却调用 `SetCooldown` |
-| 修改两份 `04-behavior-tree-ai*.md` | 完整薄树 + 手测清单 |
+| 修改 `04-behavior-tree-ai.md` | 完整薄树清单 |
 | 创建 `Assets/SO/Boss/GenichiroMoveTable.asset` | Editor 菜单生成，不要手写 YAML |
 
 不改：`AttackState`、`CombatManager`、`Hitbox`、玩家 `AttackConfig` 链。`BT_Combo` / `BT_HitOnce` 文件可留，树里不挂。
@@ -370,7 +370,7 @@ public override void OnExit()
 
 现有回 `GroundedState` 的 `ChangeState` 会调 `OnExit`。硬直期间 `HandleCommand` 仍吞掉所有命令，所以交锋出招必须等 `IsParried == false`。
 
-- [ ] **步骤 4：编译。Play：完美弹刀 Boss，硬直期间 `IsParried` 为真、结束后为假；`KengekiArmed` 在硬直开始即为真。不要 commit。**
+- [ ] **步骤 4：编译。不要 commit。**
 
 ---
 
@@ -729,7 +729,7 @@ public class BT_PickActive : Node, ISelectorLock
 
 三个 `BT_ExecuteMove` 实例不要共用（交锋/重箭/主动状态机互相踩）。
 
-- [ ] **步骤 6：编译。Play：表还是空数组时只会走、不会砍。不要 commit。**
+- [ ] **步骤 6：编译。不要 commit。**
 
 ---
 
@@ -933,54 +933,9 @@ asset 已存在则菜单只选中，不覆盖。更新内容用 Inspector 按钮
 
 ---
 
-### 任务 7：架构文档与验收清单
+### 任务 8：编译检查
 
-**文件：** `Docs/architecture/04-behavior-tree-ai.md`、`Docs/architecture/04-behavior-tree-ai-test.md`
-
-- [ ] **步骤 1：把「简单树」改成完整薄树。不要写普攻 1-2-3-4，不要再把 `BT_Combo` + `lastComboIndex` 当正路。**
-
-```
-Selector:
-├─ 崩解中 → Success（不选招）
-├─ BT_Kengeki（武装且硬直结束、距离≤2.5 → 交锋表）
-├─ BT_DeflectIf（玩家攻击中、距离、冷却）
-├─ 玩家 IsHealing → Bow_Heavy
-├─ BT_PickActive（距离档加权）
-└─ BT_MoveToTarget
-```
-
-写明：`Slash_Spin`+`Elbow` 一行 `Slash_SpinElbow`；`Boat` ≠ `Boat_Full`；`Kengeki_Slash` 五片随机；`Kengeki_Bow` 先 3031 再二选一。
-
-- [ ] **步骤 2：验收清单增加「M7 完整版」，简单版标明已被替换。必须含：**
-
-1. 远（>7m）：会 `Bow_Shot` / `Bow_ThenSlash` 或 `Slash_Rush2`，不站桩空挥。  
-2. 5–7m：能见 `Slash_Rush2` / 飞舟（架势偏低时）。  
-3. 3–5m：能见二连 / 重砍 / 旋转接肘。  
-4. ≤3m：能见转身砍、踢、后跳五连。  
-5. 完美弹刀且未崩解、贴身：还击来自交锋表；多次 `Kengeki_Slash` 会换片。  
-6. 弹刀后拉开 >2.5m：不交锋，回主动。  
-7. Boss HP <75% 时弹刀：有机会 `Boat_Full`。  
-8. `JumpThrust` / `Kengeki_Thrust`：危字 + 识破仍崩解。  
-9. `Sweep`：危字 + 跳踩仍成立。  
-10. 玩家喝药：Boss 出 `Bow_Heavy`（Boss 自己不在近战动画中时）。  
-11. 空中五连：能完整播完；有时会被重箭打断。  
-12. 回归：追击朝向、招架弹开、崩解忍杀与简单树已验收行为一致。  
-13. Console：缺 Animator 状态的招不出（权重 0），无新的每帧 error。
-
-- [ ] **步骤 3：不要 commit。**
-
----
-
-### 任务 8：实现者编译与冒烟
-
-- [ ] 编译 0 error  
-- [ ] Boss 上 `moveTable` 已赋值，`PlayerTarget` / `PlayerBody` 仍在  
-- [ ] Play 约 30 秒：Boss 会接近并发招，无 NRE  
-- [ ] 对照任务 7 列出「实现者已看过 / 需用户验」  
-
-不要把用户才能确认的手感写成已完成。
-
----
+- [ ] 编译 0 error。
 
 ## 规格覆盖自检
 
@@ -992,7 +947,6 @@ Selector:
 | 交锋表、Slash 五随机、Bow 二选一、Boat_Full HP&lt;75% | 3, 5, 6 |
 | 招架、喝药重箭、五连打断 | 4, 5 |
 | 替换 HitOnce、不改崩解忍杀 | 5 |
-| 手测 | 7, 8 |
 
 无 TODO 挡实现。权重写在表里，手感调 SO。
 
@@ -1004,4 +958,4 @@ Selector:
 - 给 Boss 建一堆 AttackConfig SO 当招谱  
 - 把 `BT_Combo` 的 AttackSet 下标当弦一郎连招  
 - 修 Selector 时记住 `BT_MoveToTarget`  
-- 自动 git commit  
+- 自动 git commit
