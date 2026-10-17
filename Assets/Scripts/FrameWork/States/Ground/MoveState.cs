@@ -15,7 +15,7 @@ namespace ARPG.FrameWork.States.Ground
     {
         private HierarchicalState parent;
         private readonly string enterAnim;
-        private float rotationSpeed = 720f;
+        private readonly float rotationSpeed;
         private float enterTimer;
         private float enterDuration = 0.45f;
         private bool inEnterTransition;
@@ -26,10 +26,7 @@ namespace ARPG.FrameWork.States.Ground
         {
             this.parent = parent;
             this.enterAnim = enterAnim;
-            if (body.Config != null)
-            {
-                rotationSpeed = body.Config.RotationSpeed;
-            }
+            rotationSpeed = body.Config.RotationSpeed;
         }
 
         public override void OnEnter()

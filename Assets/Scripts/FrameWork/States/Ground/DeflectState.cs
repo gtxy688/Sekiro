@@ -75,7 +75,7 @@ namespace ARPG.FrameWork.States.Ground
         private bool arrowHeavyGuard; // 箭 Heavy 普通格挡：播完 Stagger_Broken 才能回举刀
         private bool arrowHeavyDeflect; // 箭 Heavy 完美弹反：播完 Deflect_HeavyArrow 才能回举刀
         private float arrowHeavyLockTimer;
-        private float rotationSpeed = 720f;
+        private readonly float rotationSpeed;
 
         public DeflectState(CharacterBody body, HierarchicalState parent, bool remash = false,
             DeflectEntryMode mode = DeflectEntryMode.Normal, HitData? pendingHit = null,
@@ -86,7 +86,7 @@ namespace ARPG.FrameWork.States.Ground
             this.mode = mode;
             this.pendingHit = pendingHit;
             this.pressId = pressId;
-            if (body.Config != null) rotationSpeed = body.Config.RotationSpeed;
+            rotationSpeed = body.Config.RotationSpeed;
         }
 
         public override void OnEnter()
@@ -465,7 +465,7 @@ namespace ARPG.FrameWork.States.Ground
             // 箭不是刀刃相撞：弹开只挡伤害，不涨攻击者架势、不把 Boss 弹进硬直。
             if (hit.attacker != null && !hit.isProjectile)
             {
-                float gain = body.Config != null ? body.Config.DeflectPostureGain : 30f;
+                float gain = body.Config.DeflectPostureGain;
                 brokeAttackerPosture = hit.attacker.AccumulatePosture(
                     gain,
                     allowBreak: true,
@@ -500,9 +500,9 @@ namespace ARPG.FrameWork.States.Ground
                 hit.attacker.NotifyPerfectlyParried();
             // 先保存配置下限作缺失动画的兜底；安排反击时再读取真实硬直状态的预测。
             parriedOpponent = hit.attacker;
-            float minimumDuration = hit.attacker != null && hit.attacker.Config != null
+            float minimumDuration = hit.attacker != null
                 ? hit.attacker.Config.ParriedDuration
-                : (body.Config != null ? body.Config.ParriedDuration : 1.0f);
+                : body.Config.ParriedDuration;
             parriedRecoveryTime = Time.time + minimumDuration;
 
             CombatEventBus.TriggerWeaponDeflected(
@@ -564,7 +564,7 @@ namespace ARPG.FrameWork.States.Ground
             CharacterBody attacker = hit.attacker;
             if (attacker != null && !hit.isProjectile)
             {
-                float gain = body.Config != null ? body.Config.DeflectPostureGain : 30f;
+                float gain = body.Config.DeflectPostureGain;
                 attacker.AccumulatePosture(gain, allowBreak: true, source: PostureBreakSource.Deflect);
                 attacker.ForceParryStun("Deflected_Boat");
             }
@@ -599,7 +599,7 @@ namespace ARPG.FrameWork.States.Ground
                     hit.attacker.ResetConsecutiveTimesParried();
             }
 
-            float posture = hit.postureDmg * (body.Config != null ? body.Config.GuardPostureFactor : 0.5f);
+            float posture = hit.postureDmg * body.Config.GuardPostureFactor;
             if (body.AccumulatePosture(posture))
             {
                 // 格挡把架势打满已经切崩解，不能再覆盖成 Hurt_Guard。
@@ -628,7 +628,7 @@ namespace ARPG.FrameWork.States.Ground
         // 箭 Heavy：共用崩解动画，但不是真崩架势。必须播完才能回举刀。
         private bool PlayArrowHeavyGuard(HitData hit)
         {
-            float posture = hit.postureDmg * (body.Config != null ? body.Config.GuardPostureFactor : 0.5f);
+            float posture = hit.postureDmg * body.Config.GuardPostureFactor;
             if (body.AccumulatePosture(posture))
                 return true;
 
@@ -656,7 +656,7 @@ namespace ARPG.FrameWork.States.Ground
                     return false;
                 parriedRecoveryTime = recoveryTime;
             }
-            float hitDelay = body.Config != null ? body.Config.ParryCounterHitDelay : 0.1f;
+            float hitDelay = body.Config.ParryCounterHitDelay;
             counterFireTime = parriedRecoveryTime + hitDelay - pendingCounter.HitStartTime;
             return true;
         }

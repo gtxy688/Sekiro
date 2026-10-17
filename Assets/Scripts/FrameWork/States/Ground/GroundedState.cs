@@ -105,14 +105,13 @@ namespace ARPG.FrameWork.States.Ground
             if (cmd is FinisherCommand)
             {
                 if (body.Faction == Faction.Player)
-                    CombatManager.Instance?.TryExecuteAvailableFinisher(body);
+                    CombatManager.Instance.TryExecuteAvailableFinisher(body);
                 return true;
             }
 
             // Boss 已可忍杀时残留的普通攻击预输入直接丢弃，不能再落到 Idle/Move 开一刀。
             if (cmd is AttackCommand &&
                 body.Faction == Faction.Player &&
-                CombatManager.Instance != null &&
                 CombatManager.Instance.HasAvailableFinisher(body))
             {
                 return true;

@@ -15,14 +15,13 @@ namespace ARPG.UI
         // 设置葫芦图标（不同葫芦贴图可换）
         public void SetGourdIcon(Sprite icon)
         {
-            if (gourdIcon != null)
-                gourdIcon.sprite = icon;
+            gourdIcon.sprite = icon;
         }
 
         // 设置剩余数量
         public void SetGourdCount(int count)
         {
-            if (countText != null) countText.text = count.ToString();
+            countText.text = count.ToString();
         }
     }
 

@@ -59,7 +59,6 @@ namespace ARPG.Configs
 
         public static void ApplyNoHit(AttackConfig cfg)
         {
-            if (cfg == null) return;
             cfg.hitPulses = new HitPulse[0];
             cfg.HitStartTime = cfg.StateDuration;
             cfg.RecoveryWindowStart = cfg.StateDuration;
@@ -68,7 +67,6 @@ namespace ARPG.Configs
 
         public static void ApplyNoHit(BossMoveWindow w)
         {
-            if (w == null) return;
             w.hitPulses = new HitPulse[0];
             w.hitStartTime = w.stateDuration;
             w.recoverStart = w.stateDuration;
@@ -77,7 +75,6 @@ namespace ARPG.Configs
 
         public static void ApplyPulses(AttackConfig cfg, HitPulse[] pulses)
         {
-            if (cfg == null) return;
             cfg.hitPulses = pulses;
             if (pulses == null || pulses.Length == 0) return;
             HitPulse first = pulses[0];
@@ -92,7 +89,6 @@ namespace ARPG.Configs
 
         public static void ApplyPulses(BossMoveWindow w, HitPulse[] pulses)
         {
-            if (w == null) return;
             w.hitPulses = pulses;
             if (pulses == null || pulses.Length == 0) return;
             HitPulse first = pulses[0];
@@ -108,7 +104,6 @@ namespace ARPG.Configs
         // 时间轴只保存红条时，stateDuration 可能仍是旧占位值。时长必须盖住判定/连招窗，否则 AttackState 会拒收。
         public static void CoverDuration(AttackConfig cfg)
         {
-            if (cfg == null) return;
             if (cfg.ComboWindowEnd < cfg.RecoveryWindowStart)
                 cfg.ComboWindowEnd = cfg.RecoveryWindowStart;
             float need = NeededDuration(
@@ -122,7 +117,6 @@ namespace ARPG.Configs
 
         public static void CoverDuration(BossMoveWindow w)
         {
-            if (w == null) return;
             if (w.comboWindowEnd < w.recoverStart)
                 w.comboWindowEnd = w.recoverStart;
             // 提前切下一段时 combo 占位（如 99）不应把 stateDuration 撑回去。

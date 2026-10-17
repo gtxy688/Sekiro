@@ -13,9 +13,8 @@ namespace ARPG.Boss
         public static bool IsTargetIncapacitated(Transform target)
         {
             if (target == null) return false;
-            CharacterBody player = target.GetComponent<CharacterBody>();
-            if (player == null) player = target.GetComponentInParent<CharacterBody>();
-            return player != null && player.IsIncapacitatedForBoss;
+            CharacterBody player = target.GetComponentInParent<CharacterBody>();
+            return player.IsIncapacitatedForBoss;
         }
     }
 }

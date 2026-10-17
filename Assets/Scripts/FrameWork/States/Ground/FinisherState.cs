@@ -33,11 +33,8 @@ namespace ARPG.FrameWork.States.Ground
             body.AttackUninterruptible = false;
             body.MoveDirection = Vector3.zero;
             body.DisableWeaponHit();
-            if (body.Rb != null)
-            {
-                Vector3 v = body.Rb.velocity;
-                body.Rb.velocity = new Vector3(0f, v.y, 0f);
-            }
+            Vector3 v = body.Rb.velocity;
+            body.Rb.velocity = new Vector3(0f, v.y, 0f);
 
             if (victim != null)
             {
@@ -74,16 +71,8 @@ namespace ARPG.FrameWork.States.Ground
             }
 
             hasCompleted = true;
-            if (CombatManager.Instance != null)
-            {
-                CombatManager.Instance.ExecuteFinisher(body);
-                CombatManager.Instance.CompleteFinisherSequence(body);
-            }
-            else
-            {
-                Debug.LogError("处决动画结束时找不到 CombatManager。");
-                body.EnterGrounded("finisher: director missing fallback");
-            }
+            CombatManager.Instance.ExecuteFinisher(body);
+            CombatManager.Instance.CompleteFinisherSequence(body);
         }
 
         // 处决期间吞掉所有命令（不可打断）

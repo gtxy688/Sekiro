@@ -50,7 +50,6 @@ namespace ARPG.FrameWork.States.Ground
             }
 
             // M6：待机时按攻击 → 用默认招式配置进入 AttackState
-            // 配置为空时 AttackState 内部有保护，会直接退回 Idle，不会崩
             if (cmd is AttackCommand)
             {
                 parent.SubStateMachine.ChangeState(new AttackState(body, parent, body.GetAttackConfig()));

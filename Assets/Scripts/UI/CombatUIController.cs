@@ -92,38 +92,37 @@ namespace ARPG.UI
         private void Start()
         {
             // 初始化各 View 的引用（替换 Awake 手动查找）
-            bossStatusView?.OnViewInit();
-            bossPostureBarView?.OnViewInit();
-            playerPostureBarView?.OnViewInit();
-            playerStatusView?.OnViewInit();
-            itemSlotView?.OnViewInit();
-            BindFollowView(ref lockOnIndicatorView, "LockOnIndicator", bossBody);
-            BindFollowView(ref perilousWarningView, "PerilousWarning", playerBody);
-            BindFollowView(ref healKanjiView, "HealKanji", playerBody);
-            BindFollowView(ref reviveKanjiView, "ReviveKanji", playerBody);
-            revivePromptView?.OnViewInit();
+            bossStatusView.OnViewInit();
+            bossPostureBarView.OnViewInit();
+            playerPostureBarView.OnViewInit();
+            playerStatusView.OnViewInit();
+            itemSlotView.OnViewInit();
+            BindFollowView(lockOnIndicatorView, bossBody);
+            BindFollowView(perilousWarningView, playerBody);
+            BindFollowView(healKanjiView, playerBody);
+            BindFollowView(reviveKanjiView, playerBody);
+            revivePromptView.OnViewInit();
             gameOverView?.OnViewInit();
-            victoryView?.OnViewInit();
+            victoryView.OnViewInit();
 
             // 登记放在所有 Bind 之后：Bind 可能刚把场景里找回来的 View 填进字段，
             // 先登记就会漏掉这些"迟到"的引用。
             CollectManagedViews();
 
-            voiceDirector?.Bind(playerBody, bossBody, playerPostureBarView != null ? playerPostureBarView.transform as RectTransform : null);
+            voiceDirector.Bind(playerBody, bossBody, (RectTransform)playerPostureBarView.transform);
 
             // 初始状态（Awake 里 InitCombat 不会发事件，这里把当前数值推到条上，否则开局血条/葫芦是空的）
-            bossStatusView?.SetName("苇名弦一郎");
-            bossStatusView?.SetLifeDots(bossBody != null && bossBody.Config != null ? bossBody.Config.LifeCount : 2);
-            playerStatusView?.SetReviveDots(playerBody != null && playerBody.Config != null ? playerBody.Config.ReviveCount : 1);
+            bossStatusView.SetName("苇名弦一郎");
+            bossStatusView.SetLifeDots(bossBody.Config.LifeCount);
+            playerStatusView.SetReviveDots(playerBody.Config.ReviveCount);
             PushCurrentStats(playerBody, isPlayer: true);
             PushCurrentStats(bossBody, isPlayer: false);
-            if (playerBody != null)
-                itemSlotView?.SetGourdCount(playerBody.GourdRemaining);
+            itemSlotView.SetGourdCount(playerBody.GourdRemaining);
 
             // 提示类视图初始隐藏
-            revivePromptView?.Hide();
+            revivePromptView.Hide();
             gameOverView?.Hide();
-            victoryView?.Hide();
+            victoryView.Hide();
 
             EncounterScope.Ensure()?.Register(this);
         }
@@ -135,20 +134,19 @@ namespace ARPG.UI
 
         private void PushCurrentStats(CharacterBody c, bool isPlayer)
         {
-            if (c == null) return;
-            int maxHp = c.Config != null ? c.Config.MaxHP : 0;
-            float hpRatio = maxHp > 0 ? (float)c.CurrentHP / maxHp : 0f;
-            float maxPosture = c.Config != null ? c.Config.MaxPosture : 100f;
-            float postureRatio = maxPosture > 0f ? c.CurrentPosture / maxPosture : 0f;
+            int maxHp = c.Config.MaxHP;
+            float hpRatio = (float)c.CurrentHP / maxHp;
+            float maxPosture = c.Config.MaxPosture;
+            float postureRatio = c.CurrentPosture / maxPosture;
             if (isPlayer)
             {
-                playerStatusView?.SetHP(hpRatio);
-                playerPostureBarView?.SetPosture(postureRatio);
+                playerStatusView.SetHP(hpRatio);
+                playerPostureBarView.SetPosture(postureRatio);
             }
             else
             {
-                bossStatusView?.SetHP(hpRatio);
-                bossPostureBarView?.SetPosture(postureRatio);
+                bossStatusView.SetHP(hpRatio);
+                bossPostureBarView.SetPosture(postureRatio);
             }
         }
 
@@ -178,31 +176,26 @@ namespace ARPG.UI
                 if (managedViews[i] == null) continue;
                 managedViews[i].ResetForEncounter();
             }
-            voiceDirector?.ResetForEncounter();
+            voiceDirector.ResetForEncounter();
 
             CombatInputGate.SetBlocked(false);
-            lockOnIndicatorView?.SetFinisherReady(false);
+            lockOnIndicatorView.SetFinisherReady(false);
 
             // 胜利时被 DeactivateInput() 关掉的输入要重新打开。
             // 暂停中不动它：那时输入归暂停菜单，抢回来会把菜单卡死。
-            if (playerBody != null && !GamePause.IsPaused)
+            if (!GamePause.IsPaused)
             {
                 PlayerInput input = playerBody.GetComponent<PlayerInput>();
-                input?.ActivateInput();
+                input.ActivateInput();
             }
 
-            if (playerBody != null)
-            {
-                playerStatusView?.SetReviveDots(playerBody.Config != null ? playerBody.Config.ReviveCount : 1);
-                itemSlotView?.SetGourdCount(playerBody.Config != null ? playerBody.Config.GourdCount : 0);
-            }
-            if (bossBody != null)
-                bossStatusView?.SetLifeDots(bossBody.Config != null ? bossBody.Config.LifeCount : 2);
+            playerStatusView.SetReviveDots(playerBody.Config.ReviveCount);
+            itemSlotView.SetGourdCount(playerBody.Config.GourdCount);
+            bossStatusView.SetLifeDots(bossBody.Config.LifeCount);
 
             // 锁定点在 View 自己的 Reset 里清掉了跟随目标，这里按当前 bossBody 重新钉上。
             // 放在数值推送之后，保证连战换 Boss 时它钉的是新 Boss 而不是上一场那个。
-            if (lockOnIndicatorView != null)
-                lockOnIndicatorView.BindFollowTarget(bossBody);
+            lockOnIndicatorView.BindFollowTarget(bossBody);
         }
 
         // 登记所有托管的 View。新增 View 时在这里加一行——
@@ -220,13 +213,12 @@ namespace ARPG.UI
             AddManaged(healKanjiView);
             AddManaged(reviveKanjiView);
             AddManaged(revivePromptView);
-            AddManaged(gameOverView);
+            if (gameOverView != null) AddManaged(gameOverView);
             AddManaged(victoryView);
         }
 
         private void AddManaged(UIView view)
         {
-            if (view == null) return;
             if (managedViews.Contains(view)) return;
             managedViews.Add(view);
         }
@@ -244,12 +236,12 @@ namespace ARPG.UI
             if (boss != null) bossBody = boss;
 
             if (bossBody != null)
-                BindFollowView(ref lockOnIndicatorView, "LockOnIndicator", bossBody);
+                BindFollowView(lockOnIndicatorView, bossBody);
             if (playerBody != null)
             {
-                BindFollowView(ref perilousWarningView, "PerilousWarning", playerBody);
-                BindFollowView(ref healKanjiView, "HealKanji", playerBody);
-                BindFollowView(ref reviveKanjiView, "ReviveKanji", playerBody);
+                BindFollowView(perilousWarningView, playerBody);
+                BindFollowView(healKanjiView, playerBody);
+                BindFollowView(reviveKanjiView, playerBody);
             }
             CollectManagedViews();
         }
@@ -259,7 +251,7 @@ namespace ARPG.UI
         // 名字该挂在哪（Config / Boss 定义 SO / 流程层写死）是连战设计时才说得清的事。
         public void SetBossName(string name)
         {
-            bossStatusView?.SetName(name);
+            bossStatusView.SetName(name);
         }
 
         // ===== 事件处理 =====
@@ -269,11 +261,11 @@ namespace ARPG.UI
             float ratio = maxHp > 0 ? (float)currentHp / maxHp : 0f;
             if (c == playerBody)
             {
-                playerStatusView?.SetHP(ratio);
+                playerStatusView.SetHP(ratio);
             }
             else if (c == bossBody)
             {
-                bossStatusView?.SetHP(ratio);
+                bossStatusView.SetHP(ratio);
             }
         }
 
@@ -282,15 +274,15 @@ namespace ARPG.UI
             float ratio = maxPosture > 0f ? posture / maxPosture : 0f;
             if (c == playerBody)
             {
-                playerPostureBarView?.SetPosture(ratio);
+                playerPostureBarView.SetPosture(ratio);
             }
             else if (c == bossBody)
             {
-                bossPostureBarView?.SetPosture(ratio);
+                bossPostureBarView.SetPosture(ratio);
                 // 崩解结束架势归零 → 处决红点熄灭
                 if (ratio <= 0.001f)
                 {
-                    lockOnIndicatorView?.SetFinisherReady(false);
+                    lockOnIndicatorView.SetFinisherReady(false);
                 }
             }
         }
@@ -300,7 +292,7 @@ namespace ARPG.UI
             if (c == bossBody)
             {
                 // Boss 架势崩解 → 处决窗口 → 锁定点变红
-                lockOnIndicatorView?.SetFinisherReady(true);
+                lockOnIndicatorView.SetFinisherReady(true);
             }
         }
 
@@ -308,31 +300,29 @@ namespace ARPG.UI
         {
             if (target == bossBody)
             {
-                lockOnIndicatorView?.SetFinisherReady(available);
+                lockOnIndicatorView.SetFinisherReady(available);
             }
         }
 
         private void HandleGourdUsed(CharacterBody c, int remaining)
         {
             if (c != playerBody) return;
-            itemSlotView?.SetGourdCount(remaining);
-            if (healKanjiView == null)
-                BindFollowView(ref healKanjiView, "HealKanji", playerBody);
-            healKanjiView?.BindFollowTarget(playerBody);
-            healKanjiView?.ShowHeal();
+            itemSlotView.SetGourdCount(remaining);
+            healKanjiView.BindFollowTarget(playerBody);
+            healKanjiView.ShowHeal();
         }
 
         private void HandleReviveAvailable(CharacterBody c)
         {
             if (c == playerBody)
-                revivePromptView?.BeginDeathFade(playerBody != null ? playerBody.GetComponent<PlayerInput>() : null);
+                revivePromptView.BeginDeathFade(playerBody.GetComponent<PlayerInput>());
         }
 
         private void HandleReviveChoiceReady(CharacterBody c)
         {
             if (c == playerBody)
             {
-                revivePromptView?.ShowChoices(
+                revivePromptView.ShowChoices(
                     // 系统指令：UI 选"就此死去"不伪造物理按下身份，不开启弹反窗口、不计空按。
                     () => playerBody.TryExecuteCommand(DeflectCommand.System()),
                     () => playerBody.TryExecuteCommand(new AttackCommand()));
@@ -343,12 +333,10 @@ namespace ARPG.UI
         {
             if (c == playerBody)
             {
-                revivePromptView?.HidePrompt();
-                playerStatusView?.SetReviveDots(playerBody.ReviveRemaining);
-                if (reviveKanjiView == null)
-                    BindFollowView(ref reviveKanjiView, "ReviveKanji", playerBody);
-                reviveKanjiView?.BindFollowTarget(playerBody);
-                reviveKanjiView?.ShowRevive();
+                revivePromptView.HidePrompt();
+                playerStatusView.SetReviveDots(playerBody.ReviveRemaining);
+                reviveKanjiView.BindFollowTarget(playerBody);
+                reviveKanjiView.ShowRevive();
             }
         }
 
@@ -356,8 +344,8 @@ namespace ARPG.UI
         {
             if (c == playerBody)
             {
-                revivePromptView?.HidePrompt();
-                playerStatusView?.SetReviveDots(playerBody != null ? playerBody.ReviveRemaining : 0);
+                revivePromptView.HidePrompt();
+                playerStatusView.SetReviveDots(playerBody.ReviveRemaining);
                 gameOverView?.ShowGameOver();
             }
         }
@@ -369,15 +357,13 @@ namespace ARPG.UI
             CombatInputGate.SetBlocked(true);
             FreezePlayerMotion();
             ReleasePlayerDevicesForUi();
-            victoryView?.ShowVictory();
+            victoryView.ShowVictory();
         }
 
         // 处决结束会回待机，不把摇杆关掉的话还能接着走
         private void FreezePlayerMotion()
         {
-            if (playerBody == null) return;
             playerBody.MoveDirection = Vector3.zero;
-            if (playerBody.Rb == null) return;
             Vector3 velocity = playerBody.Rb.velocity;
             playerBody.Rb.velocity = new Vector3(0f, velocity.y, 0f);
         }
@@ -385,68 +371,34 @@ namespace ARPG.UI
         // 手柄被 PlayerInput 独占时，胜利按钮收不到确认
         private void ReleasePlayerDevicesForUi()
         {
-            if (playerBody == null) return;
             PlayerInput input = playerBody.GetComponent<PlayerInput>();
-            if (input != null)
-                input.DeactivateInput();
+            input.DeactivateInput();
         }
 
         private void HandleLifeCleared(CharacterBody c, int remainingLives)
         {
             if (c == bossBody)
             {
-                bossStatusView?.SetLifeDots(remainingLives);
-                lockOnIndicatorView?.SetFinisherReady(false);
+                bossStatusView.SetLifeDots(remainingLives);
+                lockOnIndicatorView.SetFinisherReady(false);
             }
         }
 
         private void HandlePerilousAttack(PerilousType type)
         {
-            if (perilousWarningView == null)
-                BindFollowView(ref perilousWarningView, "PerilousWarning", playerBody);
-            perilousWarningView?.BindFollowTarget(playerBody);
-            perilousWarningView?.ShowWarning();
+            perilousWarningView.BindFollowTarget(playerBody);
+            perilousWarningView.ShowWarning();
         }
 
         private void HandleLockOnChanged(bool isLocked)
         {
-            if (lockOnIndicatorView == null)
-                BindFollowView(ref lockOnIndicatorView, "LockOnIndicator", bossBody);
-            lockOnIndicatorView?.SetLocked(isLocked);
+            lockOnIndicatorView.SetLocked(isLocked);
         }
 
-        // 场景里引用常被清空（脚本被关掉、Prefab 覆盖丢失、合并场景丢引用），
-        // 所以跟随型 View 都要能在事件首次到达时自己找回来并打开。
-        //
-        // 这四个 Bind 方法原本逐行相同，只差类型名与物体名。
-        // 公共上界刻意用 IFollowTargetView 而不是 UIView：UIView 太宽，
-        // 传进来一个不跟随的 View（比如血条）编译器也只会默许，
-        // 到运行时才发现它根本没有 BindFollowTarget。
-        private void BindFollowView<T>(ref T view, string objectName, CharacterBody target)
+        // 跟随视图由场景引用指定；初始化负责启用和绑定目标。
+        private static void BindFollowView<T>(T view, CharacterBody target)
             where T : UIView, IFollowTargetView
         {
-            if (view == null)
-            {
-                GameObject named = GameObject.Find(objectName);
-                if (named != null)
-                    view = named.GetComponent<T>();
-            }
-
-            if (view == null)
-            {
-                T[] found = FindObjectsOfType<T>(true);
-                for (int i = 0; i < found.Length; i++)
-                {
-                    // 只认场景里的实例，跳过 Prefab 资源里那份
-                    if (found[i] != null && found[i].gameObject.scene.IsValid())
-                    {
-                        view = found[i];
-                        break;
-                    }
-                }
-            }
-
-            if (view == null) return;
             view.enabled = true;
             view.gameObject.SetActive(true);
             view.BindFollowTarget(target);

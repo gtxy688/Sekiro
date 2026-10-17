@@ -26,12 +26,10 @@ namespace ARPG.FrameWork.Body
         // 为选中的 Hitbox 绑定本招配置并开启扫描；弓段等无近战窗口的配置直接跳过。
         public void EnableWeaponHit(AttackConfig config)
         {
-            if (config == null) return;
             // 弓段 / 假红条：即使动画事件误调也不开刀。
             if (!AttackWindowSync.CanMeleeHit(config.hitPulses))
                 return;
             Hitbox target = ResolveHitbox(config.HitboxSlot);
-            if (target == null) return;
 
             if (ActiveHitbox != null && ActiveHitbox != target)
                 ActiveHitbox.Disable();
@@ -46,7 +44,6 @@ namespace ARPG.FrameWork.Body
         public void DisableWeaponHit()
         {
             Hitbox target = ActiveHitbox != null ? ActiveHitbox : Weapon;
-            if (target == null) return;
             target.Disable();
             ActiveHitbox = null;
             CombatEventBus.TriggerAttackSwingEnd(body);
@@ -55,18 +52,6 @@ namespace ARPG.FrameWork.Body
         // 时间轴 arrowCues 到点由 AttackState 调用。伤害读招式表该支出箭，不读烘焙 AttackConfig。
         public void SpawnArrow(int cueIndex = 0)
         {
-            if (body.arrowPrefab == null || body.arrowSpawn == null)
-            {
-                Debug.LogWarning($"{body.name} 缺少 arrowPrefab 或 arrowSpawn，不出箭。");
-                return;
-            }
-
-            if (body.CurrentMoveEntry == null)
-            {
-                Debug.LogWarning($"{body.name} SpawnArrow 时没有当前招式表行。");
-                return;
-            }
-
             ArrowSpawnCue cue = null;
             if (body.CurrentMoveWindow != null && body.CurrentMoveWindow.arrowCues != null
                 && cueIndex >= 0 && cueIndex < body.CurrentMoveWindow.arrowCues.Length)
@@ -86,14 +71,8 @@ namespace ARPG.FrameWork.Body
             // 出射点沿瞄准方向略前移，避免从弓身侧面穿出；方向以瞄准为准。
             origin += dir * 0.35f;
 
-            LayerMask layers = body.arrowTargetLayers;
-            if (layers == 0 && Weapon != null)
-                layers = Weapon.targetLayers;
-            if (layers == 0)
-                Debug.LogWarning($"{body.name} arrowTargetLayers 未设，箭扫不到人。");
-
             ArrowProjectile arrow = Object.Instantiate(body.arrowPrefab, origin, Quaternion.LookRotation(dir, Vector3.up));
-            arrow.Fire(body, dir, body.arrowSpeed, body.arrowCastRadius, layers, body.arrowLifetime,
+            arrow.Fire(body, dir, body.arrowSpeed, body.arrowCastRadius, body.arrowTargetLayers, body.arrowLifetime,
                 damage, posture, knockback, grade);
             CombatEventBus.TriggerArrowReleased(body);
         }
@@ -108,18 +87,10 @@ namespace ARPG.FrameWork.Body
             Hurtbox hurtbox = body.GetComponentInChildren<Hurtbox>();
             if (hurtbox != null)
             {
-                Collider col = hurtbox.GetComponent<Collider>();
-                if (col == null)
-                    col = hurtbox.GetComponentInChildren<Collider>();
-                if (col != null)
-                    return col.bounds.center;
+                return hurtbox.GetComponent<Collider>().bounds.center;
             }
 
-            Collider bodyCol = body.GetComponent<Collider>();
-            if (bodyCol != null)
-                return bodyCol.bounds.center;
-
-            return body.transform.position + Vector3.up * 1.2f;
+            return body.GetComponent<Collider>().bounds.center;
         }
 
         Vector3 ResolveProjectileAimPoint()
@@ -168,20 +139,10 @@ namespace ARPG.FrameWork.Body
         Hitbox ResolveHitbox(AttackHitboxSlot slot)
         {
             if (slot == AttackHitboxSlot.Elbow)
-            {
-                if (body.elbowHitbox != null)
-                    return body.elbowHitbox;
-                Debug.LogWarning($"{body.name} 未指定 Elbow Hitbox，回退到刀");
-                return Weapon;
-            }
+                return body.elbowHitbox;
 
             if (slot == AttackHitboxSlot.Kick)
-            {
-                if (body.kickHitbox != null)
-                    return body.kickHitbox;
-                Debug.LogWarning($"{body.name} 未指定 Kick Hitbox，回退到刀");
-                return Weapon;
-            }
+                return body.kickHitbox;
 
             return Weapon;
         }

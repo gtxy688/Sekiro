@@ -20,8 +20,7 @@ namespace ARPG.FrameWork
 
         public static bool HasState(Animator animator, string shortName, int layerIndex)
         {
-            if (animator == null ||
-                string.IsNullOrEmpty(shortName) ||
+            if (string.IsNullOrEmpty(shortName) ||
                 layerIndex < 0 ||
                 layerIndex >= animator.layerCount)
             {
@@ -33,7 +32,7 @@ namespace ARPG.FrameWork
         // 资源侧拼写不统一（Mikiri / Miriki），按 Animator 里实际存在的短名选用。
         public static string ResolveState(Animator animator, params string[] aliases)
         {
-            if (animator == null || aliases == null) return null;
+            if (aliases == null) return null;
             for (int i = 0; i < aliases.Length; i++)
             {
                 if (HasState(animator, aliases[i])) return aliases[i];
@@ -78,7 +77,7 @@ namespace ARPG.FrameWork
             AttackConfig config,
             BossMoveEntry moveEntry)
         {
-            if (animator == null || config == null || string.IsNullOrEmpty(config.AnimName))
+            if (string.IsNullOrEmpty(config.AnimName))
                 return false;
 
             if (moveEntry != null && moveEntry.id == "JumpThrust")

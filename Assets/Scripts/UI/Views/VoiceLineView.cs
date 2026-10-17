@@ -15,12 +15,9 @@ namespace ARPG.UI
         public override void OnViewInit()
         {
             EnsureUi();
-            if (canvasGroup != null)
-            {
-                canvasGroup.alpha = 0f;
-                canvasGroup.blocksRaycasts = false;
-                canvasGroup.interactable = false;
-            }
+            canvasGroup.alpha = 0f;
+            canvasGroup.blocksRaycasts = false;
+            canvasGroup.interactable = false;
             Hide();
         }
 
@@ -34,13 +31,11 @@ namespace ARPG.UI
         public void ShowLine(string text)
         {
             EnsureUi();
-            if (lineText != null)
-                lineText.text = text ?? string.Empty;
+            lineText.text = text;
 
             Show();
             transform.SetAsLastSibling();
 
-            if (canvasGroup == null) return;
             canvasGroup.DOKill();
             canvasGroup.alpha = 0f;
             canvasGroup.DOFade(1f, 0.12f).SetUpdate(true).SetLink(gameObject);
@@ -48,12 +43,6 @@ namespace ARPG.UI
 
         public void HideLine()
         {
-            if (canvasGroup == null)
-            {
-                Hide();
-                return;
-            }
-
             canvasGroup.DOKill();
             canvasGroup.DOFade(0f, 0.2f)
                 .SetUpdate(true)

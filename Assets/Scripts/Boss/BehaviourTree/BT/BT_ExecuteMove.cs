@@ -37,7 +37,7 @@ namespace ARPG.Boss.BehaviourTree
         public void ResetMove()
         {
             ReleaseJumpThrustCamera();
-            if (started && body != null)
+            if (started)
             {
                 body.CurrentMoveEntry = null;
                 body.CurrentMoveWindow = null;
@@ -92,9 +92,9 @@ namespace ARPG.Boss.BehaviourTree
                 // Clip 末段已是下落：起跳段一结束就收镜头，不要挂到落地突刺。
                 if (jumpThrustCameraActive && segment > 0)
                     ReleaseJumpThrustCamera();
-                if (sequence == null || segment >= sequence.states.Length)
+                if (segment >= sequence.states.Length)
                 {
-                    blackboard?.SetCooldown(entry.id);
+                    blackboard.SetCooldown(entry.id);
                     ResetMove();
                     return NodeState.Success;
                 }
@@ -106,17 +106,16 @@ namespace ARPG.Boss.BehaviourTree
 
         private void TryInterruptAir5()
         {
-            if (entry == null) return;
             if (entry.id != "Bow_Air5" && entry.id != "Kengeki_Air5") return;
             if (segment <= 0) return;
-            float chance = table != null ? table.air5HeavyInterruptChance : 0f;
+            float chance = table.air5HeavyInterruptChance;
             if (Random.value > chance) return;
-            BossMoveEntry heavy = table != null ? table.FindById("Bow_Heavy") : null;
+            BossMoveEntry heavy = table.FindById("Bow_Heavy");
             if (heavy == null) return;
-            if (blackboard != null && blackboard.IsOnCooldown(heavy.id, heavy.cooldown)) return;
+            if (blackboard.IsOnCooldown(heavy.id, heavy.cooldown)) return;
             if (!BossMovePicker.AnySequencePlayable(heavy, body.Animator)) return;
 
-            blackboard?.SetCooldown(entry.id);
+            blackboard.SetCooldown(entry.id);
             entry = heavy;
             sequence = BossMovePicker.ChooseSequence(heavy, body.Animator, body, table);
             segment = 0;
@@ -160,8 +159,7 @@ namespace ARPG.Boss.BehaviourTree
             body.CurrentMoveEntry = entry;
             body.CurrentMoveWindow = w;
             AttackConfig baked = BossAttackBaker.Bake(entry, anim, w);
-            if (body.Config != null)
-                baked.RotationSpeed = body.Config.RotationSpeed;
+            baked.RotationSpeed = body.Config.RotationSpeed;
             if (body.IsParried || body.IsPostureBroken || body.IsFinisherLocked)
             {
                 ResetMove();

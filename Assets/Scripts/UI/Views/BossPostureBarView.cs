@@ -21,8 +21,8 @@ namespace ARPG.UI
 
         public override void OnViewInit()
         {
-            if (leftFill != null) leftMaxWidth = leftFill.rectTransform.sizeDelta.x;
-            if (rightFill != null) rightMaxWidth = rightFill.rectTransform.sizeDelta.x;
+            leftMaxWidth = leftFill.rectTransform.sizeDelta.x;
+            rightMaxWidth = rightFill.rectTransform.sizeDelta.x;
             zeroTimer = 0f;
             everHadPosture = false;
             HideBar();
@@ -71,19 +71,18 @@ namespace ARPG.UI
         private void ShowBar()
         {
             gameObject.SetActive(true);
-            if (spike != null) spike.gameObject.SetActive(true);
+            spike.gameObject.SetActive(true);
         }
 
         private void HideBar()
         {
             zeroTimer = 0f;
-            if (spike != null) spike.gameObject.SetActive(false);
+            spike.gameObject.SetActive(false);
             gameObject.SetActive(false);
         }
 
         private static void SetWidth(Image img, float width)
         {
-            if (img == null) return;
             Vector2 size = img.rectTransform.sizeDelta;
             size.x = width;
             img.rectTransform.sizeDelta = size;

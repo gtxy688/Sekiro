@@ -6,7 +6,7 @@ using ARPG.Combat;
 namespace ARPG.Configs
 {
 
-    // 一条动画里的一次出伤开/关。空数组 = 仍用 HitStartTime / RecoveryWindowStart 单窗。
+    // 一条动画里的一次出伤开/关。空数组表示本段没有近战判定。
     [Serializable]
     public class HitPulse
     {

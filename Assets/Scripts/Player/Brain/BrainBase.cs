@@ -34,7 +34,7 @@ namespace ARPG.Player
             {
                 Debug.Log(
                     $"[CombatTiming][CommandQueued] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
-                    $"指令={cmd?.GetType().Name ?? "<none>"}，" +
+                    $"指令={cmd.GetType().Name}，" +
                     $"被覆盖指令={bufferedCommand?.GetType().Name ?? "<none>"}，" +
                     $"缓冲时长={duration:F3}s，状态={body.CurrentStatePath}", body);
             }

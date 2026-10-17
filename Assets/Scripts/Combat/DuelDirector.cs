@@ -45,7 +45,7 @@ namespace ARPG.Combat
         // 注册进本场战斗的重置清单：复战时 EncounterScope.ResetAll() 才能丢掉残留演出。
         private void Start()
         {
-            EncounterScope.Ensure()?.Register(this);
+            EncounterScope.Ensure().Register(this);
         }
 
         private void OnDestroy()

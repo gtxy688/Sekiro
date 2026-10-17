@@ -8,6 +8,8 @@ AttackStateBase 读取 AttackAnimClock 的当前动画秒数，根据 AttackConf
 
 Hitbox 在武器位置变化时执行 SphereCastAll 扫描，也使用 OverlapSphereNonAlloc / OverlapCapsuleNonAlloc 补充区域判定。已命中目标会去重；命中双方 Hitbox 时可以报告拼刀。实际扫描参数来自 Hitbox 和 CharacterBody 配置。
 
+攻击配置选择的 Weapon、Elbow、Kick 槽位必须有对应 Hitbox，缺少引用不再回退到刀。出箭依赖当前 Boss 招式行、箭 Prefab、出箭点和目标层配置；缺少必需引用不再静默跳过出箭或借用近战目标层。
+
 ## 命中结算
 
 Hitbox 将目标报告给 CombatManager。CombatManager 转交 CombatResolver；CombatResolver 从攻击者 Hitbox 配置与目标 Hurtbox 获取角色，并调用目标 CharacterBody.ReceiveHit。Hitbox 不直接扣目标生命值。

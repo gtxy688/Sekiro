@@ -100,7 +100,7 @@ namespace ARPG.FrameWork.States.Air
             if (phase == Phase.Landing) return;
 
             Vector2 inputDir = body.MoveDirection;
-            if (inputDir.sqrMagnitude > 0.01f && body.Config != null)
+            if (inputDir.sqrMagnitude > 0.01f)
             {
                 Vector3 lookDirection = body.InputToWorldDir(inputDir);
                 body.RotateYaw(lookDirection, body.Config.RotationSpeed);
@@ -163,18 +163,18 @@ namespace ARPG.FrameWork.States.Air
         {
             get
             {
-                float v = body.Config != null ? body.Config.JumpToJumpingNormalized : 0.55f;
+                float v = body.Config.JumpToJumpingNormalized;
                 return Mathf.Clamp(v, 0.1f, 1f);
             }
         }
 
-        private bool SwitchAtApex => body.Config == null || body.Config.SwitchJumpingAtApex;
+        private bool SwitchAtApex => body.Config.SwitchJumpingAtApex;
 
-        private float LandEarlyHeight => body.Config != null ? Mathf.Max(0f, body.Config.LandEarlyHeight) : 0.35f;
+        private float LandEarlyHeight => Mathf.Max(0f, body.Config.LandEarlyHeight);
 
-        private float JumpBlend => body.Config != null ? Mathf.Max(0f, body.Config.JumpAnimBlend) : 0.08f;
+        private float JumpBlend => Mathf.Max(0f, body.Config.JumpAnimBlend);
 
-        private float LandBlend => body.Config != null ? Mathf.Max(0f, body.Config.LandAnimBlend) : 0.05f;
+        private float LandBlend => Mathf.Max(0f, body.Config.LandAnimBlend);
 
         private void TryEnterAirborne()
         {
@@ -237,11 +237,9 @@ namespace ARPG.FrameWork.States.Air
             float early = LandEarlyHeight;
             if (early <= 0.01f) return false;
 
-            Transform origin = body.groundCheckPoint != null ? body.groundCheckPoint : body.transform;
-            float radius = body.groundCheckRadius > 0f ? body.groundCheckRadius : 0.2f;
             return Physics.SphereCast(
-                origin.position + Vector3.up * 0.05f,
-                radius,
+                body.groundCheckPoint.position + Vector3.up * 0.05f,
+                body.groundCheckRadius,
                 Vector3.down,
                 out _,
                 early,

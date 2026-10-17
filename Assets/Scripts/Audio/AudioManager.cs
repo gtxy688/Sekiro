@@ -44,20 +44,20 @@ namespace ARPG.Audio
         public float hitVolume = 1f;
 
         private AudioSource audioSource;
-        private AudioClip[] blockPool = System.Array.Empty<AudioClip>();
-        private AudioClip[] deflectPool = System.Array.Empty<AudioClip>();
-        private AudioClip[] playerHitPool = System.Array.Empty<AudioClip>();
-        private AudioClip[] playerSwingPool = System.Array.Empty<AudioClip>();
-        private AudioClip[] bossHitPool = System.Array.Empty<AudioClip>();
-        private AudioClip[] bossSwingPool = System.Array.Empty<AudioClip>();
-        private AudioClip[] bossArrowPool = System.Array.Empty<AudioClip>();
-        private AudioClip[] bossKickPool = System.Array.Empty<AudioClip>();
-        private AudioClip[] bossThrustPool = System.Array.Empty<AudioClip>();
-        private AudioClip[] finisherPool = System.Array.Empty<AudioClip>();
-        private AudioClip[] deathPool = System.Array.Empty<AudioClip>();
-        private AudioClip[] gourdPool = System.Array.Empty<AudioClip>();
-        private AudioClip[] revivePool = System.Array.Empty<AudioClip>();
-        private AudioClip[] victoryPool = System.Array.Empty<AudioClip>();
+        private AudioClip[] blockPool;
+        private AudioClip[] deflectPool;
+        private AudioClip[] playerHitPool;
+        private AudioClip[] playerSwingPool;
+        private AudioClip[] bossHitPool;
+        private AudioClip[] bossSwingPool;
+        private AudioClip[] bossArrowPool;
+        private AudioClip[] bossKickPool;
+        private AudioClip[] bossThrustPool;
+        private AudioClip[] finisherPool;
+        private AudioClip[] deathPool;
+        private AudioClip[] gourdPool;
+        private AudioClip[] revivePool;
+        private AudioClip[] victoryPool;
 
         private int lastBlockIndex = -1;
         private int lastDeflectIndex = -1;
@@ -81,20 +81,20 @@ namespace ARPG.Audio
             audioSource.loop = false;
             audioSource.spatialBlend = 0f;
 
-            blockPool = LoadPool(BlockFolder);
-            deflectPool = LoadPool(DeflectFolder);
-            playerHitPool = LoadPool(PlayerHitFolder);
-            playerSwingPool = LoadPool(PlayerSwingFolder);
-            bossHitPool = LoadPool(BossHitFolder);
-            bossSwingPool = LoadPool(BossSwingFolder);
-            bossArrowPool = LoadPool(BossArrowFolder);
-            bossKickPool = LoadPool(BossKickFolder);
-            bossThrustPool = LoadPool(BossThrustFolder);
-            finisherPool = LoadPool(FinisherFolder);
-            deathPool = LoadPool(DeathFolder);
-            gourdPool = LoadPool(GourdFolder);
-            revivePool = LoadPool(ReviveFolder);
-            victoryPool = LoadPool(VictoryFolder);
+            blockPool = Resources.LoadAll<AudioClip>(BlockFolder);
+            deflectPool = Resources.LoadAll<AudioClip>(DeflectFolder);
+            playerHitPool = Resources.LoadAll<AudioClip>(PlayerHitFolder);
+            playerSwingPool = Resources.LoadAll<AudioClip>(PlayerSwingFolder);
+            bossHitPool = Resources.LoadAll<AudioClip>(BossHitFolder);
+            bossSwingPool = Resources.LoadAll<AudioClip>(BossSwingFolder);
+            bossArrowPool = Resources.LoadAll<AudioClip>(BossArrowFolder);
+            bossKickPool = Resources.LoadAll<AudioClip>(BossKickFolder);
+            bossThrustPool = Resources.LoadAll<AudioClip>(BossThrustFolder);
+            finisherPool = Resources.LoadAll<AudioClip>(FinisherFolder);
+            deathPool = Resources.LoadAll<AudioClip>(DeathFolder);
+            gourdPool = Resources.LoadAll<AudioClip>(GourdFolder);
+            revivePool = Resources.LoadAll<AudioClip>(ReviveFolder);
+            victoryPool = Resources.LoadAll<AudioClip>(VictoryFolder);
 
             AudioVolumeSettings.Load();
             ApplySfxVolume();
@@ -132,30 +132,7 @@ namespace ARPG.Audio
 
         private void ApplySfxVolume()
         {
-            if (audioSource == null) return;
             audioSource.volume = volume * AudioVolumeSettings.Sfx;
-        }
-
-        private static AudioClip[] LoadPool(string folder)
-        {
-            AudioClip[] loaded = Resources.LoadAll<AudioClip>(folder);
-            if (loaded == null || loaded.Length == 0)
-                return System.Array.Empty<AudioClip>();
-
-            int n = 0;
-            for (int i = 0; i < loaded.Length; i++)
-            {
-                if (loaded[i] != null) n++;
-            }
-            if (n == loaded.Length) return loaded;
-
-            AudioClip[] filtered = new AudioClip[n];
-            int w = 0;
-            for (int i = 0; i < loaded.Length; i++)
-            {
-                if (loaded[i] != null) filtered[w++] = loaded[i];
-            }
-            return filtered;
         }
 
         private void PlayPool(
@@ -165,7 +142,7 @@ namespace ARPG.Audio
             float volumeScale = 1f,
             bool warnIfEmpty = true)
         {
-            if (pool == null || pool.Length == 0)
+            if (pool.Length == 0)
             {
                 if (warnIfEmpty && !string.IsNullOrEmpty(folder))
                     Debug.LogWarning($"AudioManager: 音效池为空（Resources/{folder}）");
@@ -173,14 +150,11 @@ namespace ARPG.Audio
             }
 
             AudioClip clip = Pick(pool, ref lastIndex);
-            if (clip == null || audioSource == null) return;
             audioSource.PlayOneShot(clip, volumeScale);
         }
 
         private static AudioClip Pick(AudioClip[] pool, ref int lastIndex)
         {
-            if (pool == null || pool.Length == 0) return null;
-
             int i;
             if (pool.Length == 1 || lastIndex < 0)
             {
@@ -303,7 +277,7 @@ namespace ARPG.Audio
         // 时间轴手动插的 sfxCues 仍走这里；与开刀池可并存
         private void HandleAttackSfx(AudioClip clip, Vector3 worldPos)
         {
-            if (clip == null || audioSource == null) return;
+            if (clip == null) return;
             audioSource.PlayOneShot(clip, swingVolume);
         }
     }

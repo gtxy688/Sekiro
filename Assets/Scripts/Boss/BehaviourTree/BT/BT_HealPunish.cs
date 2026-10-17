@@ -26,7 +26,7 @@ namespace ARPG.Boss.BehaviourTree
         public override void SetBlackboard(Blackboard bb)
         {
             base.SetBlackboard(bb);
-            executor?.SetBlackboard(bb);
+            executor.SetBlackboard(bb);
         }
 
         public override NodeState Evaluate()
@@ -68,11 +68,6 @@ namespace ARPG.Boss.BehaviourTree
             if (Time.time < punishAt)
                 return NodeState.Running;
 
-            if (table == null)
-            {
-                punishAt = -1f;
-                return NodeState.Failure;
-            }
             BossMoveEntry heavy = table.FindById("Bow_Heavy");
             if (heavy == null)
             {
@@ -87,10 +82,10 @@ namespace ARPG.Boss.BehaviourTree
         {
             if (punishAt >= 0f) return;
             if (player == null || !player.IsHealing || player.IsIncapacitatedForBoss) return;
-            if (body == null || body.IsParried || body.IsPostureBroken || body.IsFinisherLocked) return;
+            if (body.IsParried || body.IsPostureBroken || body.IsFinisherLocked) return;
             // 喝药瞬间 Boss 已在出招 → 不射重箭，也不排队。
             if (body.IsAttacking) return;
-            float delay = body.Config != null ? Mathf.Max(0f, body.Config.HealPunishDelay) : 0f;
+            float delay = Mathf.Max(0f, body.Config.HealPunishDelay);
             punishAt = Time.time + delay;
         }
     }

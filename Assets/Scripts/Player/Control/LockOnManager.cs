@@ -16,14 +16,7 @@ namespace ARPG.Player
         public bool IsLockedOn { get; private set; }
         public Transform Target => CurrentBoss != null ? CurrentBoss.transform : null;
 
-        private CharacterBody CurrentBoss
-        {
-            get
-            {
-                if (CombatManager.Instance != null) return CombatManager.Instance.BossRef;
-                return null;
-            }
-        }
+        private CharacterBody CurrentBoss => CombatManager.Instance.BossRef;
 
         private void Awake()
         {

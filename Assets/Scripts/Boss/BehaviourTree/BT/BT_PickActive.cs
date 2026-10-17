@@ -36,7 +36,7 @@ namespace ARPG.Boss.BehaviourTree
         public override void SetBlackboard(Blackboard bb)
         {
             base.SetBlackboard(bb);
-            executor?.SetBlackboard(bb);
+            executor.SetBlackboard(bb);
         }
 
         public override NodeState Evaluate()
@@ -77,7 +77,6 @@ namespace ARPG.Boss.BehaviourTree
 
         private void ArmRoamGap()
         {
-            if (blackboard == null) return;
             float gap = roamAfterAttack + UnityEngine.Random.Range(0f, Mathf.Max(0f, roamAfterAttackJitter));
             blackboard.ActiveGapDuration = gap;
             blackboard.SetCooldown("active_gap");
@@ -85,7 +84,6 @@ namespace ARPG.Boss.BehaviourTree
 
         private bool IsRoamGapActive()
         {
-            if (blackboard == null) return false;
             float gap = blackboard.ActiveGapDuration;
             if (gap <= 0.01f) gap = roamAfterAttack;
             return blackboard.IsOnCooldown("active_gap", gap);

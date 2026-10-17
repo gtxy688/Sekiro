@@ -49,7 +49,7 @@ namespace ARPG.Camera
 
         private void Update()
         {
-            if (freeLook == null || GamePause.IsPaused) return;
+            if (GamePause.IsPaused) return;
             if (Cursor.lockState != CursorLockMode.Locked) return;
             if (Time.unscaledTime < ignoreLookUntil) return;
 

@@ -31,14 +31,14 @@ namespace ARPG.Boss.BehaviourTree
         public override void SetBlackboard(Blackboard bb)
         {
             base.SetBlackboard(bb);
-            executor?.SetBlackboard(bb);
+            executor.SetBlackboard(bb);
         }
 
         public override NodeState Evaluate()
         {
             if (BTUtil.IsTargetIncapacitated(target))
             {
-                executor?.ResetMove();
+                executor.ResetMove();
                 return NodeState.Failure;
             }
 
@@ -46,10 +46,10 @@ namespace ARPG.Boss.BehaviourTree
             // 硬直中先占住 Selector，避免 Busy 的交锋招 Evaluate 失败后落到走位。
             if (body.IsParried)
             {
-                executor?.ResetMove();
+                executor.ResetMove();
                 return NodeState.Running;
             }
-            if (executor != null && executor.IsBusy)
+            if (executor.IsBusy)
                 return executor.Evaluate();
 
             if (!body.KengekiArmed) return NodeState.Failure;

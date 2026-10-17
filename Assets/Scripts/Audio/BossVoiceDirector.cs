@@ -122,7 +122,7 @@ namespace ARPG.Audio
             EnsureView();
             Canvas.ForceUpdateCanvases();
             PlaceAbovePlayerPosture();
-            view?.OnViewInit();
+            view.OnViewInit();
             Play(new Cue("160000", "我上了"));
         }
 
@@ -166,11 +166,9 @@ namespace ARPG.Audio
 
         private void Play(params Cue[] cues)
         {
-            if (cues == null || cues.Length == 0) return;
             if (playing != null)
                 StopCoroutine(playing);
-            if (source != null)
-                source.Stop();
+            source.Stop();
             playing = StartCoroutine(PlayRoutine(cues));
         }
 
@@ -182,10 +180,10 @@ namespace ARPG.Audio
             for (int i = 0; i < cues.Length; i++)
             {
                 Cue cue = cues[i];
-                view?.ShowLine(cue.text);
+                view.ShowLine(cue.text);
 
                 AudioClip clip = LoadClip(cue.id);
-                if (clip != null && source != null)
+                if (clip != null)
                 {
                     source.clip = clip;
                     source.Play();
@@ -199,14 +197,13 @@ namespace ARPG.Audio
             }
 
             yield return new WaitForSecondsRealtime(LingerAfterClip);
-            view?.HideLine();
+            view.HideLine();
             playing = null;
             IsOpeningHold = false;
         }
 
         private AudioClip LoadClip(string id)
         {
-            if (string.IsNullOrEmpty(id)) return null;
             if (clips.TryGetValue(id, out AudioClip cached))
                 return cached;
 
@@ -285,21 +282,18 @@ namespace ARPG.Audio
             if (playerBody == null)
             {
                 PlayerBrain player = FindObjectOfType<PlayerBrain>();
-                if (player != null)
-                    playerBody = player.GetComponent<CharacterBody>();
+                playerBody = player.GetComponent<CharacterBody>();
             }
 
             if (bossBody == null)
             {
                 BTBrain boss = FindObjectOfType<BTBrain>();
-                if (boss != null)
-                    bossBody = boss.GetComponent<CharacterBody>();
+                bossBody = boss.GetComponent<CharacterBody>();
             }
         }
 
         private void ApplyVolume()
         {
-            if (source == null) return;
             source.volume = volume * AudioVolumeSettings.Sfx;
         }
     }

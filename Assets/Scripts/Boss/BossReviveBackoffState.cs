@@ -11,7 +11,7 @@ namespace ARPG.Boss
     // 玩家回生起身后的礼节垫步：Boss 退后一步再恢复出招（由 BTBrain 切入）。
     public class BossReviveBackoffState : BaseState
     {
-        private HierarchicalState parent;
+        private readonly HierarchicalState parent;
         private float timer;
         private const string BackAnim = "Dodge_Back";
         private const float FallbackDuration = 0.6f;
@@ -23,9 +23,6 @@ namespace ARPG.Boss
 
         public override void OnEnter()
         {
-            if (parent == null)
-                parent = body.MainStateMachine.CurrentState as HierarchicalState;
-
             timer = 0f;
             body.ClearSteerYaw();
             body.SetSuppressRootYaw(false);
@@ -64,10 +61,7 @@ namespace ARPG.Boss
 
         private void ReturnIdle()
         {
-            if (parent != null)
-                parent.SubStateMachine.ChangeState(new IdleState(body, parent));
-            else
-                body.EnterGrounded("boss revive backoff: finished without parent");
+            parent.SubStateMachine.ChangeState(new IdleState(body, parent));
         }
     }
 

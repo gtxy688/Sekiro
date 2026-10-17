@@ -6,6 +6,8 @@
 
 BTBrain 组装并更新 Boss 行为树。Node 返回 Success、Failure 或 Running；部分 Selector / 节点保存运行状态，Blackboard 保存跨节点使用的战斗上下文与冷却信息。
 
+PlayerTarget、PlayerBody 和招式表由场景绑定，PlayerBody 不再从目标层级自动补齐。树建立后的角色、配置、黑板和执行节点按必需依赖使用；无目标、无可选招式、冷却未结束等仍是正常的决策分支。
+
 行为树负责判断“现在做什么”；BossMovePicker 按当前调用层、目标距离、招式可用性等条件选择 BossMoveEntry；BT_ExecuteMove 将所选招式的序列 / 窗口交给 CharacterBody 的攻击状态执行。
 
 ## 当前行为分支

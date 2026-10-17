@@ -9,7 +9,7 @@ namespace ARPG.FrameWork.Body
     // 约束：
     // - Inspector 字段（groundCheckPoint/groundLayer/groundHysteresisFrames/fallKillY/GameCamera 等）
     //   留在 CharacterBody（prefab 已保存），模块只读；
-    // - 接地接线 EnsureGroundDetectionWired 留在 Façade（Awake 里写序列化字段、依赖私有 bodyCollider）；
+    // - 接地点和地面层直接读取 CharacterBody 的 Inspector 配置；
     // - MoveDirection/IsAirborne 等移动意图标志由状态/AI 写入，仍留在 Façade，模块不拥有；
     // - 跳跃冲量等 FixedUpdate 再写速度：Animator 是 Animate Physics，根运动会在物理帧盖掉
     //   velocity.y，所以起跳只记 pending（ApplyPendingJumpVelocity 由 Façade 的 FixedUpdate 驱动，时机不变）。
@@ -46,7 +46,7 @@ namespace ARPG.FrameWork.Body
             if (jumpFollowBoneResolved) return jumpFollowBone;
             jumpFollowBoneResolved = true;
 
-            if (body.Animator != null && body.Animator.isHuman)
+            if (body.Animator.isHuman)
                 jumpFollowBone = body.Animator.GetBoneTransform(HumanBodyBones.Hips);
 
             if (jumpFollowBone == null)
@@ -77,15 +77,7 @@ namespace ARPG.FrameWork.Body
 
         public void UpdateEnvironmentalChecks()
         {
-            bool check;
-            if (body.groundCheckPoint != null)
-            {
-                check = Physics.CheckSphere(body.groundCheckPoint.position, body.groundCheckRadius, body.groundLayer);
-            }
-            else
-            {
-                check = true; // 容错
-            }
+            bool check = Physics.CheckSphere(body.groundCheckPoint.position, body.groundCheckRadius, body.groundLayer);
             groundedCheckRaw = check;
 
             // 第一次没有「上一帧」：直接采信，不要从默认 false 再等迟滞。
@@ -139,11 +131,8 @@ namespace ARPG.FrameWork.Body
             if (!hasSafePosition || body.transform.position.y >= body.fallKillY) return;
 
             body.transform.position = lastSafePosition;
-            if (body.Rb != null)
-            {
-                body.Rb.position = lastSafePosition;
-                body.Rb.velocity = Vector3.zero;
-            }
+            body.Rb.position = lastSafePosition;
+            body.Rb.velocity = Vector3.zero;
             Debug.LogWarning($"[CharacterBody] {body.name} 坠出地图（y < {body.fallKillY}），已传回安全落点 {lastSafePosition}");
         }
 
@@ -157,8 +146,7 @@ namespace ARPG.FrameWork.Body
         {
             if (body.IsFinisherLocked) return;
 
-            float speed = body.Config != null ? body.Config.JumpSpeed : 6f;
-            if (speed <= 0.01f) speed = 6f;
+            float speed = body.Config.JumpSpeed;
 
             pendingJumpSpeed = speed;
             hasPendingJump = true;
@@ -180,14 +168,13 @@ namespace ARPG.FrameWork.Body
                 return true;
             }
 
-            AnimUtil.TryCrossFade(body.Animator, "Jump2", body.Config != null ? body.Config.JumpAnimBlend : 0.08f);
+            AnimUtil.TryCrossFade(body.Animator, "Jump2", body.Config.JumpAnimBlend);
             playedNew = true;
             return true;
         }
 
         private void ApplyJumpVelocity(float speed)
         {
-            if (body.Rb == null) return;
             Vector3 v = body.Rb.velocity;
             body.Rb.velocity = new Vector3(v.x, speed, v.z);
         }
@@ -195,7 +182,7 @@ namespace ARPG.FrameWork.Body
         // Façade 的 FixedUpdate 每物理帧调用：pending 存在才写速度
         public void ApplyPendingJumpVelocity()
         {
-            if (!hasPendingJump || body.Rb == null) return;
+            if (!hasPendingJump) return;
             ApplyJumpVelocity(pendingJumpSpeed);
             hasPendingJump = false;
         }
@@ -211,18 +198,13 @@ namespace ARPG.FrameWork.Body
         public Vector3 InputToWorldDir(Vector2 inputDir)
         {
             UnityEngine.Camera cam = body.GameCamera != null ? body.GameCamera : UnityEngine.Camera.main;
-            if (cam != null)
-            {
-                Vector3 camForward = cam.transform.forward;
-                camForward.y = 0f;
-                camForward.Normalize();
-                Vector3 camRight = cam.transform.right;
-                camRight.y = 0f;
-                camRight.Normalize();
-                return (camForward * inputDir.y + camRight * inputDir.x).normalized;
-            }
-            // 没有相机时回退世界方向（容错）
-            return new Vector3(inputDir.x, 0f, inputDir.y).normalized;
+            Vector3 camForward = cam.transform.forward;
+            camForward.y = 0f;
+            camForward.Normalize();
+            Vector3 camRight = cam.transform.right;
+            camRight.y = 0f;
+            camRight.Normalize();
+            return (camForward * inputDir.y + camRight * inputDir.x).normalized;
         }
 
         // 玩家 Controller 用 MoveZ，Boss 用 MoveY。缓存起来避免每帧 SetFloat 打到不存在的参数。
@@ -233,7 +215,6 @@ namespace ARPG.FrameWork.Body
         // 锁定四向移动参数：有 MoveZ 用 MoveZ，否则回退 MoveY。
         public void SetMoveStrafe(float x, float z, bool instant)
         {
-            if (body.Animator == null) return;
             ResolveMoveParams();
             if (instant)
             {
@@ -249,7 +230,7 @@ namespace ARPG.FrameWork.Body
 
         private void ResolveMoveParams()
         {
-            if (moveParamsResolved || body.Animator == null) return;
+            if (moveParamsResolved) return;
             // StringToHash 是 Animator 的静态方法，用类型名限定（不能经实例属性调用）
             moveXHash = Animator.StringToHash("MoveX");
             string forwardName = "MoveY";

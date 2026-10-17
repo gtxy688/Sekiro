@@ -85,21 +85,21 @@ namespace ARPG.Combat
 
         public static string BrokenAnim(CharacterBody body)
         {
-            if (body != null && body.Config != null && !string.IsNullOrEmpty(body.Config.HurtAnim_Broken))
+            if (!string.IsNullOrEmpty(body.Config.HurtAnim_Broken))
                 return body.Config.HurtAnim_Broken;
             return "Stagger_Broken";
         }
 
         public static string StandingAnim(CharacterBody body)
         {
-            if (body != null && body.Config != null && !string.IsNullOrEmpty(body.Config.HurtAnim_Standing))
+            if (!string.IsNullOrEmpty(body.Config.HurtAnim_Standing))
                 return body.Config.HurtAnim_Standing;
             return "Standing";
         }
 
         public static string MidToGuardAnim(CharacterBody body)
         {
-            if (body != null && body.Config != null && !string.IsNullOrEmpty(body.Config.HurtAnim_MidToGuard))
+            if (!string.IsNullOrEmpty(body.Config.HurtAnim_MidToGuard))
                 return body.Config.HurtAnim_MidToGuard;
             return "MidToGuard";
         }
@@ -130,25 +130,25 @@ namespace ARPG.Combat
 
         public static string UnguardedAnim(CharacterBody body, HitGrade grade, bool lightRepeat, bool heavyRepeat)
         {
-            CharacterConfig cfg = body != null ? body.Config : null;
+            CharacterConfig cfg = body.Config;
             if (heavyRepeat)
-                return Pick(body, cfg != null ? cfg.HurtAnim_HeavyRepeat : null, "Hurt_HeavyRepeat", "Hurt_Heavy");
+                return Pick(body, cfg.HurtAnim_HeavyRepeat, "Hurt_HeavyRepeat", "Hurt_Heavy");
             if (grade == HitGrade.Mid)
-                return Pick(body, cfg != null ? cfg.HurtAnim_Mid : null, "Hurt_Mid", "Hurt_Heavy");
+                return Pick(body, cfg.HurtAnim_Mid, "Hurt_Mid", "Hurt_Heavy");
             if (grade == HitGrade.Heavy)
-                return Pick(body, cfg != null ? cfg.HurtAnim_Heavy : null, "Hurt_Heavy", "Hurt_Ground");
+                return Pick(body, cfg.HurtAnim_Heavy, "Hurt_Heavy", "Hurt_Ground");
             if (lightRepeat)
-                return Pick(body, cfg != null ? cfg.HurtAnim_Light2 : null, "Hurt_Light2", "Hurt_Light", "Hurt_Ground");
-            return Pick(body, cfg != null ? cfg.HurtAnim_Normal : null, "Hurt_Light", "Hurt_Ground");
+                return Pick(body, cfg.HurtAnim_Light2, "Hurt_Light2", "Hurt_Light", "Hurt_Ground");
+            return Pick(body, cfg.HurtAnim_Normal, "Hurt_Light", "Hurt_Ground");
         }
 
         static string Pick(CharacterBody body, params string[] names)
         {
-            UnityEngine.Animator anim = body != null ? body.Animator : null;
+            UnityEngine.Animator anim = body.Animator;
             for (int i = 0; i < names.Length; i++)
             {
                 if (string.IsNullOrEmpty(names[i])) continue;
-                if (anim == null || AnimUtil.HasState(anim, names[i]))
+                if (AnimUtil.HasState(anim, names[i]))
                     return names[i];
             }
             for (int i = 0; i < names.Length; i++)

@@ -4,7 +4,7 @@
 
 ## 输入路径
 
-PlayerInput / PlayerInputActions 提供玩家动作。PlayerBrain 绑定 Move、Attack、Jump、Deflect、Dodge、Heal、LockOn 等动作，并在对象销毁时解绑回调。
+PlayerInput 提供并管理玩家动作实例。PlayerBrain 直接读取同物体 PlayerInput 的 Actions，在 Player Map 中查找 Move/Attack/Jump/Deflect/Dodge/Heal/LockOn，再直接订阅和使用；缺少配置时由实际使用处暴露错误。角色配置和 ThrustAttack 按必需依赖使用，不另设启动校验、输入实例回退或默认长按时间。输入启停由 PlayerInput 管理；PlayerBrain 绑定动作回调，并在对象销毁时解绑已完成的订阅。
 
 - Move 是连续输入：PlayerBrain 在更新过程中读取方向并持续交给 CharacterBody。
 - 攻击、跳跃、防御、垫步、喝药等离散意图被转换为 Command，经 BrainBase 缓冲后走状态机路由。

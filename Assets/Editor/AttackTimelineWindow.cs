@@ -393,8 +393,6 @@ namespace ARPG.Editor
 
         void DrawHitTimeSliders(float clipLength)
         {
-            if (workingPulses == null) return;
-
             EditorGUILayout.LabelField("判定时间", EditorStyles.boldLabel);
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("加段", GUILayout.Width(60)))
@@ -412,9 +410,6 @@ namespace ARPG.Editor
             for (int i = 0; i < workingPulses.Length; i++)
             {
                 HitPulse p = workingPulses[i];
-                if (p == null)
-                    p = workingPulses[i] = new HitPulse();
-
                 string prefix = workingPulses.Length > 1 ? (i + 1) + " " : "";
                 float newStart = DragNameTime(prefix + "开始（秒）", p.start, 0f, clipLength);
                 if (!Mathf.Approximately(newStart, p.start))
@@ -448,11 +443,9 @@ namespace ARPG.Editor
             EditorGUI.DrawRect(track, new Color(0.18f, 0.18f, 0.18f));
             HandlePlayhead(track, clipLength);
 
-            if (workingPulses == null) return;
             for (int i = 0; i < workingPulses.Length; i++)
             {
                 HitPulse p = workingPulses[i];
-                if (p == null) continue;
                 Rect bar = PulseRect(track, p.start, p.end, clipLength);
                 EditorGUI.DrawRect(bar, new Color(1f, 0.27f, 0.23f, 0.85f));
                 HandlePulseDrag(track, clipLength, i, bar);
@@ -471,24 +464,18 @@ namespace ARPG.Editor
             EditorGUI.DrawRect(track, new Color(0.18f, 0.18f, 0.18f));
             HandlePlayhead(track, clipLength);
 
-            if (workingSfx != null)
-            {
-                for (int i = 0; i < workingSfx.Length; i++)
-                {
-                    AttackSfxCue cue = workingSfx[i];
-                    if (cue == null) continue;
-                    float x = track.x + (clipLength > 0.0001f ? cue.time / clipLength : 0f) * track.width;
-                    Rect mark = new Rect(x - 7f, track.y, 14f, track.height);
-                    GUI.Label(mark, "♪");
-                    HandleSfxDrag(track, clipLength, i, mark);
-                }
-            }
-
-            if (workingSfx == null) return;
             for (int i = 0; i < workingSfx.Length; i++)
             {
-                AttackSfxCue cue = workingSfx[i] ?? new AttackSfxCue();
-                workingSfx[i] = cue;
+                AttackSfxCue cue = workingSfx[i];
+                float x = track.x + (clipLength > 0.0001f ? cue.time / clipLength : 0f) * track.width;
+                Rect mark = new Rect(x - 7f, track.y, 14f, track.height);
+                GUI.Label(mark, "♪");
+                HandleSfxDrag(track, clipLength, i, mark);
+            }
+
+            for (int i = 0; i < workingSfx.Length; i++)
+            {
+                AttackSfxCue cue = workingSfx[i];
                 string sfxPrefix = workingSfx.Length > 1 ? (i + 1) + " " : "";
                 float newTime = DragNameTime(sfxPrefix + "音效（秒）", cue.time, 0f, clipLength);
                 if (!Mathf.Approximately(newTime, cue.time))
@@ -519,24 +506,18 @@ namespace ARPG.Editor
             EditorGUI.DrawRect(track, new Color(0.18f, 0.18f, 0.18f));
             HandlePlayhead(track, clipLength);
 
-            if (workingArrows != null)
-            {
-                for (int i = 0; i < workingArrows.Length; i++)
-                {
-                    ArrowSpawnCue cue = workingArrows[i];
-                    if (cue == null) continue;
-                    float x = track.x + (clipLength > 0.0001f ? cue.time / clipLength : 0f) * track.width;
-                    Rect mark = new Rect(x - 7f, track.y, 14f, track.height);
-                    GUI.Label(mark, "↑");
-                    HandleArrowDrag(track, clipLength, i, mark);
-                }
-            }
-
-            if (workingArrows == null) return;
             for (int i = 0; i < workingArrows.Length; i++)
             {
-                ArrowSpawnCue cue = workingArrows[i] ?? new ArrowSpawnCue();
-                workingArrows[i] = cue;
+                ArrowSpawnCue cue = workingArrows[i];
+                float x = track.x + (clipLength > 0.0001f ? cue.time / clipLength : 0f) * track.width;
+                Rect mark = new Rect(x - 7f, track.y, 14f, track.height);
+                GUI.Label(mark, "↑");
+                HandleArrowDrag(track, clipLength, i, mark);
+            }
+
+            for (int i = 0; i < workingArrows.Length; i++)
+            {
+                ArrowSpawnCue cue = workingArrows[i];
                 string prefix = workingArrows.Length > 1 ? (i + 1) + " " : "";
                 float newTime = DragNameTime(prefix + "出箭（秒）", cue.time, 0f, clipLength);
                 if (!Mathf.Approximately(newTime, cue.time))
@@ -864,7 +845,7 @@ namespace ARPG.Editor
         {
             if (!AttackWindowSync.CanMeleeHit(stored))
                 return new HitPulse[0];
-            return stored ?? new HitPulse[0];
+            return stored;
         }
 
         static HitPulse[] ClonePulses(HitPulse[] stored)
@@ -945,7 +926,7 @@ namespace ARPG.Editor
 
         void RemovePulse(int index)
         {
-            if (workingPulses == null || index < 0 || index >= workingPulses.Length) return;
+            if (index < 0 || index >= workingPulses.Length) return;
             if (workingPulses.Length == 1)
             {
                 workingPulses = new HitPulse[0];
@@ -963,17 +944,16 @@ namespace ARPG.Editor
 
         void AppendPulse(HitPulse pulse)
         {
-            int n = workingPulses == null ? 0 : workingPulses.Length;
+            int n = workingPulses.Length;
             HitPulse[] next = new HitPulse[n + 1];
-            if (workingPulses != null)
-                System.Array.Copy(workingPulses, next, n);
+            System.Array.Copy(workingPulses, next, n);
             next[n] = pulse;
             workingPulses = next;
         }
 
         void ShrinkPulses()
         {
-            if (workingPulses == null || workingPulses.Length == 0) return;
+            if (workingPulses.Length == 0) return;
             if (workingPulses.Length == 1)
             {
                 workingPulses = new HitPulse[0];
@@ -986,17 +966,16 @@ namespace ARPG.Editor
 
         void AppendSfx(AttackSfxCue cue)
         {
-            int n = workingSfx == null ? 0 : workingSfx.Length;
+            int n = workingSfx.Length;
             AttackSfxCue[] next = new AttackSfxCue[n + 1];
-            if (workingSfx != null)
-                System.Array.Copy(workingSfx, next, n);
+            System.Array.Copy(workingSfx, next, n);
             next[n] = cue;
             workingSfx = next;
         }
 
         void RemoveSfx(int index)
         {
-            if (workingSfx == null || index < 0 || index >= workingSfx.Length) return;
+            if (index < 0 || index >= workingSfx.Length) return;
             AttackSfxCue[] next = new AttackSfxCue[workingSfx.Length - 1];
             int w = 0;
             for (int i = 0; i < workingSfx.Length; i++)
@@ -1009,17 +988,16 @@ namespace ARPG.Editor
 
         void AppendArrow(ArrowSpawnCue cue)
         {
-            int n = workingArrows == null ? 0 : workingArrows.Length;
+            int n = workingArrows.Length;
             ArrowSpawnCue[] next = new ArrowSpawnCue[n + 1];
-            if (workingArrows != null)
-                System.Array.Copy(workingArrows, next, n);
+            System.Array.Copy(workingArrows, next, n);
             next[n] = cue;
             workingArrows = next;
         }
 
         void RemoveArrow(int index)
         {
-            if (workingArrows == null || index < 0 || index >= workingArrows.Length) return;
+            if (index < 0 || index >= workingArrows.Length) return;
             ArrowSpawnCue[] next = new ArrowSpawnCue[workingArrows.Length - 1];
             int w = 0;
             for (int i = 0; i < workingArrows.Length; i++)

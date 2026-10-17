@@ -21,15 +21,12 @@ namespace ARPG.FrameWork.States.Ground
         private int upperLayerIndex = -1;
         private bool drinkAnimationSeen;
         private string currentBaseState;
-        private float rotationSpeed = 720f;
+        private readonly float rotationSpeed;
 
         public HealState(CharacterBody body, HierarchicalState parent) : base(body)
         {
             this.parent = parent;
-            if (body.Config != null)
-            {
-                rotationSpeed = body.Config.RotationSpeed;
-            }
+            rotationSpeed = body.Config.RotationSpeed;
         }
 
         public override void OnEnter()

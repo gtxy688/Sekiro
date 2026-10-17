@@ -43,11 +43,6 @@ namespace ARPG.UI
         private PlayerInput playerInput;
         private bool listeningControls;
 
-        public override void OnViewInit()
-        {
-            BindSceneRefs();
-        }
-
         public void BindPlayerInput(PlayerInput input)
         {
             SetPlayerInput(input);
@@ -74,18 +69,13 @@ namespace ARPG.UI
             SetPlayerInput(input);
 
             Show();
-            BindSceneRefs();
             KillTweens();
             SetContentVisible(false);
 
-            if (canvasGroup != null)
-            {
-                canvasGroup.alpha = 1f;
-                canvasGroup.interactable = false;
-                canvasGroup.blocksRaycasts = true;
-            }
+            canvasGroup.alpha = 1f;
+            canvasGroup.interactable = false;
+            canvasGroup.blocksRaycasts = true;
 
-            if (vignette == null) return;
             Color start = VignetteColor;
             start.a = 0f;
             vignette.color = start;
@@ -116,69 +106,9 @@ namespace ARPG.UI
             UnbindControlsChanged();
             KillTweens();
 
-            if (canvasGroup == null)
-            {
-                Hide();
-                return;
-            }
-
             canvasGroup.interactable = false;
             canvasGroup.blocksRaycasts = false;
             fadeTween = canvasGroup.DOFade(0f, 0.15f).SetUpdate(true).OnComplete(Hide);
-        }
-
-        private void BindSceneRefs()
-        {
-            if (canvasGroup == null)
-                canvasGroup = GetComponent<CanvasGroup>();
-
-            if (vignette == null)
-            {
-                Transform t = transform.Find("Vignette");
-                if (t != null) vignette = t.GetComponent<Image>();
-            }
-
-            if (contentGroup == null)
-            {
-                Transform t = transform.Find("DeathContent");
-                if (t != null) contentGroup = t.GetComponent<CanvasGroup>();
-            }
-
-            if (deathKanji == null)
-            {
-                Transform t = transform.Find("DeathContent/DeathKanji");
-                if (t != null) deathKanji = t.GetComponent<TextMeshProUGUI>();
-            }
-
-            if (deathSub == null)
-            {
-                Transform t = transform.Find("DeathContent/DeathSub");
-                if (t != null) deathSub = t.GetComponent<TextMeshProUGUI>();
-            }
-
-            if (giveUpButton == null)
-            {
-                Transform t = transform.Find("DeathContent/Choices/GiveUp");
-                if (t != null) giveUpButton = t.GetComponent<Button>();
-            }
-
-            if (reviveButton == null)
-            {
-                Transform t = transform.Find("DeathContent/Choices/ReviveChoice");
-                if (t != null) reviveButton = t.GetComponent<Button>();
-            }
-
-            if (giveUpLabel == null && giveUpButton != null)
-            {
-                Transform t = giveUpButton.transform.Find("Label");
-                if (t != null) giveUpLabel = t.GetComponent<TextMeshProUGUI>();
-            }
-
-            if (reviveLabel == null && reviveButton != null)
-            {
-                Transform t = reviveButton.transform.Find("Label");
-                if (t != null) reviveLabel = t.GetComponent<TextMeshProUGUI>();
-            }
         }
 
         private void TryRevealChoices()
@@ -190,31 +120,21 @@ namespace ARPG.UI
             RefreshPrompts();
             SetContentVisible(true);
 
-            if (contentGroup != null)
-            {
-                contentGroup.alpha = 0f;
-                contentTween = contentGroup.DOFade(1f, ChoiceFadeDuration).SetUpdate(true);
-            }
+            contentGroup.alpha = 0f;
+            contentTween = contentGroup.DOFade(1f, ChoiceFadeDuration).SetUpdate(true);
 
-            if (deathKanji != null)
-            {
-                deathKanji.transform.DOKill();
-                deathKanji.transform.localScale = Vector3.one * 0.94f;
-                deathKanji.transform.DOScale(Vector3.one, ChoiceFadeDuration).SetEase(Ease.OutCubic).SetUpdate(true);
-            }
+            deathKanji.transform.DOKill();
+            deathKanji.transform.localScale = Vector3.one * 0.94f;
+            deathKanji.transform.DOScale(Vector3.one, ChoiceFadeDuration).SetEase(Ease.OutCubic).SetUpdate(true);
 
-            if (canvasGroup != null)
-            {
-                canvasGroup.interactable = true;
-                canvasGroup.blocksRaycasts = true;
-            }
+            canvasGroup.interactable = true;
+            canvasGroup.blocksRaycasts = true;
 
             CursorController.PushUi();
         }
 
         private void SetContentVisible(bool visible)
         {
-            if (contentGroup == null) return;
             contentGroup.alpha = visible ? 1f : 0f;
             contentGroup.interactable = visible;
             contentGroup.blocksRaycasts = visible;
@@ -233,17 +153,11 @@ namespace ARPG.UI
 
         private void WireButtons()
         {
-            if (giveUpButton != null)
-            {
-                giveUpButton.onClick.RemoveAllListeners();
-                giveUpButton.onClick.AddListener(() => onGiveUp?.Invoke());
-            }
+            giveUpButton.onClick.RemoveAllListeners();
+            giveUpButton.onClick.AddListener(() => onGiveUp?.Invoke());
 
-            if (reviveButton != null)
-            {
-                reviveButton.onClick.RemoveAllListeners();
-                reviveButton.onClick.AddListener(() => onRevive?.Invoke());
-            }
+            reviveButton.onClick.RemoveAllListeners();
+            reviveButton.onClick.AddListener(() => onRevive?.Invoke());
         }
 
         private void SetPlayerInput(PlayerInput input)
@@ -253,19 +167,16 @@ namespace ARPG.UI
 
             if (playerInput == input && listeningControls)
             {
-                if (playerInput != null && playerInput.actions != null)
-                    InputRebindService.Load(playerInput.actions);
+                InputRebindService.Load(playerInput.actions);
                 return;
             }
 
             UnbindControlsChanged();
             playerInput = input;
-            if (playerInput == null) return;
 
             playerInput.onControlsChanged += HandleControlsChanged;
             listeningControls = true;
-            if (playerInput.actions != null)
-                InputRebindService.Load(playerInput.actions);
+            InputRebindService.Load(playerInput.actions);
         }
 
         private void UnbindControlsChanged()
@@ -286,18 +197,13 @@ namespace ARPG.UI
             string deflectName = string.Empty;
             string attackName = string.Empty;
 
-            if (playerInput != null && playerInput.actions != null)
-            {
-                InputAction deflect = playerInput.actions.FindAction("Deflect");
-                InputAction attack = playerInput.actions.FindAction("Attack");
-                deflectName = InputRebindService.GetBindingDisplay(deflect, group);
-                attackName = InputRebindService.GetBindingDisplay(attack, group);
-            }
+            InputAction deflect = playerInput.actions.FindAction("Deflect");
+            InputAction attack = playerInput.actions.FindAction("Attack");
+            deflectName = InputRebindService.GetBindingDisplay(deflect, group);
+            attackName = InputRebindService.GetBindingDisplay(attack, group);
 
-            if (giveUpLabel != null)
-                giveUpLabel.text = FormatPrompt(deflectName, "就此死去");
-            if (reviveLabel != null)
-                reviveLabel.text = FormatPrompt(attackName, "起死回生");
+            giveUpLabel.text = FormatPrompt(deflectName, "就此死去");
+            reviveLabel.text = FormatPrompt(attackName, "起死回生");
         }
 
         private static string FormatPrompt(string key, string action)

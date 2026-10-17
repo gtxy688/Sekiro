@@ -44,8 +44,6 @@ namespace ARPG.Combat
         // A 的武器扫到 B 的 Hurtbox
         public void ReportHit(Hitbox hitbox, Hurtbox hurtbox, Vector3 hitPoint)
         {
-            if (hitbox == null || hurtbox == null) return;
-
             CharacterBody attacker = hitbox.Owner;
             CharacterBody target = hurtbox.Owner;
 
@@ -55,7 +53,6 @@ namespace ARPG.Combat
             // 全局规则扩展位（后续：减伤 Buff、全场无敌、友军伤害开关等）
 
             // 伤害数据来自 AttackConfig（SO），这里只做转发（含危字标记 M17 / 击退 / 受击等级）
-            if (hitbox.Config == null) return;
             // 接触时间记录在防御/伤害结算之前；接触不代表一定扣血。
             if (attacker.EnableStateDebugLog || target.EnableStateDebugLog)
             {

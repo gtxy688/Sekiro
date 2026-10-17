@@ -22,7 +22,7 @@ namespace ARPG.Boss
         [Tooltip("段级危字标记（优先于招式的 entry.perilous）。用于一招多段中仅某段是危字的情况，如 Slash_SpinElbow 的 Elbow 段 = Grab。段级与招式级都未标 = 非危字")]
         public PerilousType perilous = PerilousType.None;
 
-        [Tooltip("本段用哪把 Hitbox。默认刀；Elbow 段（拳头）选 Elbow。缺引用时运行时回退刀。")]
+        [Tooltip("本段用哪把 Hitbox。默认刀；Elbow 段（拳头）选 Elbow。角色必须绑定对应槽位的 Hitbox。")]
         public AttackHitboxSlot hitboxSlot = AttackHitboxSlot.Weapon;
 
         [Tooltip("一条 Clip 内多次出伤。空 = 只用 hitStartTime/recoverStart 一刀")]

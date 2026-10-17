@@ -25,11 +25,11 @@ namespace ARPG.Boss
             CharacterBody opponent = null,
             HashSet<string> whitelist = null)
         {
-            if (table == null || table.moves == null || self == null) return null;
+            if (table.moves == null) return null;
 
             float postureLow = table.postureLowThreshold > 0f
                 ? table.postureLowThreshold
-                : (self.Config != null ? self.Config.MaxPosture * 0.5f : 50f);
+                : self.Config.MaxPosture * 0.5f;
 
             float total = 0f;
             for (int pass = 0; pass < 2; pass++)
@@ -74,13 +74,13 @@ namespace ARPG.Boss
                 if (distance < e.minRange || distance > e.maxRange) return 0f;
             }
 
-            if (blackboard != null && blackboard.IsOnCooldown(e.id, e.cooldown)) return 0f;
+            if (blackboard.IsOnCooldown(e.id, e.cooldown)) return 0f;
             if (!AnySequencePlayable(e, animator)) return 0f;
 
             switch (e.extra)
             {
                 case BossMoveExtra.HpBelow75:
-                    if (self.Config == null || self.CurrentHP >= self.Config.MaxHP * 0.75f)
+                    if (self.CurrentHP >= self.Config.MaxHP * 0.75f)
                         return 0f;
                     break;
                 case BossMoveExtra.PostureLow:
@@ -125,7 +125,7 @@ namespace ARPG.Boss
             for (int i = 0; i < seq.states.Length; i++)
             {
                 if (string.IsNullOrEmpty(seq.states[i])) return false;
-                if (animator != null && !AnimUtil.HasState(animator, seq.states[i])) return false;
+                if (!AnimUtil.HasState(animator, seq.states[i])) return false;
             }
             return true;
         }

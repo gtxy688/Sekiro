@@ -17,7 +17,7 @@ namespace ARPG.Boss
         [Header("目标")]
         // AI 目标独立配置，不会从 CombatManager 的参与者引用中自动注入。
         public Transform PlayerTarget;
-        // 用于读取目标的战斗状态；未指定时从 PlayerTarget 或其父级解析。
+        // 用于读取目标的战斗状态，与 PlayerTarget 一起由场景绑定。
         public CharacterBody PlayerBody;
 
         [Header("追击")]
@@ -82,16 +82,9 @@ namespace ARPG.Boss
                 return;
             }
 
-            if (PlayerBody == null && PlayerTarget != null)
-            {
-                PlayerBody = PlayerTarget.GetComponent<CharacterBody>();
-                if (PlayerBody == null)
-                    PlayerBody = PlayerTarget.GetComponentInParent<CharacterBody>();
-            }
-
             if (PlayerBody == null)
             {
-                Debug.LogError($"{name} 的 BTBrain 无法从 PlayerTarget 找到 CharacterBody，AI 已停用。");
+                Debug.LogError($"{name} 的 BTBrain 缺少 PlayerBody，AI 已停用。");
                 enabled = false;
                 return;
             }
@@ -121,7 +114,7 @@ namespace ARPG.Boss
             CombatEventBus.OnRevived += HandlePlayerRevived;
 
             // 自行确保 Scope 存在，注册不依赖 CombatManager.Start 先执行。
-            EncounterScope.Ensure()?.Register(this);
+            EncounterScope.Ensure().Register(this);
         }
 
         // 复战重置：把 AI 的运行时状态清干净。
@@ -132,7 +125,7 @@ namespace ARPG.Boss
         //   - 复活阶段机不清 → Boss 卡在「等玩家起身」，站着不动
         public void ResetForEncounter()
         {
-            blackboard?.Clear();
+            blackboard.Clear();
 
             postRevivePhase = PostRevivePhase.None;
             postReviveTimer = 0f;
@@ -158,7 +151,7 @@ namespace ARPG.Boss
 
         private void Update()
         {
-            if (PlayerTarget == null || behaviorTreeRoot == null) return;
+            if (PlayerTarget == null) return;
 
             if (body.IsDefeated)
             {
@@ -177,7 +170,7 @@ namespace ARPG.Boss
                 return;
             }
 
-            bool playerIncapacitated = PlayerBody != null && PlayerBody.IsIncapacitatedForBoss;
+            bool playerIncapacitated = PlayerBody.IsIncapacitatedForBoss;
             if (playerIncapacitated && !circlingIncapacitatedPlayer)
             {
                 circlingIncapacitatedPlayer = true;
@@ -199,7 +192,7 @@ namespace ARPG.Boss
             if (playerIncapacitated)
             {
                 ResetExecutors();
-                moveToTarget?.Evaluate();
+                moveToTarget.Evaluate();
                 return;
             }
 
@@ -209,17 +202,17 @@ namespace ARPG.Boss
                 ResetExecutors();
                 if (body.IsAttacking)
                     body.CancelAttackToIdle();
-                moveToTarget?.Evaluate();
+                moveToTarget.Evaluate();
                 return;
             }
 
             healPunish?.ArmIfPlayerHealing();
             behaviorTreeRoot.Evaluate();
             // 已选好招但尚未到允许起手时刻，保留走位；被动格挡仍由 ReceiveHit 独立处理。
-            if ((activeExecutor != null && activeExecutor.IsWaitingForStart)
-                || (kengekiExecutor != null && kengekiExecutor.IsWaitingForStart)
-                || (interruptExecutor != null && interruptExecutor.IsWaitingForStart))
-                moveToTarget?.Evaluate();
+            if (activeExecutor.IsWaitingForStart
+                || kengekiExecutor.IsWaitingForStart
+                || interruptExecutor.IsWaitingForStart)
+                moveToTarget.Evaluate();
         }
 
         private static bool IsOpeningHold()
@@ -229,9 +222,9 @@ namespace ARPG.Boss
 
         private void ResetExecutors()
         {
-            activeExecutor?.ResetMove();
-            kengekiExecutor?.ResetMove();
-            interruptExecutor?.ResetMove();
+            activeExecutor.ResetMove();
+            kengekiExecutor.ResetMove();
+            interruptExecutor.ResetMove();
         }
 
         private void OnDisable()
@@ -307,7 +300,7 @@ namespace ARPG.Boss
                 case PostRevivePhase.WaitPlayerStand:
                     HoldFacePlayer();
                     body.MoveDirection = Vector3.zero;
-                    if (PlayerBody != null && PlayerBody.IsReviving)
+                    if (PlayerBody.IsReviving)
                         return;
 
                     postReviveTimer += Time.deltaTime;
@@ -358,7 +351,6 @@ namespace ARPG.Boss
 
         private void ArmPostReviveRoamGap()
         {
-            if (blackboard == null) return;
             float gap = roamAfterAttack + Random.Range(0f, Mathf.Max(0f, roamAfterAttackJitter));
             blackboard.ActiveGapDuration = gap;
             blackboard.SetCooldown("active_gap");

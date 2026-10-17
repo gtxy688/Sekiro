@@ -47,7 +47,7 @@ namespace ARPG.FrameWork.States.Base
         // 子类钩子：进入时最先执行（空中记进入时刻）
         protected virtual void OnAttackEnter() { }
 
-        // 本招正常结束/空配置/校验失败时退到哪个状态
+        // 本招正常结束/窗口校验失败时退到哪个状态
         protected abstract void ExitToIdle();
 
         // NextCombo 接下一段时派生同款状态（地面/空中各自 new）
@@ -56,13 +56,6 @@ namespace ARPG.FrameWork.States.Base
         public override void OnEnter()
         {
             OnAttackEnter();
-
-            // 空配置保护：没有 AttackConfig 的攻击状态无意义，立刻退回待机
-            if (config == null)
-            {
-                ExitToIdle();
-                return;
-            }
 
             animTime = 0f;
             sfxFired = null;
@@ -134,8 +127,6 @@ namespace ARPG.FrameWork.States.Base
             // 空中刀落地由 AirState.LeaveAir 切回地面；落地帧不再推进本刀（地面恒 false）
             if (WantsImmediateLand) return;
 
-            if (config == null) return;
-
             animTime = AttackAnimClock.ReadSeconds(body.Animator, config.AnimName);
             body.IsAttackRecoveryOpen = animTime >= config.RecoveryWindowStart;
 
@@ -181,8 +172,6 @@ namespace ARPG.FrameWork.States.Base
 
         public override bool HandleCommand(ICommand cmd)
         {
-            if (config == null) return false;
-
             // 前摇可以主动取消；命中段锁定；进入后摇后重新开放所有非攻击行为。
             bool canCancel = animTime < config.HitStartTime ||
                              animTime >= config.RecoveryWindowStart;
@@ -220,7 +209,6 @@ namespace ARPG.FrameWork.States.Base
             // 已出现忍杀机会时，破防前遗留的普通攻击预输入不能接 NextCombo。
             // 真正的忍杀只接受 PlayerBrain 在机会出现后生成的 FinisherCommand。
             if (body.Faction == Faction.Player &&
-                CombatManager.Instance != null &&
                 CombatManager.Instance.HasAvailableFinisher(body))
             {
                 return true;
@@ -239,7 +227,7 @@ namespace ARPG.FrameWork.States.Base
         private bool HandleFinisherCommand()
         {
             if (body.Faction == Faction.Player)
-                CombatManager.Instance?.TryExecuteAvailableFinisher(body);
+                CombatManager.Instance.TryExecuteAvailableFinisher(body);
             return true;
         }
 
@@ -248,12 +236,12 @@ namespace ARPG.FrameWork.States.Base
         // 危字整段、飞舟、JumpThrust / Jump_Danger 全段抓前摇打不断。
         private static bool IsUninterruptibleAttack(AttackConfig cfg, BossMoveEntry entry)
         {
-            if (cfg != null && cfg.Perilous != PerilousType.None)
+            if (cfg.Perilous != PerilousType.None)
                 return true;
             if (entry != null && (entry.id == "Boat" || entry.id == "Boat_Full"
                 || entry.id == "JumpThrust" || entry.id == "Jump_Danger"))
                 return true;
-            if (cfg != null && !string.IsNullOrEmpty(cfg.AnimName)
+            if (!string.IsNullOrEmpty(cfg.AnimName)
                 && cfg.AnimName.StartsWith("Boat"))
                 return true;
             return false;

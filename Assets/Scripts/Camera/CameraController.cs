@@ -132,10 +132,7 @@ namespace ARPG.Camera
         [Tooltip("LookAt 额外上抬上限（米）")]
         [SerializeField] private float jumpThrustMaxExtraLift = 5f;
 
-        private bool setupDone;
-        // 陷阱3-3：可 Inspector 拖入主相机 Brain，避免懒加载 FindObjectOfType；
-        // 未拖时仍走查找兜底（场景零改动）。
-        [SerializeField] private CinemachineBrain brain;
+        private CinemachineBrain brain;
         private Coroutine releaseLockYawCo;
         private Coroutine finisherDollyCo;
         private bool isInFinisher;
@@ -164,7 +161,7 @@ namespace ARPG.Camera
 
         private void Awake()
         {
-            EnsureSetup();
+            InitializeCamera();
         }
 
         private void OnEnable()
@@ -199,7 +196,6 @@ namespace ARPG.Camera
 
         private void Start()
         {
-            EnsureSetup();
             bool locked = LockOnManager.Instance != null && LockOnManager.Instance.IsLockedOn;
             HandleLockOnChanged(locked);
             if (!locked)
@@ -241,7 +237,6 @@ namespace ARPG.Camera
         {
             if (isInFinisher) return;
             float speed = jumpThrustTarget > jumpThrustEnv ? jumpThrustBlendIn : jumpThrustBlendOut;
-            if (speed <= 0.01f) speed = 0.25f;
             jumpThrustEnv = Mathf.MoveTowards(jumpThrustEnv, jumpThrustTarget, Time.deltaTime / speed);
             if (jumpThrustTarget <= 0f && jumpThrustEnv <= 0.001f)
             {
@@ -255,21 +250,16 @@ namespace ARPG.Camera
         // 用迟滞区间（enter 低 / exit 高）做开关，临界距离来回横跳时不会闪烁。
         private void UpdateObstacleFade()
         {
-            if (obstacleFader == null) return;
-
             bool squeezed = false;
-            if (!isInFinisher && followProxy != null && freeLook != null && lockVcam != null)
+            if (!isInFinisher)
             {
                 UnityEngine.Camera cam = UnityEngine.Camera.main;
-                if (cam != null)
-                {
-                    float desired = GetDesiredFollowDistance();
-                    float actual = Vector3.Distance(followProxy.transform.position, cam.transform.position);
-                    float ratio = desired > 0.05f ? actual / desired : 1f;
-                    squeezed = obstacleSqueezed
-                        ? ratio < squeezeFadeExit   // 已虚化：回到安全比例才恢复
-                        : ratio < squeezeFadeEnter; // 未虚化：压得更狠才触发
-                }
+                float desired = GetDesiredFollowDistance();
+                float actual = Vector3.Distance(followProxy.transform.position, cam.transform.position);
+                float ratio = actual / desired;
+                squeezed = obstacleSqueezed
+                    ? ratio < squeezeFadeExit   // 已虚化：回到安全比例才恢复
+                    : ratio < squeezeFadeEnter; // 未虚化：压得更狠才触发
             }
 
             obstacleSqueezed = squeezed;
@@ -282,9 +272,6 @@ namespace ARPG.Camera
             if (lockVcam.Priority > freeLook.Priority)
                 return followOffset.magnitude;
 
-            if (freeLook.m_Orbits == null || freeLook.m_Orbits.Length < 3 || baseOrbitRadius == null)
-                return 3.2f;
-
             float y = Mathf.Clamp01(freeLook.m_YAxis.Value);
             // Cinemachine FreeLook：m_YAxis 0 = 底轨 m_Orbits[2]，0.5 = 中轨，1 = 顶轨 m_Orbits[0]
             return y <= 0.5f
@@ -296,7 +283,7 @@ namespace ARPG.Camera
         private void HandleHeavyArrowDefended(CharacterBody body, bool perfect)
         {
             if (isInFinisher) return;
-            if (body == null || playerFollow == null || body.transform != playerFollow) return;
+            if (body.transform != playerFollow) return;
 
             arrowBackPeak = perfect ? arrowDeflectBack : arrowGuardBack;
             arrowDownPeak = perfect ? arrowDeflectDown : arrowGuardDown;
@@ -326,22 +313,16 @@ namespace ARPG.Camera
             lastJumpEnv = jumpThrustEnv;
 
             // 锁定机位：直接推 Transposer 偏移（Z 越负越远，Y 越低越贴地）
-            if (lockTransposer != null)
-                lockTransposer.m_FollowOffset = lockBaseOffset
+            lockTransposer.m_FollowOffset = lockBaseOffset
                     + new Vector3(0f, -jDrop - arrowDownPeak * e, -jBack - arrowBackPeak * e);
 
-            if (lockComposer != null)
-                lockComposer.m_TrackedObjectOffset = lookAtOffset + new Vector3(0f, lookUp * jumpThrustEnv, 0f);
+            lockComposer.m_TrackedObjectOffset = lookAtOffset + new Vector3(0f, lookUp * jumpThrustEnv, 0f);
 
             // 自由机位：推三条轨道的半径和高度
-            if (freeLook != null && freeLook.m_Orbits != null && freeLook.m_Orbits.Length >= 3
-                && baseOrbitRadius != null)
+            for (int i = 0; i < 3; i++)
             {
-                for (int i = 0; i < 3; i++)
-                {
-                    freeLook.m_Orbits[i].m_Radius = baseOrbitRadius[i] + jBack + arrowBackPeak * e;
-                    freeLook.m_Orbits[i].m_Height = baseOrbitHeight[i] - jDrop - arrowDownPeak * e;
-                }
+                freeLook.m_Orbits[i].m_Radius = baseOrbitRadius[i] + jBack + arrowBackPeak * e;
+                freeLook.m_Orbits[i].m_Height = baseOrbitHeight[i] - jDrop - arrowDownPeak * e;
             }
         }
 
@@ -366,9 +347,6 @@ namespace ARPG.Camera
         {
             if (isInFinisher) return; // 处决中不响应普通锁定切换
 
-            EnsureSetup();
-            if (freeLook == null || lockVcam == null) return;
-
             if (isLocked)
                 ApplyLock();
             else
@@ -391,33 +369,25 @@ namespace ARPG.Camera
             }
             lockVcam.m_StandbyUpdate = CinemachineVirtualCameraBase.StandbyUpdateMode.Always;
 
-            if (followProxy != null)
-            {
-                followProxy.SetYawTarget(target);
-                lockVcam.Follow = followProxy.transform;
-            }
-            else
-            {
-                lockVcam.Follow = playerFollow;
-            }
+            followProxy.SetYawTarget(target);
+            lockVcam.Follow = followProxy.transform;
             lockVcam.LookAt = target;
 
             lockVcam.Priority = lockPriority;
             freeLook.Priority = 0;
-            if (finisherVcam != null) finisherVcam.Priority = 0;
-            if (orbitInput != null) orbitInput.enabled = false;
+            finisherVcam.Priority = 0;
+            orbitInput.enabled = false;
         }
 
         private void ApplyFree()
         {
             SnapFreeLookBehindPlayer();
-            if (freeLook != null)
-                freeLook.m_RecenterToTargetHeading.CancelRecentering();
+            freeLook.m_RecenterToTargetHeading.CancelRecentering();
 
-            if (finisherVcam != null) finisherVcam.Priority = 0;
-            if (lockVcam != null) lockVcam.Priority = 0;
-            if (freeLook != null) freeLook.Priority = freePriority;
-            if (orbitInput != null) orbitInput.enabled = true;
+            finisherVcam.Priority = 0;
+            lockVcam.Priority = 0;
+            freeLook.Priority = freePriority;
+            orbitInput.enabled = true;
 
             if (releaseLockYawCo != null) StopCoroutine(releaseLockYawCo);
             releaseLockYawCo = StartCoroutine(ReleaseLockYawAfterBlend());
@@ -425,20 +395,16 @@ namespace ARPG.Camera
 
         private IEnumerator ReleaseLockYawAfterBlend()
         {
-            if (brain == null)
-                brain = FindObjectOfType<CinemachineBrain>();
-
             yield return null;
             float timeout = Mathf.Max(0.05f, blendTime) + 0.25f;
             float elapsed = 0f;
-            while (brain != null && brain.IsBlending && elapsed < timeout)
+            while (brain.IsBlending && elapsed < timeout)
             {
                 elapsed += Time.unscaledDeltaTime;
                 yield return null;
             }
 
-            if (followProxy != null)
-                followProxy.SetYawTarget(null);
+            followProxy.SetYawTarget(null);
             releaseLockYawCo = null;
         }
 
@@ -446,11 +412,7 @@ namespace ARPG.Camera
         // 不要 ForceCameraPosition(场景主相机)：编辑器里主相机经常在侧面，会把 FreeLook 钉在侧机位。
         private void SnapFreeLookBehindPlayer()
         {
-            if (freeLook == null) return;
-
-            Transform player = playerFollow != null ? playerFollow
-                : (followProxy != null ? followProxy.source : null);
-            if (player == null) return;
+            Transform player = playerFollow;
 
             Vector3 fwd = player.forward;
             fwd.y = 0f;
@@ -462,20 +424,16 @@ namespace ARPG.Camera
             else if (yaw < -180f) yaw += 360f;
             freeLook.m_XAxis.Value = yaw;
 
-            float y = orbitInput != null ? orbitInput.YCenter : 0.45f;
+            float y = orbitInput.YCenter;
             freeLook.m_YAxis.Value = Mathf.Clamp(y, 0.02f, 0.98f);
 
-            float radius = 3.2f;
-            if (freeLook.m_Orbits != null && freeLook.m_Orbits.Length > 1)
-                radius = Mathf.Max(1.6f, freeLook.m_Orbits[1].m_Radius);
-
-            float height = followProxy != null ? followProxy.height : 1.4f;
+            float radius = Mathf.Max(1.6f, freeLook.m_Orbits[1].m_Radius);
+            float height = followProxy.height;
             Vector3 pivot = player.position + Vector3.up * height;
             Vector3 camPos = pivot - fwd * radius;
             freeLook.ForceCameraPosition(camPos, Quaternion.LookRotation(fwd, Vector3.up));
 
-            if (orbitInput != null)
-                orbitInput.IgnoreLookUntil(Time.unscaledTime + 0.45f);
+            orbitInput.IgnoreLookUntil(Time.unscaledTime + 0.45f);
         }
 
         // ===== 2. 处决特写运镜逻辑（只狼式刀刃侧低机位特写） =====
@@ -499,35 +457,24 @@ namespace ARPG.Camera
             CharacterBody victim,
             FinisherKind kind)
         {
-            EnsureSetup();
-            if (finisherVcam == null || victim == null) return;
-
             isInFinisher = true;
-            if (orbitInput != null) orbitInput.enabled = false;
+            orbitInput.enabled = false;
 
-            Transform playerT = player != null ? player.transform : playerFollow;
             Transform victimT = victim.transform;
 
             FinisherCameraProfile profile = GetProfileForKind(kind);
 
             // 1. 设置 Follow 与 LookAt：跟随主角跟随代理点，看向受害者
-            if (followProxy != null)
-            {
-                followProxy.SetYawTarget(victimT);
-                finisherVcam.Follow = followProxy.transform;
-            }
-            else
-            {
-                finisherVcam.Follow = playerT;
-            }
+            followProxy.SetYawTarget(victimT);
+            finisherVcam.Follow = followProxy.transform;
             finisherVcam.LookAt = victimT;
 
             // 2. 处决机位：偏向刀刃侧、低机位微仰
             Vector3 preferredOffset = profile.followOffset;
 
             // 3. 避障检测：检查后方是否贴墙
-            Vector3 origin = (followProxy != null ? followProxy.transform.position : (playerT != null ? playerT.position : transform.position));
-            Vector3 worldOffset = (followProxy != null ? followProxy.transform.TransformDirection(preferredOffset) : (playerT != null ? playerT.TransformDirection(preferredOffset) : preferredOffset));
+            Vector3 origin = followProxy.transform.position;
+            Vector3 worldOffset = followProxy.transform.TransformDirection(preferredOffset);
             Vector3 worldTargetPos = origin + worldOffset;
             if (Physics.Linecast(origin, worldTargetPos, out RaycastHit hit, obstacleLayers))
             {
@@ -537,31 +484,25 @@ namespace ARPG.Camera
 
             // 4. 配置虚拟相机参数
             CinemachineTransposer transposer = finisherVcam.GetCinemachineComponent<CinemachineTransposer>();
-            if (transposer != null)
-            {
-                transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
-                transposer.m_FollowOffset = preferredOffset;
-                transposer.m_XDamping = 0f;
-                transposer.m_YDamping = 0f;
-                transposer.m_ZDamping = 0f;
-                transposer.m_YawDamping = 0f;
-                transposer.m_PitchDamping = 0f;
-            }
+            transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
+            transposer.m_FollowOffset = preferredOffset;
+            transposer.m_XDamping = 0f;
+            transposer.m_YDamping = 0f;
+            transposer.m_ZDamping = 0f;
+            transposer.m_YawDamping = 0f;
+            transposer.m_PitchDamping = 0f;
 
             CinemachineComposer composer = finisherVcam.GetCinemachineComponent<CinemachineComposer>();
-            if (composer != null)
-            {
-                composer.m_TrackedObjectOffset = profile.lookAtOffset;
-                composer.m_LookaheadTime = 0f;
-                composer.m_HorizontalDamping = 0.05f;
-                composer.m_VerticalDamping = 0.05f;
-                composer.m_ScreenX = 0.5f;
-                composer.m_ScreenY = 0.48f;
-                composer.m_DeadZoneWidth = 0f;
-                composer.m_DeadZoneHeight = 0f;
-                composer.m_SoftZoneWidth = 0.5f;
-                composer.m_SoftZoneHeight = 0.5f;
-            }
+            composer.m_TrackedObjectOffset = profile.lookAtOffset;
+            composer.m_LookaheadTime = 0f;
+            composer.m_HorizontalDamping = 0.05f;
+            composer.m_VerticalDamping = 0.05f;
+            composer.m_ScreenX = 0.5f;
+            composer.m_ScreenY = 0.48f;
+            composer.m_DeadZoneWidth = 0f;
+            composer.m_DeadZoneHeight = 0f;
+            composer.m_SoftZoneWidth = 0.5f;
+            composer.m_SoftZoneHeight = 0.5f;
 
             finisherVcam.m_Lens.FieldOfView = profile.fov;
             finisherVcam.m_StandbyUpdate = CinemachineVirtualCameraBase.StandbyUpdateMode.Always;
@@ -570,7 +511,7 @@ namespace ARPG.Camera
             finisherVcam.Priority = finisherPriority;
 
             // 6. 处决微推镜头（Dolly In 沿攻击朝向向前推进）
-            if (profile.enableDolly && transposer != null)
+            if (profile.enableDolly)
             {
                 if (finisherDollyCo != null) StopCoroutine(finisherDollyCo);
                 finisherDollyCo = StartCoroutine(FinisherDollyRoutine(transposer, preferredOffset, profile.dollyDistance, profile.dollyDuration));
@@ -606,10 +547,7 @@ namespace ARPG.Camera
                 finisherDollyCo = null;
             }
 
-            if (finisherVcam != null)
-            {
-                finisherVcam.Priority = 0;
-            }
+            finisherVcam.Priority = 0;
 
             // 恢复之前的相机状态
             bool isLocked = LockOnManager.Instance != null && LockOnManager.Instance.IsLockedOn;
@@ -623,35 +561,19 @@ namespace ARPG.Camera
             }
         }
 
-        // ===== 3. 初始化与自动装配 =====
+        // ===== 3. 初始化机位与运行时表现组件 =====
 
-        public void EnsureSetup()
+        private void InitializeCamera()
         {
-            if (setupDone && freeLook != null && lockVcam != null && finisherVcam != null && playerFollow != null) return;
-
-            if (playerFollow == null)
-            {
-                PlayerBrain brainComp = FindObjectOfType<PlayerBrain>();
-                if (brainComp != null) playerFollow = brainComp.transform;
-            }
-
-            if (freeLook == null)
-                freeLook = FindObjectOfType<CinemachineFreeLook>();
-
-            if (freeLook != null)
-            {
-                EnsureFreeLookFollowProxy();
-                EnsureOrbitInput();
-                ApplyFreeLookAim();
-                ApplyFreeLookBody();
-            }
-
-            EnsureLockVcam();
-            EnsureFinisherVcam();
-            EnsureBrainBlend();
+            ConfigureFreeLookFollow();
+            ConfigureOrbitInput();
+            ApplyFreeLookAim();
+            ApplyFreeLookBody();
+            ConfigureLockVcam();
+            ConfigureFinisherVcam();
+            ConfigureBrainBlend();
             EnsureObstacleFader();
             CaptureCameraBases();
-            setupDone = freeLook != null && lockVcam != null && finisherVcam != null;
         }
 
         private void EnsureObstacleFader()
@@ -660,20 +582,16 @@ namespace ARPG.Camera
                 obstacleFader = GetComponent<CameraObstacleFader>();
             if (obstacleFader == null)
                 obstacleFader = gameObject.AddComponent<CameraObstacleFader>();
-            if (playerFollow != null)
-                obstacleFader.Configure(playerFollow);
+            obstacleFader.Configure(playerFollow);
         }
 
         // 缓存机位基准值：重箭镜头反应在基准上做偏移，结束精确归零
         private void CaptureCameraBases()
         {
-            lockTransposer = lockVcam != null
-                ? lockVcam.GetCinemachineComponent<CinemachineTransposer>() : null;
-            lockComposer = lockVcam != null
-                ? lockVcam.GetCinemachineComponent<CinemachineComposer>() : null;
+            lockTransposer = lockVcam.GetCinemachineComponent<CinemachineTransposer>();
+            lockComposer = lockVcam.GetCinemachineComponent<CinemachineComposer>();
             lockBaseOffset = followOffset;
 
-            if (freeLook == null || freeLook.m_Orbits == null || freeLook.m_Orbits.Length < 3) return;
             baseOrbitRadius = new float[3];
             baseOrbitHeight = new float[3];
             for (int i = 0; i < 3; i++)
@@ -683,39 +601,17 @@ namespace ARPG.Camera
             }
         }
 
-        private void EnsureFreeLookFollowProxy()
+        private void ConfigureFreeLookFollow()
         {
-            if (followProxy == null)
-                followProxy = FindObjectOfType<CameraFollowTarget>();
-            if (followProxy == null)
-            {
-                GameObject go = new GameObject("CameraFollowTarget");
-                followProxy = go.AddComponent<CameraFollowTarget>();
-                if (playerFollow != null)
-                {
-                    followProxy.source = playerFollow;
-                    go.transform.position = playerFollow.position + Vector3.up * followProxy.height;
-                }
-            }
-            else if (followProxy.source == null && playerFollow != null)
-            {
-                followProxy.source = playerFollow;
-            }
-
-            if (freeLook.Follow != followProxy.transform)
-                freeLook.Follow = followProxy.transform;
-            if (freeLook.LookAt != followProxy.transform)
-                freeLook.LookAt = followProxy.transform;
+            freeLook.Follow = followProxy.transform;
+            freeLook.LookAt = followProxy.transform;
         }
 
         private void ApplyFreeLookAim()
         {
-            if (freeLook == null) return;
-
             for (int i = 0; i < 3; i++)
             {
                 CinemachineVirtualCamera rig = freeLook.GetRig(i);
-                if (rig == null) continue;
                 UseHardLookAt(rig);
             }
         }
@@ -730,8 +626,6 @@ namespace ARPG.Camera
 
         private void ApplyFreeLookBody()
         {
-            if (freeLook == null) return;
-
             freeLook.m_BindingMode = CinemachineTransposer.BindingMode.WorldSpace;
             freeLook.m_Heading.m_Definition = CinemachineOrbitalTransposer.Heading.HeadingDefinition.PositionDelta;
             freeLook.m_Heading.m_VelocityFilterStrength = 0;
@@ -741,9 +635,7 @@ namespace ARPG.Camera
             for (int i = 0; i < 3; i++)
             {
                 CinemachineVirtualCamera rig = freeLook.GetRig(i);
-                if (rig == null) continue;
                 CinemachineOrbitalTransposer orbital = rig.GetCinemachineComponent<CinemachineOrbitalTransposer>();
-                if (orbital == null) continue;
                 orbital.m_XDamping = 0f;
                 orbital.m_YDamping = 0f;
                 orbital.m_ZDamping = 0f;
@@ -752,17 +644,10 @@ namespace ARPG.Camera
             }
         }
 
-        private void EnsureOrbitInput()
+        private void ConfigureOrbitInput()
         {
-            if (freeLook == null) return;
-
             CinemachineInputProvider provider = freeLook.GetComponent<CinemachineInputProvider>();
             if (provider != null) provider.enabled = false;
-
-            if (orbitInput == null)
-                orbitInput = freeLook.GetComponent<CinemachineOrbitInput>();
-            if (orbitInput == null)
-                orbitInput = freeLook.gameObject.AddComponent<CinemachineOrbitInput>();
 
             CursorController.RegisterOrbitInput(orbitInput);
 
@@ -770,10 +655,9 @@ namespace ARPG.Camera
             freeLook.m_YAxis.m_MaxSpeed = 0f;
         }
 
-        private void EnsureBrainBlend()
+        private void ConfigureBrainBlend()
         {
-            brain = FindObjectOfType<CinemachineBrain>();
-            if (brain == null) return;
+            brain = UnityEngine.Camera.main.GetComponent<CinemachineBrain>();
 
             brain.m_UpdateMethod = CinemachineBrain.UpdateMethod.LateUpdate;
             brain.m_BlendUpdateMethod = CinemachineBrain.BrainUpdateMethod.LateUpdate;
@@ -787,7 +671,6 @@ namespace ARPG.Camera
 
         private static void ApplyTransitionHints(CinemachineFreeLook vcam)
         {
-            if (vcam == null) return;
             // 开局不要 Inherit 场景主相机：编辑器里主相机常在角色侧面。
             vcam.m_Transitions.m_InheritPosition = false;
             vcam.m_Transitions.m_BlendHint = CinemachineVirtualCameraBase.BlendHint.CylindricalPosition;
@@ -795,121 +678,57 @@ namespace ARPG.Camera
 
         private static void ApplyTransitionHints(CinemachineVirtualCamera vcam)
         {
-            if (vcam == null) return;
             vcam.m_Transitions.m_InheritPosition = true;
             vcam.m_Transitions.m_BlendHint = CinemachineVirtualCameraBase.BlendHint.CylindricalPosition;
         }
 
-        private void EnsureLockVcam()
+        private void ConfigureLockVcam()
         {
-            if (lockVcam == null)
-            {
-                // 陷阱3-3 兜底：字符串查找改名即失效。理想路径是 Inspector 拖 lockVcam；
-                // 走到这里说明没拖，告警一次提示接线（场景已存在同名物体时）。
-                GameObject existing = GameObject.Find("LockOn Camera");
-                if (existing != null)
-                {
-                    lockVcam = existing.GetComponent<CinemachineVirtualCamera>();
-                    Debug.LogWarning("[CameraController] 锁定相机经字符串查找获得（\"LockOn Camera\"），请在 Inspector 拖入 lockVcam，避免改名后查找失效。");
-                }
-            }
-
-            if (lockVcam == null)
-            {
-                GameObject go = new GameObject("LockOn Camera");
-                lockVcam = go.AddComponent<CinemachineVirtualCamera>();
-                lockVcam.m_StandbyUpdate = CinemachineVirtualCameraBase.StandbyUpdateMode.Always;
-                lockVcam.m_Lens.FieldOfView = freeLook != null ? freeLook.m_Lens.FieldOfView : 60f;
-                lockVcam.Priority = 0;
-            }
-
-            if (lockVcam.GetCinemachineComponent<CinemachineTransposer>() == null)
-                lockVcam.AddCinemachineComponent<CinemachineTransposer>();
-            if (lockVcam.GetCinemachineComponent<CinemachineComposer>() == null)
-                lockVcam.AddCinemachineComponent<CinemachineComposer>();
-
-            if (followProxy != null)
-                lockVcam.Follow = followProxy.transform;
-            else if (playerFollow != null)
-                lockVcam.Follow = playerFollow;
-
+            lockVcam.Follow = followProxy.transform;
             lockVcam.m_StandbyUpdate = CinemachineVirtualCameraBase.StandbyUpdateMode.Always;
-            if (freeLook != null)
-                lockVcam.m_Lens.FieldOfView = freeLook.m_Lens.FieldOfView;
+            lockVcam.m_Lens.FieldOfView = freeLook.m_Lens.FieldOfView;
 
             ApplyLockBodySettings();
-            EnsureColliderOnVcam(lockVcam);
+            ConfigureColliderOnVcam(lockVcam);
         }
 
-        private void EnsureFinisherVcam()
+        private void ConfigureFinisherVcam()
         {
-            if (finisherVcam == null)
-            {
-                GameObject existing = GameObject.Find("Finisher Camera");
-                if (existing != null)
-                    finisherVcam = existing.GetComponent<CinemachineVirtualCamera>();
-            }
-
-            if (finisherVcam == null)
-            {
-                GameObject go = new GameObject("Finisher Camera");
-                finisherVcam = go.AddComponent<CinemachineVirtualCamera>();
-                finisherVcam.m_StandbyUpdate = CinemachineVirtualCameraBase.StandbyUpdateMode.Always;
-                finisherVcam.m_Lens.FieldOfView = groundFinisherProfile.fov;
-                finisherVcam.Priority = 0;
-            }
-
-            if (finisherVcam.GetCinemachineComponent<CinemachineTransposer>() == null)
-                finisherVcam.AddCinemachineComponent<CinemachineTransposer>();
-            if (finisherVcam.GetCinemachineComponent<CinemachineComposer>() == null)
-                finisherVcam.AddCinemachineComponent<CinemachineComposer>();
-
             CinemachineTransposer transposer = finisherVcam.GetCinemachineComponent<CinemachineTransposer>();
-            if (transposer != null)
-            {
-                transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
-                transposer.m_FollowOffset = groundFinisherProfile.followOffset;
-                transposer.m_XDamping = 0f;
-                transposer.m_YDamping = 0f;
-                transposer.m_ZDamping = 0f;
-                transposer.m_YawDamping = 0f;
-                transposer.m_PitchDamping = 0f;
-            }
+            transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
+            transposer.m_FollowOffset = groundFinisherProfile.followOffset;
+            transposer.m_XDamping = 0f;
+            transposer.m_YDamping = 0f;
+            transposer.m_ZDamping = 0f;
+            transposer.m_YawDamping = 0f;
+            transposer.m_PitchDamping = 0f;
 
             CinemachineComposer composer = finisherVcam.GetCinemachineComponent<CinemachineComposer>();
-            if (composer != null)
-            {
-                composer.m_TrackedObjectOffset = groundFinisherProfile.lookAtOffset;
-                composer.m_LookaheadTime = 0f;
-                composer.m_HorizontalDamping = 0.05f;
-                composer.m_VerticalDamping = 0.05f;
-                composer.m_ScreenX = 0.5f;
-                composer.m_ScreenY = 0.48f;
-                composer.m_DeadZoneWidth = 0f;
-                composer.m_DeadZoneHeight = 0f;
-                composer.m_SoftZoneWidth = 0.5f;
-                composer.m_SoftZoneHeight = 0.5f;
-            }
+            composer.m_TrackedObjectOffset = groundFinisherProfile.lookAtOffset;
+            composer.m_LookaheadTime = 0f;
+            composer.m_HorizontalDamping = 0.05f;
+            composer.m_VerticalDamping = 0.05f;
+            composer.m_ScreenX = 0.5f;
+            composer.m_ScreenY = 0.48f;
+            composer.m_DeadZoneWidth = 0f;
+            composer.m_DeadZoneHeight = 0f;
+            composer.m_SoftZoneWidth = 0.5f;
+            composer.m_SoftZoneHeight = 0.5f;
 
             ApplyTransitionHints(finisherVcam);
-            EnsureColliderOnVcam(finisherVcam);
+            ConfigureColliderOnVcam(finisherVcam);
         }
 
         private void ApplyLockBodySettings()
         {
-            if (lockVcam == null) return;
-
             CinemachineTransposer transposer = lockVcam.GetCinemachineComponent<CinemachineTransposer>();
-            if (transposer != null)
-            {
-                transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
-                transposer.m_FollowOffset = followOffset;
-                transposer.m_XDamping = 0f;
-                transposer.m_YDamping = 0f;
-                transposer.m_ZDamping = 0f;
-                transposer.m_YawDamping = 0f;
-                transposer.m_PitchDamping = 0f;
-            }
+            transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
+            transposer.m_FollowOffset = followOffset;
+            transposer.m_XDamping = 0f;
+            transposer.m_YDamping = 0f;
+            transposer.m_ZDamping = 0f;
+            transposer.m_YawDamping = 0f;
+            transposer.m_PitchDamping = 0f;
 
             ApplyLockAimOffset();
             ApplyTransitionHints(lockVcam);
@@ -917,9 +736,7 @@ namespace ARPG.Camera
 
         private void ApplyLockAimOffset()
         {
-            if (lockVcam == null) return;
             CinemachineComposer composer = lockVcam.GetCinemachineComponent<CinemachineComposer>();
-            if (composer == null) return;
 
             composer.m_TrackedObjectOffset = lookAtOffset;
             composer.m_LookaheadTime = 0f;
@@ -933,14 +750,9 @@ namespace ARPG.Camera
             composer.m_SoftZoneHeight = 0.8f;
         }
 
-        private void EnsureColliderOnVcam(CinemachineVirtualCamera vcam)
+        private void ConfigureColliderOnVcam(CinemachineVirtualCamera vcam)
         {
-            if (vcam == null) return;
-
             CinemachineCollider vcamCollider = vcam.GetComponent<CinemachineCollider>();
-            if (vcamCollider == null)
-                vcamCollider = vcam.gameObject.AddComponent<CinemachineCollider>();
-
             vcamCollider.m_AvoidObstacles = true;
             vcamCollider.m_CollideAgainst = obstacleLayers;
             vcamCollider.m_TransparentLayers = (1 << 5) | (1 << 6) | (1 << 7); // UI / Hurtbox / LockOnMarker

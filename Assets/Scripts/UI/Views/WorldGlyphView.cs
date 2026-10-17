@@ -17,10 +17,7 @@ namespace ARPG.UI
     // 绘制：直接画 png（白字黑底，把亮度当透明），透明混合，不走加法 Shader
     // （加法会把整块 Quad 烧成一个亮方块）。材质 ZTest Always。
     //
-    // 序列化字段为什么放在基类而不是留在子类：子类只留一个 DefaultTint 就够了，
-    // 否则每个子类都要重复声明 followTarget / headOffset / glyphRenderer / showDuration。
-    // 字段在继承链上平移，Unity 按字段名反序列化，值不会丢；
-    // 万一真丢了，ResolvedTint 还有一按 default 兜底的路，不会把汉字显示成白色。
+    // 跟随、渲染和颜色配置集中在基类，由场景与 Prefab 提供；子类只保留触发入口。
     [ExecuteAlways]
     public abstract class WorldGlyphView : UIView, IFollowTargetView
     {
@@ -32,12 +29,6 @@ namespace ARPG.UI
         [SerializeField] protected MeshRenderer glyphRenderer;
         [SerializeField] protected Color tint;
         [SerializeField] protected float showDuration = 0.8f;
-
-        // 序列化值缺失时（字段迁移未生效、新建物体未填色）用它兜底，
-        // 保证汉字永远看得见，只是颜色可能对——比显示成纯白好排查。
-        protected abstract Color DefaultTint { get; }
-
-        private Color ResolvedTint => tint == default ? DefaultTint : tint;
 
         private float alpha;
         private Tweener alphaTween;
@@ -86,9 +77,6 @@ namespace ARPG.UI
         protected void PlayGlyph()
         {
             BindRefs();
-            if (glyphRenderer == null)
-                return;
-
             KillTweens();
             Show();
 
@@ -135,7 +123,7 @@ namespace ARPG.UI
 
             Vector3 to = pos - cam.transform.position;
             bool behind = Vector3.Dot(cam.transform.forward, to) <= 0f;
-            if (glyphRenderer != null) glyphRenderer.enabled = !behind;
+            glyphRenderer.enabled = !behind;
             if (behind) return;
 
             transform.position = pos;
@@ -151,10 +139,9 @@ namespace ARPG.UI
         private void ApplyAlpha(float value)
         {
             alpha = value;
-            if (glyphRenderer == null) return;
             if (block == null) block = new MaterialPropertyBlock();
-            Color c = ResolvedTint;
-            c.a = ResolvedTint.a * alpha;
+            Color c = tint;
+            c.a = tint.a * alpha;
             block.SetColor("_Color", c);
             glyphRenderer.SetPropertyBlock(block);
         }

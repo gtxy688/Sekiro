@@ -69,10 +69,7 @@ namespace ARPG.FrameWork.Body
         private void ApplyYaw(Vector3 worldDir)
         {
             body.transform.rotation = Quaternion.LookRotation(worldDir, Vector3.up);
-            if (body.Rb != null)
-            {
-                body.Rb.rotation = body.transform.rotation;
-            }
+            body.Rb.rotation = body.transform.rotation;
         }
 
         // 攻击转向：在 OnAnimatorMove 里转，才能盖过同一帧的 Clip 根旋转

@@ -53,7 +53,7 @@ namespace ARPG.FrameWork.States.Ground
             get
             {
                 if (!useHitGrade || grade != HitGrade.Mid || heavyRepeat) return false;
-                float end = body.Config != null ? body.Config.HurtMidFallEndTime : 0.4f;
+                float end = body.Config.HurtMidFallEndTime;
                 return stunTimer < end;
             }
         }
@@ -79,10 +79,10 @@ namespace ARPG.FrameWork.States.Ground
             if (heavyRepeat) return true;
             if (grade == HitGrade.Mid)
             {
-                float fallEnd = body.Config != null ? body.Config.HurtMidFallEndTime : 0.4f;
+                float fallEnd = body.Config.HurtMidFallEndTime;
                 return stunTimer >= fallEnd;
             }
-            float heavyFall = body.Config != null ? body.Config.HurtHeavyFallEndTime : 0.5f;
+            float heavyFall = body.Config.HurtHeavyFallEndTime;
             return stunTimer >= heavyFall;
         }
 
@@ -141,7 +141,7 @@ namespace ARPG.FrameWork.States.Ground
             stunTimer += Time.deltaTime;
             body.IsKnockedDown = IsInKnockdownWindow();
 
-            if (waitForAnim && body.Animator != null)
+            if (waitForAnim)
             {
                 AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
                 if (AnimUtil.IsPlaying(info, animName))

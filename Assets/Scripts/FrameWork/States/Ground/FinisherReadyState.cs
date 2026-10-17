@@ -62,7 +62,7 @@ namespace ARPG.FrameWork.States.Ground
         {
             if (cmd is FinisherCommand)
             {
-                CombatManager.Instance?.TryExecuteFinisher(body, FinisherKind.Deflect);
+                CombatManager.Instance.TryExecuteFinisher(body, FinisherKind.Deflect);
             }
             return true;
         }

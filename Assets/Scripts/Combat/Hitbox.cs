@@ -56,7 +56,6 @@ namespace ARPG.Combat
 
         public void Enable()
         {
-            if (owner == null || config == null) return;
             // 弓段 / 0.01 假窗：Clip 上残留的 Enable 事件也不能扫刀。
             if (!AttackWindowSync.CanMeleeHit(config.hitPulses))
                 return;
@@ -81,7 +80,7 @@ namespace ARPG.Combat
         // 动画在 Update 写骨头，受击胶囊在物理步进才同步。LateUpdate 里先 Sync 再扫。
         private void LateUpdate()
         {
-            if (!isActive || owner == null || config == null) return;
+            if (!isActive) return;
 
             Physics.SyncTransforms();
 
@@ -171,7 +170,7 @@ namespace ARPG.Combat
             if (!clashedPartners.Add(other)) return;
             // 双方 Hitbox 都会扫到对方；只让 InstanceID 较小的一方上报，避免一帧内架势双倍结算
             if (GetInstanceID() > other.GetInstanceID()) return;
-            CombatManager.Instance?.ReportClash(this, other, hitPoint);
+            CombatManager.Instance.ReportClash(this, other, hitPoint);
         }
 
         private void TryHit(CharacterBody target, Vector3 hitPoint)
@@ -181,10 +180,7 @@ namespace ARPG.Combat
             if (!hitTargets.Add(target)) return;
 
             Hurtbox hurtbox = target.GetComponentInChildren<Hurtbox>();
-            if (hurtbox == null) hurtbox = target.GetComponent<Hurtbox>();
-            if (hurtbox == null) return;
-
-            CombatManager.Instance?.ReportHit(this, hurtbox, hitPoint);
+            CombatManager.Instance.ReportHit(this, hurtbox, hitPoint);
         }
     }
 

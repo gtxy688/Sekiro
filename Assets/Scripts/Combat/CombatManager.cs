@@ -88,17 +88,17 @@ namespace ARPG.Combat
             ValidateFaction();
 
             // 将本组件保留的 Inspector 参数同步到实际执行组件，避免已有场景配置丢失。
-            if (resolver != null) resolver.clashPostureMultiplier = clashPostureMultiplier;
-            if (director != null) director.finisherRange = finisherRange;
+            resolver.clashPostureMultiplier = clashPostureMultiplier;
+            director.finisherRange = finisherRange;
 
             // 这里只提供顿帧配置，时间尺度的实际修改由 TimeScaleController 负责。
             TimeScaleController.EnableHitStop = enableHitStop;
             TimeScaleController.HitStopDuration = hitStopDuration;
 
             // 演出需要当前对手引用；发起处决的资格由 DuelDirector 的阵营规则判断。
-            if (director != null) director.Configure(ActiveBoss);
+            director.Configure(ActiveBoss);
 
-            scope?.Register(this);
+            scope.Register(this);
 
             // 忽略双方 Collider 的 PhysX 互撞，避免冲量挤开站位；玩家在 LateUpdate 做身体分离。
             IgnoreCharacterPhysics(ActivePlayer, ActiveBoss);
@@ -172,7 +172,7 @@ namespace ARPG.Combat
         // A 的武器扫到 B 的 Hurtbox
         public void ReportHit(Hitbox hitbox, Hurtbox hurtbox, Vector3 hitPoint)
         {
-            if (resolver != null) resolver.ReportHit(hitbox, hurtbox, hitPoint);
+            resolver.ReportHit(hitbox, hurtbox, hitPoint);
             TimeScaleController.HitStop();
         }
 
@@ -186,58 +186,57 @@ namespace ARPG.Combat
             float knockback,
             HitGrade hitGrade)
         {
-            if (resolver != null)
-                resolver.ReportProjectileHit(attacker, hurtbox, hitPoint,
-                    healthDmg, postureDmg, knockback, hitGrade);
+            resolver.ReportProjectileHit(attacker, hurtbox, hitPoint,
+                healthDmg, postureDmg, knockback, hitGrade);
             TimeScaleController.HitStop();
         }
 
         // 双方 Hitbox 相交 → 拼刀：只狼里拼刀双方都涨架势，不打伤害
         public void ReportClash(Hitbox a, Hitbox b, Vector3 point)
         {
-            if (resolver != null) resolver.ReportClash(a, b, point);
+            resolver.ReportClash(a, b, point);
         }
 
         // ===== 成对演出：转发 DuelDirector =====
 
         public bool TryExecuteFinisher(CharacterBody initiator, FinisherKind kind = FinisherKind.Ground)
         {
-            return director != null && director.TryExecuteFinisher(initiator, kind);
+            return director.TryExecuteFinisher(initiator, kind);
         }
 
         public bool TryExecuteAvailableFinisher(CharacterBody initiator)
         {
-            return director != null && director.TryExecuteAvailableFinisher(initiator);
+            return director.TryExecuteAvailableFinisher(initiator);
         }
 
         public bool HasAvailableFinisher(CharacterBody initiator)
         {
-            return director != null && director.HasAvailableFinisher(initiator);
+            return director.HasAvailableFinisher(initiator);
         }
 
         public void ExecuteFinisher(CharacterBody source)
         {
-            if (director != null) director.ExecuteFinisher(source);
+            director.ExecuteFinisher(source);
         }
 
         public bool IsFinisherResolved(CharacterBody player)
         {
-            return director != null && director.IsFinisherResolved(player);
+            return director.IsFinisherResolved(player);
         }
 
         public void CompleteFinisherSequence(CharacterBody player)
         {
-            if (director != null) director.CompleteFinisherSequence(player);
+            director.CompleteFinisherSequence(player);
         }
 
         public bool TryStartGrabThrow(CharacterBody attacker, CharacterBody victim)
         {
-            return director != null && director.TryStartGrabThrow(attacker, victim);
+            return director.TryStartGrabThrow(attacker, victim);
         }
 
         public void CompleteGrabThrow(CharacterBody source)
         {
-            if (director != null) director.CompleteGrabThrow(source);
+            director.CompleteGrabThrow(source);
         }
 
         // ===== 复战重置 =====
@@ -247,11 +246,8 @@ namespace ARPG.Combat
             // 拨到多少由 TimeScaleController 统一求值，这里只说"取消"。
             TimeScaleController.CancelHitStop();
 
-            if (director != null)
-            {
-                director.Configure(ActiveBoss);
-                director.ResetForEncounter();
-            }
+            director.Configure(ActiveBoss);
+            director.ResetForEncounter();
         }
 
         private static void IgnoreCharacterPhysics(CharacterBody a, CharacterBody b)

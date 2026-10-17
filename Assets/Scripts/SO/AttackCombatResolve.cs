@@ -26,7 +26,6 @@ namespace ARPG.Configs
 
         public static void ApplyWindow(AttackConfig cfg, BossMoveEntry entry, BossMoveWindow w)
         {
-            if (cfg == null || entry == null) return;
             if (w != null && w.overrideCombat)
             {
                 cfg.BaseDamage = w.baseDamage;
@@ -51,15 +50,6 @@ namespace ARPG.Configs
             out float knockback,
             out HitGrade grade)
         {
-            if (entry == null)
-            {
-                damage = 0;
-                posture = 0f;
-                knockback = 0f;
-                grade = HitGrade.Light;
-                return;
-            }
-
             if (w != null && w.overrideCombat)
             {
                 damage = w.baseDamage;
@@ -104,7 +94,6 @@ namespace ARPG.Configs
             float fallbackKnockback,
             HitGrade fallbackGrade)
         {
-            if (cfg == null) return;
             if (pulse != null && pulse.overrideCombat)
             {
                 cfg.BaseDamage = pulse.baseDamage;

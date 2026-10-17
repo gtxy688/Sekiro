@@ -71,17 +71,6 @@ namespace ARPG.Mgr
 
         private static IEnumerator HitStopRoutine(float duration)
         {
-            // 与旧实现一致：协程真正起跑时若已被暂停，放弃这次顿帧。
-            // 单次调用内几乎不可能发生（HitStop 入口已查过一次），
-            // 留着是为了将来有人改动调用顺序时不至于把暂停冲掉。
-            if (GamePause.IsPaused)
-            {
-                IsHitStopping = false;
-                routine = null;
-                Apply();
-                yield break;
-            }
-
             IsHitStopping = true;
             Apply();
 

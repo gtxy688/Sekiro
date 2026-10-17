@@ -34,7 +34,7 @@ namespace ARPG.FrameWork.Body
         public Rigidbody Rb { get; private set; }
 
         // 移动感知模块：接地检测（迟滞防抖）/坠图保护/跳跃冲量/锁定动画参数/输入换算/跟髋骨采样
-        // 已迁入 Locomotion。懒创建理由同 Facing；EnsureGroundDetectionWired（Awake 接线序列化字段）保留在本类。
+        // 已迁入 Locomotion。懒创建理由同 Facing；接地点和地面层由 Inspector 配置。
         private Locomotion loco;
         private Locomotion Loco => loco ??= new Locomotion(this);
 
@@ -152,7 +152,7 @@ namespace ARPG.FrameWork.Body
         public void ArmPlayerParryAttackWindow(AttackConfig firstAttack)
         {
             ClearPlayerParryAttackWindow();
-            if (Config == null || firstAttack == null || firstAttack.hitPulses == null) return;
+            if (firstAttack == null || firstAttack.hitPulses == null) return;
             float firstHit = float.PositiveInfinity;
             foreach (var pulse in firstAttack.hitPulses)
             {
@@ -250,20 +250,20 @@ namespace ARPG.FrameWork.Body
         public BossMoveWindow CurrentMoveWindow { get; set; }
 
         // 硬直 / 受击后摇：从 Config 读。玩家垫步取消：Light=StunDuration，Mid=KnockdownStunDuration，Heavy=HeavyStunDuration。
-        public float StunDuration => Config != null ? Config.StunDuration : 0.5f;
+        public float StunDuration => Config.StunDuration;
 
-        public float KnockdownStunDuration => Config != null ? Config.KnockdownStunDuration : 1.2f;
+        public float KnockdownStunDuration => Config.KnockdownStunDuration;
 
-        public float HeavyStunDuration => Config != null ? Config.HeavyStunDuration : 1.2f;
+        public float HeavyStunDuration => Config.HeavyStunDuration;
 
         public float BrokenDeflectDodgeOpenTime =>
-            Config != null ? Config.BrokenDeflectDodgeOpenTime : 0f;
+            Config.BrokenDeflectDodgeOpenTime;
 
         public float ArrowHeavyDeflectDodgeOpenTime =>
-            Config != null ? Config.ArrowHeavyDeflectDodgeOpenTime : 0f;
+            Config.ArrowHeavyDeflectDodgeOpenTime;
 
         public float MidToGuardDeflectDodgeOpenTime =>
-            Config != null ? Config.MidToGuardDeflectDodgeOpenTime : 0f;
+            Config.MidToGuardDeflectDodgeOpenTime;
 
         // 弹反记忆模块：Boss 被动防御 + 连续被弹的记账已迁入 DeflectMemory；
         // 玩家主动弹反的窗口与空按惩罚在 DeflectAttemptTracker（见下方门面）。
@@ -322,9 +322,7 @@ namespace ARPG.FrameWork.Body
             // 开启刚体插值；朝向由角色逻辑和根运动控制，避免物理碰撞把角色转倒。
             Rb.interpolation = RigidbodyInterpolation.Interpolate;
             Rb.freezeRotation = true;
-            if (Animator != null) Animator.applyRootMotion = UseRootMotion;
-
-            EnsureGroundDetectionWired();
+            Animator.applyRootMotion = UseRootMotion;
 
             // 这里只创建状态机；两个回调用于调试，当前状态要到 Start 才设置。
             MainStateMachine = new StateMachine(NotifyStateChanged, GetStatePathForDebug);
@@ -340,33 +338,6 @@ namespace ARPG.FrameWork.Body
             spawnRotation = transform.rotation;
         }
 
-        // 保留 Inspector 配置；缺少接地点或地面掩码时补齐，避免接地检测一直走容错分支。
-        private void EnsureGroundDetectionWired()
-        {
-            if (groundCheckPoint == null)
-            {
-                Transform t = transform.Find("GroundCheck");
-                if (t == null)
-                {
-                    GameObject go = new GameObject("GroundCheck");
-                    t = go.transform;
-                    t.SetParent(transform, false);
-                    float bottom = 0f;
-                    CapsuleCollider cap = bodyCollider as CapsuleCollider;
-                    if (cap != null)
-                        bottom = cap.center.y - cap.height * 0.5f;
-                    t.localPosition = new Vector3(0f, bottom + 0.05f, 0f);
-                }
-                groundCheckPoint = t;
-            }
-
-            if (groundLayer == 0)
-            {
-                int ground = LayerMask.NameToLayer("Ground");
-                groundLayer = 1 << (ground >= 0 ? ground : 3);
-            }
-        }
-
         private void Start()
         {
             // 先同步物理位置并采样接地，避免检测初始值为 false 时误切空中状态。
@@ -376,7 +347,7 @@ namespace ARPG.FrameWork.Body
             EnterGrounded("lifecycle: initial grounded");
 
             // 各组件的 Start 顺序不定，Ensure 保证注册时已有战斗范围对象。
-            EncounterScope.Ensure()?.Register(this);
+            EncounterScope.Ensure().Register(this);
         }
 
         private void OnDestroy()
@@ -429,27 +400,20 @@ namespace ARPG.FrameWork.Body
             // 6. 位移：不清的话刚体会带着上一场的速度继续滑出去
             MoveDirection = Vector3.zero;
             PreferFastWalk = false;
-            if (Rb != null)
-            {
-                Rb.velocity = Vector3.zero;
-                Rb.angularVelocity = Vector3.zero;
-            }
+            Rb.velocity = Vector3.zero;
+            Rb.angularVelocity = Vector3.zero;
 
             // 7. 站位与朝向复位。流程层若要把角色放到别处，在 ResetAll() 之后覆盖即可。
             transform.SetPositionAndRotation(spawnPosition, spawnRotation);
             Physics.SyncTransforms();
 
             // 8. 状态机回地面待机
-            if (MainStateMachine != null)
-                EnterGrounded("encounter reset: grounded idle");
+            EnterGrounded("encounter reset: grounded idle");
 
             // 9. 推事件：这些数值是直接改的，不走 TakeDamage 那条结算路径，
             //    不主动通知的话 UI 会停在上一场的空血条 / 满架势条上
-            if (Config != null)
-            {
-                CombatEventBus.TriggerHPChanged(this, CurrentHP, Config.MaxHP);
-                CombatEventBus.TriggerPostureChanged(this, CurrentPosture, Config.MaxPosture);
-            }
+            CombatEventBus.TriggerHPChanged(this, CurrentHP, Config.MaxHP);
+            CombatEventBus.TriggerPostureChanged(this, CurrentPosture, Config.MaxPosture);
             CombatEventBus.TriggerFinisherOpportunityChanged(this, false);
         }
 
@@ -472,7 +436,6 @@ namespace ARPG.FrameWork.Body
 
         private void LateUpdate()
         {
-            if (MainStateMachine == null) return;
             // 根运动已经写完位移后再做阻挡，避免 PhysX 冲量把人弹开。
             ResolveOpponentOverlap();
         }
@@ -497,16 +460,12 @@ namespace ARPG.FrameWork.Body
             // 忍杀成对 Root 会短暂重叠，挤开会对不齐。
             if (IsFinisherLocked) return;
 
-            if (CombatManager.Instance == null) return;
             // TODO(多 Boss)：这里取的是「主对手」。多 Boss 时应改为遍历所有对手或取最近的那个。
             // 这属于「找对象」而非「判身份」，不在本次阵营改造范围内。
             CharacterBody other = CombatManager.Instance.BossRef;
             if (other == null || other.IsFinisherLocked) return;
 
-            Collider otherCol = other.bodyCollider != null
-                ? other.bodyCollider
-                : other.GetComponent<Collider>();
-            if (bodyCollider == null || otherCol == null) return;
+            Collider otherCol = other.bodyCollider;
 
             Vector3 direction;
             float distance;
@@ -523,21 +482,18 @@ namespace ARPG.FrameWork.Body
 
             Vector3 delta = direction.normalized * (distance + 0.01f);
             transform.position += delta;
-            if (Rb != null)
-            {
-                Rb.position = transform.position;
-                Vector3 velocity = Rb.velocity;
-                Rb.velocity = new Vector3(0f, velocity.y, 0f);
-            }
+            Rb.position = transform.position;
+            Vector3 velocity = Rb.velocity;
+            Rb.velocity = new Vector3(0f, velocity.y, 0f);
         }
 
-        public bool UsesAirState => Config != null && Config.UseAirState;
+        public bool UsesAirState => Config.UseAirState;
 
         // 01-states：根运动走 OnAnimatorMove。写了这个回调，Unity 不再自动套 Root，必须自己加。
         // 空中丢掉 Root.y，否则跳跃高度被动画钉住；XZ 必须吃，否则中心不动、贴图自己滑，切 Idle 会瞬移回去。
         private void OnAnimatorMove()
         {
-            if (Animator == null || Rb == null || !UseRootMotion) return;
+            if (!UseRootMotion) return;
 
             Vector3 delta = Animator.deltaPosition;
             if (IsAirborne)
@@ -724,7 +680,6 @@ namespace ARPG.FrameWork.Body
         // 喝药重箭等打断：命中段会拒收 AttackCommand，防御态会吞掉命令却不出招，必须强切。
         public bool StartAttack(AttackConfig config, bool interruptCurrent = false)
         {
-            if (config == null) return false;
             if (IsParried || IsPostureBroken || IsFinisherLocked) return false;
 
             ActiveAttack = config;
@@ -781,23 +736,20 @@ namespace ARPG.FrameWork.Body
         // 代码零改动。
         public string ResolveHurtAnim(HurtContext context)
         {
-            if (Config != null)
+            string name = null;
+            switch (context)
             {
-                string name = null;
-                switch (context)
-                {
-                    case HurtContext.Normal:    name = Config.HurtAnim_Normal; break;
-                    case HurtContext.Heavy:     name = string.IsNullOrEmpty(Config.HurtAnim_Heavy) ? Config.HurtAnim_Normal : Config.HurtAnim_Heavy; break;
-                    case HurtContext.Guard:     name = string.IsNullOrEmpty(Config.HurtAnim_Guard) ? Config.HurtAnim_Normal : Config.HurtAnim_Guard; break;
-                    case HurtContext.GuardHeavy:
-                        if (!string.IsNullOrEmpty(Config.HurtAnim_GuardHeavy)) name = Config.HurtAnim_GuardHeavy;
-                        else if (!string.IsNullOrEmpty(Config.HurtAnim_Guard)) name = Config.HurtAnim_Guard;
-                        else name = Config.HurtAnim_Normal;
-                        break;
-                    case HurtContext.Deflected: name = string.IsNullOrEmpty(Config.HurtAnim_Deflected) ? Config.HurtAnim_Normal : Config.HurtAnim_Deflected; break;
-                }
-                if (!string.IsNullOrEmpty(name)) return name;
+                case HurtContext.Normal:    name = Config.HurtAnim_Normal; break;
+                case HurtContext.Heavy:     name = string.IsNullOrEmpty(Config.HurtAnim_Heavy) ? Config.HurtAnim_Normal : Config.HurtAnim_Heavy; break;
+                case HurtContext.Guard:     name = string.IsNullOrEmpty(Config.HurtAnim_Guard) ? Config.HurtAnim_Normal : Config.HurtAnim_Guard; break;
+                case HurtContext.GuardHeavy:
+                    if (!string.IsNullOrEmpty(Config.HurtAnim_GuardHeavy)) name = Config.HurtAnim_GuardHeavy;
+                    else if (!string.IsNullOrEmpty(Config.HurtAnim_Guard)) name = Config.HurtAnim_Guard;
+                    else name = Config.HurtAnim_Normal;
+                    break;
+                case HurtContext.Deflected: name = string.IsNullOrEmpty(Config.HurtAnim_Deflected) ? Config.HurtAnim_Normal : Config.HurtAnim_Deflected; break;
             }
+            if (!string.IsNullOrEmpty(name)) return name;
             return "Hurt_Ground";
         }
 
@@ -878,13 +830,11 @@ namespace ARPG.FrameWork.Body
         {
             DeflectAttemptTracker.Settings settings = new DeflectAttemptTracker.Settings
             {
-                Window = Config != null ? Config.DeflectWindow : DeflectAttemptTracker.FallbackWindow,
-                EmptyGraceCount = Config != null ? Config.DeflectEmptyGraceCount : 3,
-                EmptyPenalty = Config != null ? Config.DeflectEmptyPenalty : 0.75f,
-                WindowMin = Config != null ? Config.DeflectWindowMin : DeflectAttemptTracker.FallbackWindowMin,
-                EmptyResetInterval = Config != null
-                    ? Config.DeflectEmptyResetInterval
-                    : DeflectAttemptTracker.FallbackResetInterval,
+                Window = Config.DeflectWindow,
+                EmptyGraceCount = Config.DeflectEmptyGraceCount,
+                EmptyPenalty = Config.DeflectEmptyPenalty,
+                WindowMin = Config.DeflectWindowMin,
+                EmptyResetInterval = Config.DeflectEmptyResetInterval,
             };
 
             DeflectAttemptTracker.Settings normalized = settings.Normalized(out bool corrected);
@@ -1060,7 +1010,7 @@ namespace ARPG.FrameWork.Body
         // 动画事件可选入口：正常结算改由 FinisherState 在动画结束时驱动。
         public void ExecuteFinisher()
         {
-            CombatManager.Instance?.ExecuteFinisher(this);
+            CombatManager.Instance.ExecuteFinisher(this);
         }
 
         // 接收外界物理碰撞传来的打击
@@ -1118,7 +1068,6 @@ namespace ARPG.FrameWork.Body
 
             if (hit.isPerilous && hit.perilousType == PerilousType.Grab
                 && HitReactionUtil.IsPlayer(this)
-                && CombatManager.Instance != null
                 && CombatManager.Instance.TryStartGrabThrow(attacker, this))
                 return;
 

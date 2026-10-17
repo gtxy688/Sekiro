@@ -52,7 +52,6 @@ namespace ARPG.Camera
         {
             RestoreAll();
             entries.Clear();
-            if (playerRoot == null) return;
 
             foreach (Renderer r in playerRoot.GetComponentsInChildren<Renderer>(true))
             {

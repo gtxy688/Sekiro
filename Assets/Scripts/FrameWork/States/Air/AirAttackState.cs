@@ -23,7 +23,7 @@ namespace ARPG.FrameWork.States.Air
             get
             {
                 if (Time.time - enterTime < 0.08f) return false;
-                if (body.Rb != null && body.Rb.velocity.y > 0.1f) return false;
+                if (body.Rb.velocity.y > 0.1f) return false;
                 return body.IsGrounded;
             }
         }

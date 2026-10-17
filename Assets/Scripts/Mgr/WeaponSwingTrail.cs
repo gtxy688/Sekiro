@@ -22,21 +22,13 @@ namespace ARPG.Mgr
                 trail = gameObject.AddComponent<TrailRenderer>();
 
             Shader spark = Shader.Find("ARPG/FX/AdditiveSpark");
-            if (spark != null)
-            {
-                materialInst = new Material(spark);
-                if (mat != null && mat.HasProperty("_MainTex"))
-                    materialInst.SetTexture("_MainTex", mat.GetTexture("_MainTex"));
-                else
-                    materialInst.SetTexture("_MainTex", Texture2D.whiteTexture);
-                materialInst.SetColor("_Color", Color.white);
-                if (materialInst.HasProperty("_Cutoff"))
-                    materialInst.SetFloat("_Cutoff", 0.08f);
-            }
-            else if (mat != null)
-            {
-                materialInst = new Material(mat);
-            }
+            materialInst = new Material(spark);
+            if (mat != null && mat.HasProperty("_MainTex"))
+                materialInst.SetTexture("_MainTex", mat.GetTexture("_MainTex"));
+            else
+                materialInst.SetTexture("_MainTex", Texture2D.whiteTexture);
+            materialInst.SetColor("_Color", Color.white);
+            materialInst.SetFloat("_Cutoff", 0.08f);
 
             trail.material = materialInst;
             trail.time = Duration;
@@ -60,7 +52,6 @@ namespace ARPG.Mgr
 
         public void Begin(Color start, Color end)
         {
-            if (trail == null) return;
             ApplyColors(start, end);
             trail.Clear();
             trail.emitting = true;
@@ -68,7 +59,6 @@ namespace ARPG.Mgr
 
         public void End()
         {
-            if (trail == null) return;
             trail.emitting = false;
         }
 
@@ -91,8 +81,7 @@ namespace ARPG.Mgr
                     new GradientAlphaKey(0f, 1f)
                 });
             trail.colorGradient = g;
-            if (materialInst != null && materialInst.HasProperty("_Color"))
-                materialInst.SetColor("_Color", start);
+            materialInst.SetColor("_Color", start);
         }
 
         void OnDestroy()

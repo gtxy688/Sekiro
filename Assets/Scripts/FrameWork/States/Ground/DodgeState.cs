@@ -29,8 +29,8 @@ namespace ARPG.FrameWork.States.Ground
         {
             this.parent = parent;
             this.entryBlendDuration = Mathf.Max(0f, entryBlendDuration);
-            dodgeDuration = body.Config != null ? body.Config.DodgeDuration : 0.5f;
-            iFrameDuration = body.Config != null ? body.Config.DodgeIFrame : 0.3f;
+            dodgeDuration = body.Config.DodgeDuration;
+            iFrameDuration = body.Config.DodgeIFrame;
         }
 
         public override void OnEnter()

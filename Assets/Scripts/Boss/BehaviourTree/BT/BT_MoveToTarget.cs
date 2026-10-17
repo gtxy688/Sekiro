@@ -72,7 +72,7 @@ namespace ARPG.Boss.BehaviourTree
             if (toTarget.sqrMagnitude > 0.001f)
             {
                 Vector3 face = toTarget.normalized;
-                body.RotateYaw(face, body.Config != null ? body.Config.RotationSpeed : 720f);
+                body.RotateYaw(face, body.Config.RotationSpeed);
             }
 
             Vector3 right = toTarget.sqrMagnitude > 0.001f

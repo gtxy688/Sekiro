@@ -29,16 +29,11 @@ namespace ARPG.FrameWork.States.Ground
             body.AttackUninterruptible = false;
             body.MoveDirection = Vector3.zero;
             body.DisableWeaponHit();
-            if (body.Rb != null)
-            {
-                Vector3 v = body.Rb.velocity;
-                body.Rb.velocity = new Vector3(0f, v.y, 0f);
-            }
+            Vector3 v = body.Rb.velocity;
+            body.Rb.velocity = new Vector3(0f, v.y, 0f);
 
             // 成对忍杀开演才水平对视。确认窗口钉住被打断时的朝向。
-            if (IsPairedFinisherAnim(animName) &&
-                CombatManager.Instance != null &&
-                CombatManager.Instance.PlayerRef != null)
+            if (IsPairedFinisherAnim(animName))
             {
                 body.ClearCombatYawFrozen();
                 Vector3 toPlayer =
@@ -64,7 +59,7 @@ namespace ARPG.FrameWork.States.Ground
         public override void OnUpdate()
         {
             body.MoveDirection = Vector3.zero;
-            if (triedNestedPath || body.Animator == null) return;
+            if (triedNestedPath) return;
 
             timer += Time.deltaTime;
             AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);

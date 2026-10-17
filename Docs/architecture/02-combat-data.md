@@ -10,6 +10,8 @@
 - CharacterBody 是 Unity 组件入口；运行时血量、架势等数值计算已分到相应的运行时数据 / 逻辑类，CharacterBody 提供编排与转发。
 - Faction 是身份标签，不是战斗数值配置。
 
+CharacterConfig 是角色的必需配置。角色数值、移动、转向和动作直接读取它；缺失配置时不再用另一套生命、架势或动作时长默认值继续运行。可选动画覆盖、NextCombo 和 Boss 段级覆盖仍按各字段原有语义处理。
+
 ## 数值求值
 
 玩家招式通常直接使用 AttackConfig。Boss 攻击从招式表选取招式与段；段覆盖、脉冲覆盖和出箭点覆盖可以覆盖招式默认值。AttackCombatResolve 在未显式覆盖时还提供按 HitGrade 和箭矢类别计算的默认伤害、架势伤害。

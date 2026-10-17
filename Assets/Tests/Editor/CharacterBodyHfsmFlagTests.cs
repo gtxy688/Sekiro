@@ -3,6 +3,8 @@ using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 
+using ARPG.Combat;
+using ARPG.Configs;
 using ARPG.FrameWork.Body;
 using ARPG.FrameWork.States.Base;
 
@@ -12,6 +14,7 @@ namespace ARPG.Tests.Editor
     {
         private GameObject bodyObject;
         private CharacterBody body;
+        private CharacterConfig config;
 
         [SetUp]
         public void SetUp()
@@ -20,6 +23,13 @@ namespace ARPG.Tests.Editor
             bodyObject.AddComponent<Animator>();
             bodyObject.AddComponent<Rigidbody>();
             body = bodyObject.AddComponent<CharacterBody>();
+            config = ScriptableObject.CreateInstance<CharacterConfig>();
+            body.Config = config;
+
+            // 测试角色也提供实际需要的配置和武器，不依赖生产代码替缺失依赖兜底。
+            var weaponObject = new GameObject("Weapon");
+            weaponObject.transform.SetParent(bodyObject.transform, false);
+            body.weaponHitbox = weaponObject.AddComponent<Hitbox>();
 
             InvokePrivateAwake(body);
         }
@@ -28,6 +38,7 @@ namespace ARPG.Tests.Editor
         public void TearDown()
         {
             Object.DestroyImmediate(bodyObject);
+            Object.DestroyImmediate(config);
         }
 
         [Test]

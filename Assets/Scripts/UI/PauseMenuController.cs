@@ -27,7 +27,6 @@ namespace ARPG.UI
         [SerializeField] private Sprite closeIconSprite;
 
         private InputActionAsset actions;
-        private InputActionMap playerMap;
         private InputSystemUIInputModule uiModule;
         private string currentGroup = InputRebindService.KeyboardMouseGroup;
         private PausePage page = PausePage.Root;
@@ -79,19 +78,12 @@ namespace ARPG.UI
             if (playerInput == null)
                 playerInput = FindObjectOfType<PlayerInput>();
 
-            actions = playerInput != null ? playerInput.actions : null;
-            if (actions == null)
-            {
-                Debug.LogError("PauseMenuController 找不到 PlayerInput.actions，暂停菜单无法改键。");
-                enabled = false;
-                return;
-            }
+            actions = playerInput.actions;
 
             CursorController.BindPlayerInput(playerInput);
             InputRebindService.Load(actions);
             AudioVolumeSettings.Load();
             GameplaySettings.Load();
-            playerMap = actions.FindActionMap("Player");
             EnsureEventSystem();
             TmpChineseFont.EnsureReady();
             pauseCanvas = EnsureSettingPanelRoot();
@@ -116,7 +108,7 @@ namespace ARPG.UI
         private void OnDestroy()
         {
             CancelRebind();
-            SetGameplayInput(true);
+            if (playerInput != null) SetGameplayInput(true);
             if (GamePause.IsPaused) GamePause.SetPaused(false);
             CursorController.Refresh();
             builder.DestroyGenerated();
@@ -456,16 +448,8 @@ namespace ARPG.UI
                 enabled = false;
 
             // 暂停时把设备从 PlayerInput 上放开，否则手柄被独占，默认 UI 模块收不到摇杆
-            if (playerInput != null)
-            {
-                if (enabled) playerInput.ActivateInput();
-                else playerInput.DeactivateInput();
-                return;
-            }
-
-            if (playerMap == null) return;
-            if (enabled) playerMap.Enable();
-            else playerMap.Disable();
+            if (enabled) playerInput.ActivateInput();
+            else playerInput.DeactivateInput();
         }
 
         // 设置页做在 CombatCanvas/SettingPanel 上，场景里能改字体。没有子物体才现拼。
@@ -501,7 +485,6 @@ namespace ARPG.UI
 
         private bool TryBindExisting()
         {
-            if (pauseCanvas == null) return false;
             Transform root = pauseCanvas.transform;
             Transform rootTf = root.Find("RootPanel");
             Transform hubTf = root.Find("HubPanel");

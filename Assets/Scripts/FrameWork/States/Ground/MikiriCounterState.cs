@@ -27,7 +27,7 @@ namespace ARPG.FrameWork.States.Ground
         {
             this.parent = parent;
             this.attacker = hit.attacker;
-            postureGain = body.Config != null ? body.Config.MikiriPostureGain : 30f;
+            postureGain = body.Config.MikiriPostureGain;
         }
 
         public override void OnEnter()
@@ -89,7 +89,7 @@ namespace ARPG.FrameWork.States.Ground
         {
             if (finisherWindow && cmd is FinisherCommand)
             {
-                CombatManager.Instance?.TryExecuteFinisher(body, FinisherKind.Mikiri);
+                CombatManager.Instance.TryExecuteFinisher(body, FinisherKind.Mikiri);
             }
             return true;
         }

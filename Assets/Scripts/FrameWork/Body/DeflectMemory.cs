@@ -57,8 +57,8 @@ namespace ARPG.FrameWork.Body
 
             float now = Time.time;
             CharacterConfig config = body.Config;
-            int threshold = config != null ? config.PassiveDeflectThreshold : 2;   // 数值走 SO，缺失回退旧默认
-            float resetWindow = config != null ? config.PassiveDeflectResetWindow : 2.5f;
+            int threshold = config.PassiveDeflectThreshold;
+            float resetWindow = config.PassiveDeflectResetWindow;
             if (passiveDeflectCount > 0 && now - lastPassiveDeflectTime > resetWindow)
                 passiveDeflectCount = 0;
             lastPassiveDeflectTime = now;

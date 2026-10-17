@@ -28,7 +28,7 @@ namespace ARPG.FrameWork.States.Ground
         {
             this.animName = string.IsNullOrEmpty(animName) ? DefaultAnim : animName;
             this.freezeYawAfterExit = freezeYawAfterExit;
-            duration = body.Config != null ? body.Config.ParriedDuration : 0.35f;
+            duration = body.Config.ParriedDuration;
         }
 
         public override void OnEnter()
@@ -119,7 +119,6 @@ namespace ARPG.FrameWork.States.Ground
         {
             recoveryTime = enterTime + duration;
             var animator = body.Animator;
-            if (animator == null) return false;
             var info = animator.GetCurrentAnimatorStateInfo(0);
             bool useNext = !AnimUtil.IsPlaying(info, animName) && animator.IsInTransition(0);
             if (useNext) info = animator.GetNextAnimatorStateInfo(0);

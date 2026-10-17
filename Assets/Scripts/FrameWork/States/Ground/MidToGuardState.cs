@@ -78,7 +78,7 @@ namespace ARPG.FrameWork.States.Ground
         public override void OnUpdate()
         {
             timer += Time.deltaTime;
-            if (waitForAnim && body.Animator != null)
+            if (waitForAnim)
             {
                 AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
                 if (AnimUtil.IsPlaying(info, animName))

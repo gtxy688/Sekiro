@@ -34,13 +34,10 @@ namespace ARPG.FrameWork.Body
         {
             // 将配置值复制到运行时属性；战斗中改变 CurrentHP 等值不会修改配置资产。
             CharacterConfig config = body.Config;
-            if (config != null)
-            {
-                CurrentHP = config.MaxHP;
-                GourdRemaining = config.GourdCount;
-                ReviveRemaining = config.ReviveCount;
-                LivesRemaining = config.LifeCount;
-            }
+            CurrentHP = config.MaxHP;
+            GourdRemaining = config.GourdCount;
+            ReviveRemaining = config.ReviveCount;
+            LivesRemaining = config.LifeCount;
             CurrentPosture = 0f;
             IsPostureBroken = false;
             CurrentPostureBreakSource = PostureBreakSource.Attack;
@@ -83,8 +80,7 @@ namespace ARPG.FrameWork.Body
                 // 事件总线：血条/音效/相机都靠这个驱动
                 CombatEventBus.TriggerTakeDamage(body, healthDmg, Mathf.Max(CurrentHP, 0));
                 CharacterConfig config = body.Config;
-                if (config != null)
-                    CombatEventBus.TriggerHPChanged(body, Mathf.Max(CurrentHP, 0), config.MaxHP);
+                CombatEventBus.TriggerHPChanged(body, Mathf.Max(CurrentHP, 0), config.MaxHP);
 
                 if (CurrentHP <= 0)
                     HandleDeath();
@@ -102,7 +98,7 @@ namespace ARPG.FrameWork.Body
             if (IsPostureBroken) return false; // 崩解中不累计
 
             CharacterConfig config = body.Config;
-            float maxPosture = config != null ? config.MaxPosture : 100f;
+            float maxPosture = config.MaxPosture;
 
             if (allowBreak && amount > 0f
                 && GameplaySettings.ShouldOneHitBreakBoss(body, source, instigator))
@@ -146,9 +142,9 @@ namespace ARPG.FrameWork.Body
         // 架势自然回复：停止受击超过 PostureDecayDelay 秒后，每秒回 PostureDecayRate
         public void UpdatePostureDecay()
         {
-            // 崩解中 / 没配置 / 架势本来就是 0 → 不回复
+            // 崩解中 / 架势本来就是 0 → 不回复
             CharacterConfig config = body.Config;
-            if (IsPostureBroken || config == null || CurrentPosture <= 0f) return;
+            if (IsPostureBroken || CurrentPosture <= 0f) return;
 
             if (Time.time - lastHitTime >= config.PostureDecayDelay)
             {
@@ -176,7 +172,6 @@ namespace ARPG.FrameWork.Body
         public bool UseGourd()
         {
             CharacterConfig config = body.Config;
-            if (config == null) return false;
             if (GourdRemaining <= 0) return false;
 
             GourdRemaining--;
@@ -209,7 +204,6 @@ namespace ARPG.FrameWork.Body
         public void Revive()
         {
             CharacterConfig config = body.Config;
-            if (config == null) return;
 
             ReviveRemaining--;
             CurrentHP = config.MaxHP;
@@ -243,9 +237,9 @@ namespace ARPG.FrameWork.Body
                 return;
             }
             CharacterConfig config = body.Config;
-            CurrentHP = config != null ? config.MaxHP : CurrentHP;
-            CombatEventBus.TriggerPostureChanged(body, 0f, config != null ? config.MaxPosture : 100f);
-            CombatEventBus.TriggerHPChanged(body, CurrentHP, config != null ? config.MaxHP : 0);
+            CurrentHP = config.MaxHP;
+            CombatEventBus.TriggerPostureChanged(body, 0f, config.MaxPosture);
+            CombatEventBus.TriggerHPChanged(body, CurrentHP, config.MaxHP);
         }
 
         // 崩解标志/架势条清掉，不切状态。倒地中再挨刀时先清再进受击，避免闪 Idle。
@@ -253,7 +247,7 @@ namespace ARPG.FrameWork.Body
         {
             IsPostureBroken = false;
             CharacterConfig config = body.Config;
-            float maxPosture = config != null ? config.MaxPosture : 100f;
+            float maxPosture = config.MaxPosture;
             CurrentPosture = Mathf.Clamp01(remainingRatio) * maxPosture;
             CombatEventBus.TriggerPostureChanged(body, CurrentPosture, maxPosture);
             CombatEventBus.TriggerFinisherOpportunityChanged(body, false);

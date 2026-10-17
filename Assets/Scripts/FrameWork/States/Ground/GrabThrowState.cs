@@ -34,11 +34,8 @@ namespace ARPG.FrameWork.States.Ground
             body.MoveDirection = Vector3.zero;
             body.DisableWeaponHit();
             body.ClearSteerYaw();
-            if (body.Rb != null)
-            {
-                Vector3 v = body.Rb.velocity;
-                body.Rb.velocity = new Vector3(0f, v.y, 0f);
-            }
+            Vector3 v = body.Rb.velocity;
+            body.Rb.velocity = new Vector3(0f, v.y, 0f);
 
             if (!AnimUtil.TryCrossFade(body.Animator, AnimName, 0.05f)
                 && !AnimUtil.TryPlay(body.Animator, AnimName))
@@ -59,34 +56,24 @@ namespace ARPG.FrameWork.States.Ground
             body.MoveDirection = Vector3.zero;
             timer += Time.deltaTime;
 
-            if (body.Animator != null)
+            AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
+            if (AnimUtil.IsPlaying(info, AnimName))
             {
-                AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
-                if (AnimUtil.IsPlaying(info, AnimName))
-                {
-                    hasSeenAnim = true;
-                    if (info.normalizedTime < 0.98f && timer < FallbackDuration)
-                        return;
-                }
-                else if (!hasSeenAnim)
-                {
-                    if (timer < FallbackDuration) return;
-                }
-                else if (body.Animator.IsInTransition(0) && timer < FallbackDuration)
-                {
+                hasSeenAnim = true;
+                if (info.normalizedTime < 0.98f && timer < FallbackDuration)
                     return;
-                }
             }
-            else if (timer < FallbackDuration)
+            else if (!hasSeenAnim)
+            {
+                if (timer < FallbackDuration) return;
+            }
+            else if (body.Animator.IsInTransition(0) && timer < FallbackDuration)
             {
                 return;
             }
 
             hasCompleted = true;
-            if (CombatManager.Instance != null)
-                CombatManager.Instance.CompleteGrabThrow(body);
-            else
-                body.EnterGrounded("grab throw: director missing fallback");
+            CombatManager.Instance.CompleteGrabThrow(body);
         }
 
         public override bool HandleCommand(ICommand cmd)

@@ -42,13 +42,8 @@ namespace ARPG.FrameWork.States.Ground
             triedNestedPath = false;
             seenStart = false;
             duration = FallbackDuration;
-            animName = body.Config != null && !string.IsNullOrEmpty(body.Config.HurtAnim_Broken)
+            animName = !string.IsNullOrEmpty(body.Config.HurtAnim_Broken)
                 ? body.Config.HurtAnim_Broken : "Hurt_Ground";
-
-            if (body.Animator == null)
-            {
-                return;
-            }
 
             if (!AnimUtil.TryPlay(body.Animator, animName))
             {
@@ -60,15 +55,6 @@ namespace ARPG.FrameWork.States.Ground
         public override void OnUpdate()
         {
             timer += Time.deltaTime;
-            if (body.Animator == null)
-            {
-                if (timer >= duration)
-                {
-                    FinishBreak();
-                }
-                return;
-            }
-
             AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
             if (AnimUtil.IsPlaying(info, animName))
             {

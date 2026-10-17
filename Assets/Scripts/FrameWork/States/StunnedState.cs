@@ -43,7 +43,7 @@ namespace ARPG.FrameWork.States
                 if (ground != null && ground.CanDodgeCancel)
                 {
                     body.IsKnockedDown = false;
-                    float blendDuration = ground.IsKnockdown && body.Config != null
+                    float blendDuration = ground.IsKnockdown
                         ? body.Config.KnockdownToDodgeBlendDuration
                         : 0f;
                     body.EnterGrounded(new DodgeState(body, null, blendDuration),
@@ -82,8 +82,7 @@ namespace ARPG.FrameWork.States
             {
                 body.TakeDamage(hit.healthDmg, hit.postureDmg);
                 if (body.CurrentHP <= 0) return true;
-                if (CombatManager.Instance != null)
-                    CombatManager.Instance.TryStartGrabThrow(hit.attacker, body);
+                CombatManager.Instance.TryStartGrabThrow(hit.attacker, body);
                 return true;
             }
 

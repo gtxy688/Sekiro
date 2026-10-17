@@ -25,8 +25,6 @@ namespace ARPG.Camera
 
         private void LateUpdate()
         {
-            if (source == null) return;
-
             Vector3 p = source.position;
             p.y += height;
             transform.position = p;

@@ -119,7 +119,6 @@ namespace ARPG.Audio
 
         private void ApplyOutputVolume()
         {
-            if (source == null) return;
             source.volume = volume * AudioVolumeSettings.Bgm * fadeWeight;
         }
     }

@@ -7,6 +7,7 @@ using ARPG.Mgr;
 namespace ARPG.Player
 {
 
+    [RequireComponent(typeof(PlayerInput))]
     public class PlayerBrain : BrainBase
     {
         private PlayerInput playerInput;
@@ -20,6 +21,7 @@ namespace ARPG.Player
         private InputAction dodgeAction;
         private InputAction healAction;
         private InputAction lockOnAction;
+        private bool callbacksBound;
 
         // 专门用来暂存摇杆当前的输入值
         private Vector2 currentMoveInput;
@@ -40,17 +42,12 @@ namespace ARPG.Player
         // Start 保证此时 playerInput.actions 一定就绪
         private void Start()
         {
-            // 关键：使用 Player Input 组件管理的资产实例，而不是自己 new。
-            // 双 Control Scheme（KeyboardMouse/Gamepad）+ Auto-Switch 只对组件管理的实例生效；
-            // 自己 new 的实例不会跟着切换方案，键盘和手柄绑定会同时生效（互相干扰/漂移混入）。
-            // 没挂 Player Input 组件时回退自建实例（自动切换失效，但保证不崩）。
-            actions = (playerInput != null && playerInput.actions != null)
-                ? playerInput.actions
-                : new PlayerInputActions().asset;
+            // 始终使用 PlayerInput 管理的实例，让设备与控制方案切换作用于同一份输入。
+            actions = playerInput.actions;
             InputRebindService.Load(actions);
 
             var map = actions.FindActionMap("Player");
-            moveAction = actions.FindAction("Move");
+            moveAction = map.FindAction("Move");
             attackAction = map.FindAction("Attack");
             jumpAction = map.FindAction("Jump");
             deflectAction = map.FindAction("Deflect");
@@ -59,6 +56,7 @@ namespace ARPG.Player
             lockOnAction = map.FindAction("LockOn");
 
             BindActions();
+            callbacksBound = true;
             GamePause.OnChanged += HandlePauseChanged;
             CursorController.BindPlayerInput(playerInput);
         }
@@ -66,55 +64,38 @@ namespace ARPG.Player
         private void OnDestroy()
         {
             GamePause.OnChanged -= HandlePauseChanged;
-            UnbindActions();
+            // 对象可能在 Start 前销毁，此时还没有输入订阅。
+            if (callbacksBound) UnbindActions();
         }
 
         private void BindActions()
         {
-            if (moveAction != null)
-            {
-                moveAction.performed += OnMovePerformed;
-                moveAction.canceled += OnMoveCanceled;
-            }
-            if (attackAction != null)
-            {
-                attackAction.started += OnAttackStarted;
-                attackAction.canceled += OnAttackCanceled;
-            }
-            if (jumpAction != null) jumpAction.started += OnJumpStarted;
-            if (deflectAction != null)
-            {
-                deflectAction.started += OnDeflectStarted;
-                deflectAction.canceled += OnDeflectCanceled;
-            }
-            if (dodgeAction != null) dodgeAction.started += OnDodgeStarted;
-            if (healAction != null) healAction.started += OnHealStarted;
-            if (lockOnAction != null) lockOnAction.started += OnLockOnStarted;
+            moveAction.performed += OnMovePerformed;
+            moveAction.canceled += OnMoveCanceled;
+            attackAction.started += OnAttackStarted;
+            attackAction.canceled += OnAttackCanceled;
+            jumpAction.started += OnJumpStarted;
+            deflectAction.started += OnDeflectStarted;
+            deflectAction.canceled += OnDeflectCanceled;
+            dodgeAction.started += OnDodgeStarted;
+            healAction.started += OnHealStarted;
+            lockOnAction.started += OnLockOnStarted;
         }
 
         // InputActionAsset 可能是项目资源，场景重载/对象销毁后仍活着。
         // lambda 无法解绑，必须用具名回调在 OnDestroy 里卸掉，否则会打到已销毁的 PlayerBrain。
         private void UnbindActions()
         {
-            if (moveAction != null)
-            {
-                moveAction.performed -= OnMovePerformed;
-                moveAction.canceled -= OnMoveCanceled;
-            }
-            if (attackAction != null)
-            {
-                attackAction.started -= OnAttackStarted;
-                attackAction.canceled -= OnAttackCanceled;
-            }
-            if (jumpAction != null) jumpAction.started -= OnJumpStarted;
-            if (deflectAction != null)
-            {
-                deflectAction.started -= OnDeflectStarted;
-                deflectAction.canceled -= OnDeflectCanceled;
-            }
-            if (dodgeAction != null) dodgeAction.started -= OnDodgeStarted;
-            if (healAction != null) healAction.started -= OnHealStarted;
-            if (lockOnAction != null) lockOnAction.started -= OnLockOnStarted;
+            moveAction.performed -= OnMovePerformed;
+            moveAction.canceled -= OnMoveCanceled;
+            attackAction.started -= OnAttackStarted;
+            attackAction.canceled -= OnAttackCanceled;
+            jumpAction.started -= OnJumpStarted;
+            deflectAction.started -= OnDeflectStarted;
+            deflectAction.canceled -= OnDeflectCanceled;
+            dodgeAction.started -= OnDodgeStarted;
+            healAction.started -= OnHealStarted;
+            lockOnAction.started -= OnLockOnStarted;
         }
 
         private void OnMovePerformed(InputAction.CallbackContext ctx)
@@ -135,8 +116,7 @@ namespace ARPG.Player
             // 忍杀意图必须在按键按下这一刻确定。
             // 这样破防前已经开始的普通攻击，即使在松键/缓冲期间打崩 Boss，
             // 也只会继续作为 AttackCommand，不能被状态机改解释成忍杀。
-            if (CombatManager.Instance != null &&
-                CombatManager.Instance.HasAvailableFinisher(body))
+            if (CombatManager.Instance.HasAvailableFinisher(body))
             {
                 attackPressed = false;
                 holdAttackTriggered = false;
@@ -211,7 +191,7 @@ namespace ARPG.Player
         private void OnLockOnStarted(InputAction.CallbackContext _)
         {
             if (!CanAcceptPlayInput()) return;
-            if (LockOnManager.Instance != null) LockOnManager.Instance.Toggle();
+            LockOnManager.Instance.Toggle();
         }
 
         private void HandlePauseChanged(bool paused)
@@ -249,8 +229,7 @@ namespace ARPG.Player
             {
                 currentMoveInput = Vector2.zero;
                 ClearDeflectInput();
-                if (body != null)
-                    body.TryExecuteCommand(new MoveCommand(Vector2.zero));
+                body.TryExecuteCommand(new MoveCommand(Vector2.zero));
                 return;
             }
 
@@ -268,13 +247,10 @@ namespace ARPG.Player
 
             ProcessHeldAttack();
 
-            if (moveAction != null)
-            {
-                Vector2 rawInput = moveAction.ReadValue<Vector2>();
-                currentMoveInput = rawInput.sqrMagnitude < 0.01f ? Vector2.zero : rawInput;
-                // 先写入本帧方向。垫步从缓冲落地时 OnEnter 才能判断「有没有按方向键」。
-                body.MoveDirection = currentMoveInput;
-            }
+            Vector2 rawInput = moveAction.ReadValue<Vector2>();
+            currentMoveInput = rawInput.sqrMagnitude < 0.01f ? Vector2.zero : rawInput;
+            // 先写入本帧方向。垫步从缓冲落地时 OnEnter 才能判断「有没有按方向键」。
+            body.MoveDirection = currentMoveInput;
 
             // 1. 调用基类的 Update，让它去处理缓冲池里的 攻击、弹反、跳跃 指令
             base.Update();
@@ -282,13 +258,11 @@ namespace ARPG.Player
             // 崩解倒地：长按格挡键应在 BrokenDeflectDodgeOpenTime 到达后切入 DeflectState。
             // 这是系统回防：只恢复普通格挡，不开新的完美弹反窗口、不计空按，也不伪造按键身份。
             // 玩家真实按下仍留在缓冲里优先被接受（否则会被这条请求顶掉，白丢一次弹反窗口）。
-            if (body.IsPostureBroken && deflectAction != null && deflectAction.IsPressed()
+            if (body.IsPostureBroken && deflectAction.IsPressed()
                 && !HasBufferedCommand<DeflectCommand>())
                 BufferCommand(DeflectCommand.System(), 0.15f);
 
             // 2. 独立处理移动指令（连绵不断的意图，不走缓冲）
-            if (moveAction == null) return;
-
             body.TryExecuteCommand(new MoveCommand(currentMoveInput));
         }
 
@@ -296,31 +270,13 @@ namespace ARPG.Player
         {
             if (!attackPressed || holdAttackTriggered || holdThresholdChecked) return;
 
-            float threshold = body.Config != null
-                ? body.Config.AttackHoldDuration
-                : 0.3f;
+            float threshold = body.Config.AttackHoldDuration;
             if (Time.time - attackPressedTime < threshold) return;
 
             holdThresholdChecked = true;
-            if (body.ThrustAttack == null)
-            {
-                Debug.LogError($"{body.name} 未配置 ThrustAttack，松开攻击键后回退普通攻击。");
-                return;
-            }
-
             holdAttackTriggered = true;
             body.ActiveAttack = body.ThrustAttack;
             BufferCommand(new AttackCommand());
-        }
-
-        // 启用与禁用 InputSystem
-        // 注意 OnEnable 在 Start 之前执行，此时 actions 还没拿到，所以要做空判断；
-        // 挂 Player Input 组件时由其 Auto Enable Inputs 负责启用
-        private void OnEnable()
-        {
-            // 挂了 Player Input 时由它管资产启用，这里再 Enable 会把所有 Map 一起打开
-            if (playerInput != null) return;
-            if (actions != null) actions.Enable();
         }
 
         private void OnDisable()
@@ -330,8 +286,6 @@ namespace ARPG.Player
             holdThresholdChecked = false;
             // 对象停用属于生命周期阻断：未完成尝试取消（不记空按），残留命令一并丢弃。
             ClearDeflectInput();
-            if (playerInput != null) return;
-            if (actions != null) actions.Disable();
         }
     }
 

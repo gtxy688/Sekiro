@@ -113,9 +113,7 @@ namespace ARPG.FrameWork
             minX = maxX = minZ = maxZ = 0f;
 
             Collider self = GetComponent<Collider>();
-            Bounds area = self != null
-                ? self.bounds
-                : new Bounds(transform.position, Vector3.one * 40f);
+            Bounds area = self.bounds;
 
             float step = Mathf.Max(0.5f, Mathf.Max(area.size.x, area.size.z) / 64f);
             int mask = 1 << ground;

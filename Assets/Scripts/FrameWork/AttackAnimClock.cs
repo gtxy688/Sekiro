@@ -9,9 +9,6 @@ namespace ARPG.FrameWork
 
         public static float ReadSeconds(Animator animator, string animName)
         {
-            if (animator == null || string.IsNullOrEmpty(animName))
-                return 0f;
-
             int hash = Animator.StringToHash(animName);
 
             if (animator.IsInTransition(Layer))

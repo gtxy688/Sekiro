@@ -42,7 +42,7 @@ namespace ARPG.Combat
 
         void Awake()
         {
-            if (visualRoot == null && transform.childCount > 0)
+            if (visualRoot == null)
                 visualRoot = transform.GetChild(0);
             ApplyVisualPose();
             EnsureTrail();
@@ -52,7 +52,7 @@ namespace ARPG.Combat
         // 用 Ensure() 而非 Current：箭可能被预置在场景里，那时 Scope 未必已被别人建出来。
         void Start()
         {
-            EncounterScope.Ensure()?.Register(this);
+            EncounterScope.Ensure().Register(this);
         }
 
         void OnDestroy()
@@ -71,7 +71,6 @@ namespace ARPG.Combat
 
         void ApplyVisualPose()
         {
-            if (visualRoot == null) return;
             visualRoot.localRotation = Quaternion.Euler(visualLocalEuler);
             visualRoot.localScale = Vector3.one * visualScale;
         }
@@ -113,17 +112,11 @@ namespace ARPG.Combat
             trail.colorGradient = g;
 
             Shader shader = Shader.Find("ARPG/FX/AdditiveSpark");
-            if (shader == null)
-                shader = Shader.Find("Sprites/Default");
-            if (shader != null)
-            {
-                if (trailMat != null)
-                    Destroy(trailMat);
-                trailMat = new Material(shader);
-                if (trailMat.HasProperty("_Color"))
-                    trailMat.SetColor("_Color", c);
-                trail.material = trailMat;
-            }
+            if (trailMat != null)
+                Destroy(trailMat);
+            trailMat = new Material(shader);
+            trailMat.SetColor("_Color", c);
+            trail.material = trailMat;
 
             trail.emitting = true;
             trail.Clear();
@@ -214,7 +207,7 @@ namespace ARPG.Combat
             spent = true;
             if (trail != null)
                 trail.emitting = false;
-            CombatManager.Instance?.ReportProjectileHit(
+            CombatManager.Instance.ReportProjectileHit(
                 owner, hurtbox, hitPoint, healthDmg, postureDmg, knockback, grade);
             Destroy(gameObject);
             return true;

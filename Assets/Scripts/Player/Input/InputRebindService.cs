@@ -24,7 +24,6 @@ namespace ARPG.Player
 
         public static void Load(InputActionAsset asset)
         {
-            if (asset == null) return;
             if (!PlayerPrefs.HasKey(PrefsKey)) return;
 
             string json = PlayerPrefs.GetString(PrefsKey);
@@ -40,14 +39,6 @@ namespace ARPG.Player
                 string scheme = input.currentControlScheme;
                 if (scheme == GamepadGroup) return GamepadGroup;
                 if (scheme == KeyboardMouseGroup) return KeyboardMouseGroup;
-                if (!string.IsNullOrEmpty(scheme))
-                {
-                    if (scheme.IndexOf("Gamepad", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                        return GamepadGroup;
-                    if (scheme.IndexOf("Keyboard", System.StringComparison.OrdinalIgnoreCase) >= 0
-                        || scheme.IndexOf("Mouse", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                        return KeyboardMouseGroup;
-                }
             }
 
             double bestTime = double.NegativeInfinity;
@@ -65,15 +56,12 @@ namespace ARPG.Player
 
         public static void Save(InputActionAsset asset)
         {
-            if (asset == null) return;
             PlayerPrefs.SetString(PrefsKey, asset.SaveBindingOverridesAsJson());
             PlayerPrefs.Save();
         }
 
         public static int FindBindingIndex(InputAction action, string group)
         {
-            if (action == null) return -1;
-
             // 同一 Scheme 取第一条完整绑定（LockOn 手柄只保留 rightStickPress）
             for (int i = 0; i < action.bindings.Count; i++)
             {
@@ -89,24 +77,11 @@ namespace ARPG.Player
         public static string GetBindingDisplay(InputAction action, string group)
         {
             int index = FindBindingIndex(action, group);
-            if (index >= 0)
-                return action.GetBindingDisplayString(index);
-
-            for (int i = 0; i < action.bindings.Count; i++)
-            {
-                InputBinding binding = action.bindings[i];
-                if (binding.isPartOfComposite) continue;
-                if (string.IsNullOrEmpty(binding.groups) || !binding.groups.Contains(group)) continue;
-                return action.GetBindingDisplayString(i);
-            }
-
-            return "—";
+            return index >= 0 ? action.GetBindingDisplayString(index) : "—";
         }
 
         public static void ResetGroup(InputActionAsset asset, string group)
         {
-            if (asset == null) return;
-
             for (int i = 0; i < RemappableActions.Length; i++)
             {
                 InputAction action = asset.FindAction(RemappableActions[i]);
@@ -193,7 +168,7 @@ namespace ARPG.Player
             for (int i = 0; i < RemappableActions.Length; i++)
             {
                 InputAction other = asset.FindAction(RemappableActions[i]);
-                if (other == null || other == reboundAction) continue;
+                if (other == reboundAction) continue;
 
                 int otherIndex = FindBindingIndex(other, group);
                 if (otherIndex < 0) continue;
