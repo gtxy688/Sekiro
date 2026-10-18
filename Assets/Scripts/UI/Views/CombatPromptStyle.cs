@@ -6,7 +6,7 @@ using ARPG.Mgr;
 namespace ARPG.UI
 {
 
-    // 战斗提示层（回生 / 胜利 / 真死）和暂停设置页同一套暗金，避免两套皮肤。
+    // 统一战斗提示的暗金样式，并复用或创建面板、按钮和辅助文本。
     public static class CombatPromptStyle
     {
         public static readonly Color Dimmer = new Color(0f, 0f, 0f, 0.72f);
@@ -18,6 +18,7 @@ namespace ARPG.UI
         public static readonly Color SelectedFill = new Color(0.95f, 0.78f, 0.22f, 1f);
         public static readonly Color SelectedText = new Color(0.12f, 0.1f, 0.05f, 1f);
 
+        // 补齐提示面板的背景和装饰，将标题与说明移入统一布局。
         public static void EnsureChrome(
             Transform root,
             TextMeshProUGUI title,
@@ -27,6 +28,7 @@ namespace ARPG.UI
         {
             if (root == null) return;
 
+            // 先准备遮罩和面板，复用场景中已有的控件。
             Transform dimmerTf = root.Find("Dimmer");
             if (dimmerTf == null)
             {
@@ -53,6 +55,7 @@ namespace ARPG.UI
                 panelRect.sizeDelta = panelSize;
             }
 
+            // 将外部文本移入面板，按是否带操作按钮分配布局空间。
             if (title != null && title.transform.parent != panelRect)
                 title.transform.SetParent(panelRect, false);
             if (hint != null && hint.transform.parent != panelRect)
@@ -74,6 +77,7 @@ namespace ARPG.UI
                 Place(hint.rectTransform, new Vector2(0f, hintY), new Vector2(panelSize.x - 48f, 40f));
             }
 
+            // 补齐分隔线和关闭按钮，保持不同提示界面的样式一致。
             Transform dividerTf = panelRect.Find("Divider");
             if (dividerTf == null)
             {
@@ -195,6 +199,7 @@ namespace ARPG.UI
             return button;
         }
 
+        // 退出前恢复全局输入和暂停状态；编辑器中只收起结算提示。
         public static void QuitGame()
         {
             CombatInputGate.SetBlocked(false);
@@ -258,6 +263,7 @@ namespace ARPG.UI
             return tmp;
         }
 
+        // 优先复用设置页的关闭图标，编辑器中可按资源路径加载。
         private static Sprite LoadCloseSprite()
         {
             Transform setting = FindSettingCloseIcon();

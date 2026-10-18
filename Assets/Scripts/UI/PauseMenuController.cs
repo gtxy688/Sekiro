@@ -16,7 +16,7 @@ using static ARPG.UI.PauseMenuStyle;
 namespace ARPG.UI
 {
 
-    // 暂停菜单：Esc / Start 打开 SettingPanel（挂在 CombatCanvas 上，场景里改字体）。
+    // 控制暂停菜单的页面切换、设置和交互式改键，复用场景界面或按需构建。
     public class PauseMenuController : MonoBehaviour
     {
         private enum PausePage { Root, Hub, Keybind }
@@ -80,10 +80,12 @@ namespace ARPG.UI
 
             actions = playerInput.actions;
 
+            // 绑定玩家输入并加载保存的改键、音量和练习设置。
             CursorController.BindPlayerInput(playerInput);
             InputRebindService.Load(actions);
             AudioVolumeSettings.Load();
             GameplaySettings.Load();
+            // 准备 UI 输入与字体，再绑定现有面板或创建完整菜单。
             EnsureEventSystem();
             TmpChineseFont.EnsureReady();
             pauseCanvas = EnsureSettingPanelRoot();
@@ -355,6 +357,7 @@ namespace ARPG.UI
             StartCoroutine(StartRebindAfterPointerUp(rowIndex));
         }
 
+        // 等待打开改键的按键松开，避免将确认键本身录入新绑定。
         private IEnumerator StartRebindAfterPointerUp(int rowIndex)
         {
             yield return null;
@@ -367,6 +370,7 @@ namespace ARPG.UI
             int bindingIndex = InputRebindService.FindBindingIndex(action, currentGroup);
             if (action == null || bindingIndex < 0) yield break;
 
+            // 改键期间关闭 UI 导航，避免同一输入同时移动菜单焦点。
             rebindInProgress = true;
             if (EventSystem.current != null)
                 EventSystem.current.sendNavigationEvents = false;
@@ -396,6 +400,7 @@ namespace ARPG.UI
         {
             rebindInProgress = false;
             rebindOperation = null;
+            // 跳过结束后的短暂输入，防止取消键继续触发返回或暂停。
             ignorePauseFrames = 2;
             if (EventSystem.current != null)
                 EventSystem.current.sendNavigationEvents = true;
@@ -419,6 +424,7 @@ namespace ARPG.UI
             RefreshBindingLabels();
         }
 
+        // 复用或创建 EventSystem 和 Input System UI 模块，保证动态菜单可接收键鼠与手柄。
         private void EnsureEventSystem()
         {
             EventSystem eventSystem = EventSystem.current;
@@ -483,6 +489,7 @@ namespace ARPG.UI
             return null;
         }
 
+        // 绑定已保存的菜单层级；关键页面或控件缺失时由调用方重建界面。
         private bool TryBindExisting()
         {
             Transform root = pauseCanvas.transform;
@@ -495,6 +502,7 @@ namespace ARPG.UI
             hubPanel = hubTf.gameObject;
             settingsPanel = settingsTf.gameObject;
 
+            // 绑定主菜单和设置页的固定控件。
             resumeButton = FindButton(rootTf, "继续战斗");
             openSettingsButton = FindButton(rootTf, "设置");
             quitButton = FindButton(rootTf, "重新开始") ?? FindButton(rootTf, "退出战斗");
@@ -521,6 +529,7 @@ namespace ARPG.UI
             BindSliderRow(hubTf, "音乐音量Row", true);
             BindSliderRow(hubTf, "音效音量Row", false);
 
+            // 按可改键动作的顺序收集按钮和显示文本。
             bindingLabels.Clear();
             rebindRowButtons.Clear();
             for (int i = 0; i < InputRebindService.RemappableActions.Length; i++)
@@ -566,6 +575,7 @@ namespace ARPG.UI
             Image tick = row.Find("Tick") != null ? row.Find("Tick").GetComponent<Image>() : null;
             TextMeshProUGUI title = FindTmp(row, rowName.Replace("Row", string.Empty));
             TextMeshProUGUI value = FindTmp(row, "Value");
+            // 记录分类引用并接入对应音量设置。
             if (isBgm)
             {
                 bgmSlider = slider;
@@ -586,6 +596,7 @@ namespace ARPG.UI
             }
         }
 
+        // 重接场景控件事件，清除旧监听以避免重复执行。
         private void WireExistingListeners()
         {
             BindClick(resumeButton, Resume);
@@ -654,6 +665,7 @@ namespace ARPG.UI
             BindClick(settingsCloseButton, ShowHub);
         }
 
+        // 移除旧布局的练习开关，并将开关补齐到主菜单。
         private void EnsureGameplayToggleButtons()
         {
             if (rootPanel == null) return;
@@ -703,6 +715,7 @@ namespace ARPG.UI
                 Object.Destroy(node.gameObject);
         }
 
+        // 在编辑器中同时展开各页，便于调整字体和布局。
         public void EditorPreviewAllPages()
         {
             pauseCanvas = EnsureSettingPanelRoot();
@@ -768,6 +781,7 @@ namespace ARPG.UI
             }
         }
 
+        // 清空设置根节点后重新构建菜单，供编辑器刷新生成的层级。
         public void EditorRebuildSettingPanel()
         {
             pauseCanvas = EnsureSettingPanelRoot();
@@ -787,6 +801,7 @@ namespace ARPG.UI
             HideMenu();
         }
 
+        // 在设置根节点下构建主菜单、音量页和改键页，并保存后续交互需要的控件引用。
         private void BuildUIInto(Transform canvasRoot)
         {
             EnsureKitSprites();
@@ -797,6 +812,7 @@ namespace ARPG.UI
             dimmer.raycastTarget = false;
             builder.StretchFull(dimmer.rectTransform);
 
+            // 主菜单提供恢复、练习开关和退出操作。
             rootPanel = builder.CreatePanel(canvasRoot, "RootPanel", new Vector2(460f, 600f));
             builder.CreateLabel(rootPanel.transform, "暂停", 42f, TextAlignmentOptions.Center, new Vector2(0f, 250f), new Vector2(400f, 60f));
             resumeButton = builder.CreateMenuButton(rootPanel.transform, "继续战斗", new Vector2(0f, 170f), Resume);
@@ -809,6 +825,7 @@ namespace ARPG.UI
             exitGameButton = builder.CreateMenuButton(rootPanel.transform, "退出游戏", new Vector2(0f, -150f), QuitGame);
             rootCloseButton = builder.CreateCloseButton(rootPanel.transform, closeIconSprite, Resume);
 
+            // 设置页提供两档音量，并连接到改键页面。
             hubPanel = builder.CreatePanel(canvasRoot, "HubPanel", new Vector2(560f, 500f));
             builder.CreateLabel(hubPanel.transform, "设置", 42f, TextAlignmentOptions.Center,
                 new Vector2(0f, 190f), new Vector2(500f, 60f));
@@ -819,6 +836,7 @@ namespace ARPG.UI
             hubKeybindButton = builder.CreateMenuButton(hubPanel.transform, "键位设置", new Vector2(0f, -50f), ShowSettings);
             hubBackButton = builder.CreateMenuButton(hubPanel.transform, "返回", new Vector2(0f, -118f), ShowRoot);
 
+            // 改键页按控制方案切换绑定列表。
             settingsPanel = builder.CreatePanel(canvasRoot, "SettingsPanel", new Vector2(640f, 720f));
             builder.CreateLabel(settingsPanel.transform, "键位设置", 36f, TextAlignmentOptions.Center, new Vector2(0f, 310f), new Vector2(560f, 50f));
             settingsCloseButton = builder.CreateCloseButton(settingsPanel.transform, closeIconSprite, ShowHub);
@@ -863,6 +881,7 @@ namespace ARPG.UI
             rebindRowButtons.Add(rowButton);
         }
 
+        // 组合标题、轨道、填充和手柄，并将滑块变化同步到音量设置。
         private void CreateSliderRow(Transform parent, string title, Vector2 position, bool isBgm)
         {
             EnsureKitSprites();
@@ -875,6 +894,7 @@ namespace ARPG.UI
             rowRect.sizeDelta = new Vector2(500f, 56f);
             rowRect.anchoredPosition = position;
 
+            // 标题和数值位于左侧，选中时显示装饰标记。
             Image tick = builder.CreateImage(row.transform, "Tick", AccentColor);
             RectTransform tickRect = tick.rectTransform;
             tickRect.anchorMin = tickRect.anchorMax = tickRect.pivot = new Vector2(0f, 0.5f);
@@ -891,6 +911,7 @@ namespace ARPG.UI
                 new Vector2(-78f, 0f), new Vector2(60f, 36f), "Value");
             valueLabel.color = SliderLabelIdle;
 
+            // 透明交互区覆盖右侧轨道，视觉部件不拦截指针。
             Image hit = builder.CreateImage(row.transform, "Slider", new Color(1f, 1f, 1f, 0f));
             RectTransform hitRect = hit.rectTransform;
             hitRect.anchorMin = hitRect.anchorMax = hitRect.pivot = new Vector2(0.5f, 0.5f);
@@ -910,6 +931,7 @@ namespace ARPG.UI
             Mask trackMask = track.gameObject.AddComponent<Mask>();
             trackMask.showMaskGraphic = true;
 
+            // 填充条置于轨道遮罩内，保持增长区域与轨道边缘对齐。
             GameObject fillArea = new GameObject("Fill Area", typeof(RectTransform));
             fillArea.transform.SetParent(track.transform, false);
             RectTransform fillAreaRect = fillArea.GetComponent<RectTransform>();
@@ -931,6 +953,7 @@ namespace ARPG.UI
             fillRect.offsetMax = Vector2.zero;
             fillRect.sizeDelta = Vector2.zero;
 
+            // 将手柄移动范围与图形大小分开，保留轨道两端的内边距。
             GameObject handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
             handleArea.transform.SetParent(hit.transform, false);
             RectTransform handleAreaRect = handleArea.GetComponent<RectTransform>();
@@ -953,6 +976,7 @@ namespace ARPG.UI
             handleGraphicRect.anchorMin = handleGraphicRect.anchorMax = handleGraphicRect.pivot = new Vector2(0.5f, 0.5f);
             handleGraphicRect.sizeDelta = new Vector2(16f, 26f);
 
+            // 将显示部件接到 Slider，统一处理拖动和键盘调值。
             Slider slider = hit.gameObject.AddComponent<Slider>();
             slider.transition = Selectable.Transition.None;
             slider.minValue = 0f;
@@ -1005,8 +1029,7 @@ namespace ARPG.UI
             }
         }
 
-        // 三个套件贴图是 [SerializeField]：允许在 Inspector 里预先拖好，没拖才回退到 Kit 路径。
-        // 程序生成的那两张（填充条、菱形手柄）归 PauseMenuBuilder 管，这里不碰。
+        // 保留 Inspector 指定的套件贴图；编辑器中未指定时再按资源路径读取。
         private void EnsureKitSprites()
         {
             if (volumeTrackSprite == null)
@@ -1031,6 +1054,7 @@ namespace ARPG.UI
             return null;
         }
 
+        // 分别连接各页面的显式导航，滑块的左右键保留用于调整数值。
         private void WireNavigation()
         {
             SetNav(resumeButton, null, infiniteHealthToggle, null, null);

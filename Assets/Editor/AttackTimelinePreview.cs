@@ -5,6 +5,7 @@ using ARPG.FrameWork;
 namespace ARPG.Editor
 {
 
+    // 管理时间轴独立的预览实例、采样和镜头；窗口关闭时必须 Dispose 释放资源。
     public class AttackTimelinePreview
     {
         PreviewRenderUtility utility;
@@ -42,6 +43,7 @@ namespace ARPG.Editor
                     utility.lights[1].intensity = 0.6f;
             }
 
+            // 使用临时副本采样，避免直接改变场景对象或 Prefab 资产。
             instance = Object.Instantiate(prefab);
             instance.hideFlags = HideFlags.HideAndDontSave;
             instance.transform.position = Vector3.zero;
@@ -115,6 +117,7 @@ namespace ARPG.Editor
             }
         }
 
+        // 合并模型包围盒，以模型大小设置初始取景距离。
         void FrameCamera()
         {
             if (utility == null || instance == null) return;

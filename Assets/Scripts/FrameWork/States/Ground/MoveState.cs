@@ -8,9 +8,8 @@ using ARPG.Player;
 namespace ARPG.FrameWork.States.Ground
 {
 
-    // 移动状态（全权根运动）
-    //   未锁定：IdleToWalk / DodgeToWalk → Walk，身体转向移动方向
-    //   锁定：IdleToStrafe → Walk_Strafe，身体朝 Boss，MoveX/MoveZ 驱动四向融合树
+    // 用根运动驱动移动，未锁定时转向移动方向，锁定时面向战斗目标并更新四向动画参数。
+    // 可播放起步过渡，Boss 的 PreferFastWalk 选择快走或近身慢走循环。
     public class MoveState : BaseState
     {
         private HierarchicalState parent;
@@ -91,6 +90,7 @@ namespace ARPG.FrameWork.States.Ground
         // Walk_Strafe = 锁定/近身慢走绕圈；Walk = 未锁定或 Boss 远距离快跑拉近。
         private string LoopAnim => body.PreferFastWalk || !IsLockedOnTarget() ? "Walk" : "Walk_Strafe";
 
+        // 将世界移动方向投影到目标相对的左右与前后轴，供四向融合树使用。
         private void UpdateStrafeParams(bool instant)
         {
             Transform target = GetCombatTarget();

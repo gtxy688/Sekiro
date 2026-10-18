@@ -9,9 +9,8 @@ using ARPG.Player;
 namespace ARPG.FrameWork.States.Ground
 {
 
-    // 闪避（垫步）状态：全权根运动，位移由垫步动画 Root 曲线驱动，代码只计时退出
-    // 无敌帧（M4）：前 DodgeIFrame 秒内普通攻击打不中
-    // 识破：仅无方向垫步踩中突刺；锁定四向垫步不用融合树
+    // 垫步位移由根运动驱动，前 DodgeIFrame 秒拦截受击，到时按移动意图退出。
+    // 无方向垫步遇到危字突刺可识破，锁定时按目标相对方向选择四向动画。
     public class DodgeState : BaseState
     {
         private HierarchicalState parent;
@@ -103,9 +102,7 @@ namespace ARPG.FrameWork.States.Ground
             body.SetSuppressRootYaw(false);
         }
 
-        // 受击拦截（M1/M17/M4）：
-        //   突刺危字 + 无方向垫步 → 识破（踩刀）
-        //   带方向垫步（含后垫）只走无敌帧，不识破，避免后垫踩刀把 Boss 拧成反向
+        // 无方向垫步可识破危字突刺；带方向垫步只按无敌时长拦截命中。
         public override bool OnHitReceived(HitData hit)
         {
             if (mikiriEligible && hit.isPerilous && hit.perilousType == PerilousType.Thrust)
@@ -143,7 +140,7 @@ namespace ARPG.FrameWork.States.Ground
 
         private void PlayDodgeAnimation(string anim)
         {
-            // 只有 Mid/Heavy 倒地取消带入固定秒数；普通锁定垫步保留原来的硬切响应。
+            // Mid/Heavy 倒地取消使用传入的固定融合时长，普通锁定垫步直接播放。
             if (entryBlendDuration > 0f)
             {
                 AnimUtil.TryCrossFadeInFixedTime(body.Animator, anim, entryBlendDuration);

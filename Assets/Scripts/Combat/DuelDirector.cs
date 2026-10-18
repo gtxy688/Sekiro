@@ -8,15 +8,8 @@ using ARPG.FrameWork.States.Ground;
 using ARPG.Mgr;
 namespace ARPG.Combat
 {
-    // 成对演出（处决 / 投技）的编排器。从 CombatManager 里分出来的另一半——原本写错的那一半。
-    //
-    // 旧写法的问题：处决 4 个 + 投技 4 个、共 8 个瞬时状态字段直接挂在 CombatManager 单例上。
-    // 「当前这场处决」本来是一个有明确生命周期的东西，却被拍平成了管理器的字段。
-    // 后果有两个：切场景 / 重开战斗时状态残留；处决与投技的互斥关系要靠手写 if 去兜。
-    //
-    // 新写法：演出是一个对象（PairedPerformance），同时只允许存在一场。
-    // 互斥不再是靠 if 判断，而是结构上成立——字段数从 8 降到 5，且 5 个都属于同一场演出。
-    // 复战时只要 ResetForEncounter() 丢弃这个对象，状态就干净了，不需要重载场景。
+    // 编排处决与投技的双方对齐、状态锁定和结束结算，同时只允许一场成对演出。
+    // 当前演出统一保存在 PairedPerformance 中，复战时解除双方锁定并清除。
     public class DuelDirector : MonoBehaviour, ICombatResettable
     {
         // 一次成对演出。处决与投技共用同一个槽位，因为它们本来就不可能同时发生。
@@ -35,11 +28,7 @@ namespace ARPG.Combat
 
         private PairedPerformance active;
 
-        // 本场战斗的对手，由外部注入（CombatManager 门面或复战流程层）。
-        // 只作为「找谁可以被处决」的回退路径；首选路径是 EncounterScope.Opponents。
-        //
-        // 这里刻意不保存玩家引用：一旦存了，判断「谁能发起处决」就会退化成
-        // `initiator == playerRef` 这种对象身份比较——那等于把游戏规则焊死在具体实例上。
+        // 外部注入的主对手；查询忍杀目标时优先检查它，再遍历 Scope 中的其他对手。
         private CharacterBody bossRef;
 
         // 注册进本场战斗的重置清单：复战时 EncounterScope.ResetAll() 才能丢掉残留演出。
@@ -70,17 +59,7 @@ namespace ARPG.Combat
             active = null;
         }
 
-        // 处决资格。当前规则：只有玩家阵营能发起。
-        //
-        // 为什么单独提出来、而不是内联成一条 if：
-        // 旧代码写的是 `if (initiator != playerRef)`——拿对象引用当规则使。
-        // 那等于「判断这是不是班长，靠看这是不是张三本人」。后果是加第二个敌人、
-        // 想让杂兵也能处决，都得回来改这条分支。改成查阵营字段后这两种场景自动成立。
-        //
-        // ⚠️ 已知边界：Boss 反杀（敌对阵营发起处决）这条规则表达不了。
-        // 真要做时，这里的判断要从「查发起者资格」换成「查一对关系」——
-        // 例如在 CharacterConfig 上加「能否发起处决」开关，按角色配置而不是按阵营。
-        // 那属于新增需求，不是重构，别提前做。
+        // 当前仅玩家阵营能发起处决，资格不绑定某个固定对象引用。
         private static bool CanInitiateFinisher(CharacterBody initiator)
         {
             return HitReactionUtil.IsPlayer(initiator);
@@ -102,7 +81,7 @@ namespace ARPG.Combat
                 FinisherKindFor(victim.CurrentPostureBreakSource));
         }
 
-        // ===== 成对忍杀（M10）=====
+        // ===== 成对忍杀=====
         public bool TryExecuteFinisher(CharacterBody initiator, FinisherKind kind = FinisherKind.Ground)
         {
             if (initiator == null) return false;
@@ -130,6 +109,7 @@ namespace ARPG.Combat
                 if (dist > finisherRange) return false;
             }
 
+            // 动画与距离校验通过后再对齐并锁定双方，避免失败请求残留演出状态。
             AlignFinisherFacing(initiator, victim, playerAnim, bossAnim);
 
             active = new PairedPerformance { Initiator = initiator, Victim = victim };
@@ -146,6 +126,7 @@ namespace ARPG.Combat
             victim.DisableWeaponHit();
             CombatEventBus.TriggerFinisherOpportunityChanged(victim, false);
 
+            // 双方分别进入配套叶子状态，结算和统一解锁由发起方动画结束驱动。
             victim.EnterGrounded(new FinisherVictimState(victim, bossAnim),
                 "duel: finisher victim");
             initiator.EnterGrounded(new FinisherState(initiator, victim, playerAnim),
@@ -168,9 +149,7 @@ namespace ARPG.Combat
                 FinisherKindFor(victim.CurrentPostureBreakSource));
         }
 
-        // 找一个能被 kind 处决的对手。
-        // 单 Boss 时等价于旧的 BossRef；多 Boss / 连战时自动挑当前崩解的那个，
-        // 调用方（状态机）完全不用改——这就是把"谁是被处决者"从写死引用改成查询的价值。
+        // 取首个崩解对手，并检查其崩解来源是否匹配请求的忍杀类型。
         private CharacterBody FindFinisherVictim(CharacterBody initiator, FinisherKind kind)
         {
             CharacterBody candidate = FindAnyBrokenOpponent(initiator);
@@ -245,6 +224,7 @@ namespace ARPG.Combat
                    player == active.Initiator && active.Resolved;
         }
 
+        // 清除演出记录并恢复存活双方的操作与地面状态，最终败北的受方保持锁定。
         public void CompleteFinisherSequence(CharacterBody player)
         {
             if (player == null || active == null || player != active.Initiator) return;
@@ -284,6 +264,7 @@ namespace ARPG.Combat
                 return false;
             }
 
+            // 共用演出槽位，清除攻击残留后让双方进入投技动画。
             active = new PairedPerformance { Initiator = attacker, Victim = victim };
 
             attacker.DisableWeaponHit();

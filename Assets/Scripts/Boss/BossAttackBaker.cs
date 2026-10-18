@@ -4,7 +4,7 @@ using ARPG.Configs;
 namespace ARPG.Boss
 {
 
-    // 把表行的一段烤成运行时 AttackConfig。HideAndDontSave，不写进工程。
+    // 将招式表中的一段转换为临时 AttackConfig，复用角色攻击状态；不写入项目资产。
     public static class BossAttackBaker
     {
         public static AttackConfig Bake(BossMoveEntry entry, string animName, BossMoveWindow w)
@@ -26,8 +26,7 @@ namespace ARPG.Boss
             cfg.RotationWindowEnd = bowTrack ? w.stateDuration : w.rotateEnd;
             cfg.NextCombo = null;
 
-            // NoHit：没有有效 hitPulses（空数组或只剩 0~0.01 假红条）。
-            // 判定窗只认 hitPulses；w.hitStartTime / w.recoverStart 仍原样带过去，供连招与取消窗口使用。
+            // 只有有效脉冲才保留近战和危字配置；位移或弓段按无近战窗口处理。
             bool canHit = AttackWindowSync.CanMeleeHit(w.hitPulses);
             PerilousType perilous = w.perilous != PerilousType.None ? w.perilous : entry.perilous;
             cfg.Perilous = canHit ? perilous : PerilousType.None;
@@ -53,6 +52,7 @@ namespace ARPG.Boss
                 AttackWindowSync.ApplyNoHit(cfg);
             }
 
+            // 复制事件点，避免运行时配置改动影响共享招式表。
             if (w.sfxCues != null && w.sfxCues.Length > 0)
             {
                 cfg.sfxCues = new AttackSfxCue[w.sfxCues.Length];

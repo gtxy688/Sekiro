@@ -5,9 +5,7 @@ using ARPG.Mgr;
 namespace ARPG.Camera
 {
 
-    // 相机震动（M12 表现）：订阅 CombatEventBus.OnCameraShake，
-    // 对主相机做随机偏移抖动（不依赖 Cinemachine Impulse，零配置）
-    // 挂 Main Camera 上。强度来自触发方（弹反小抖/崩解大抖/处决强抖）
+    // 挂在主相机上，订阅战斗震动事件，并按事件强度缩放局部位置抖动。
     public class CameraShake : MonoBehaviour
     {
         [Header("基础参数")]

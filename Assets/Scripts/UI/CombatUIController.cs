@@ -11,12 +11,7 @@ using ARPG.Mgr;
 namespace ARPG.UI
 {
 
-    // MVC 之 Controller：订阅 CombatEventBus，把战斗数值转给对应 View
-    // 只做"数据 → View"的转发，不持有业务逻辑、不做每帧轮询（表现层红线）
-    //
-    // 实现 ICombatResettable：胜利 / 死亡 / 回生这些提示会顺手改全局开关
-    // （CombatInputGate.SetBlocked、PlayerInput.DeactivateInput），
-    // 而它们只在"重开场景"那条路径上被还原。复战不重载场景，不还原就是开局不能动。
+    // 订阅战斗事件并更新 HUD，同时在复战时恢复提示界面和玩家输入。
     public class CombatUIController : MonoBehaviour, ICombatResettable
     {
         [Header("角色引用（用于区分玩家/Boss）")]
@@ -33,22 +28,19 @@ namespace ARPG.UI
         [SerializeField] private PerilousWarningView perilousWarningView; // "危"字
         [SerializeField] private HealKanjiView healKanjiView;           // "治"字
         [SerializeField] private ReviveKanjiView reviveKanjiView;       // "回生"字
-        [SerializeField] private RevivePromptView revivePromptView;     // 回生提示（M14）
-        [SerializeField] private GameOverView gameOverView;             // 死亡提示（M14）
-        [SerializeField] private VictoryView victoryView;               // 胜利提示（M10）
+        [SerializeField] private RevivePromptView revivePromptView;     // 回生提示
+        [SerializeField] private GameOverView gameOverView;             // 死亡提示
+        [SerializeField] private VictoryView victoryView;               // 胜利提示
 
-        // 台词不归 Controller 管：VoiceLineView 是 BossVoiceDirector 的私有引用，
-        // 这里再持一份就变成两个组件抢同一个 View，改哪边都会觉得另一边是脏的。
+        // 台词界面由 BossVoiceDirector 独立管理。
         private BossVoiceDirector voiceDirector;
 
-        // 连战重置要遍历的 View。手工登记而不是 GetComponentsInChildren，
-        // 是因为锁定点被搬到世界空间、三个汉字挂在各自的物体下，
-        // 它们根本不在本 Controller 的子层级里，靠层级查找一个都捞不着。
+        // 手工登记跟随视图，避免漏掉已移出 HUD 层级的世界空间物体。
         private readonly List<UIView> managedViews = new List<UIView>();
 
         private void Awake()
         {
-            // 旧 HUD 没挂组件也能播台词，不必手改预制体
+            // 复用或创建台词控制器，统一管理字幕和语音。
             voiceDirector = GetComponent<BossVoiceDirector>();
             if (voiceDirector == null)
                 voiceDirector = gameObject.AddComponent<BossVoiceDirector>();
@@ -91,7 +83,7 @@ namespace ARPG.UI
 
         private void Start()
         {
-            // 初始化各 View 的引用（替换 Awake 手动查找）
+            // 初始化常驻 HUD，并为世界空间提示绑定角色。
             bossStatusView.OnViewInit();
             bossPostureBarView.OnViewInit();
             playerPostureBarView.OnViewInit();
@@ -105,13 +97,12 @@ namespace ARPG.UI
             gameOverView?.OnViewInit();
             victoryView.OnViewInit();
 
-            // 登记放在所有 Bind 之后：Bind 可能刚把场景里找回来的 View 填进字段，
-            // 先登记就会漏掉这些"迟到"的引用。
+            // 登记已初始化的视图，供复战时统一复位。
             CollectManagedViews();
 
             voiceDirector.Bind(playerBody, bossBody, (RectTransform)playerPostureBarView.transform);
 
-            // 初始状态（Awake 里 InitCombat 不会发事件，这里把当前数值推到条上，否则开局血条/葫芦是空的）
+            // 角色初始化不会发送数值事件，开局需主动推送血条、命数和物品数量。
             bossStatusView.SetName("苇名弦一郎");
             bossStatusView.SetLifeDots(bossBody.Config.LifeCount);
             playerStatusView.SetReviveDots(playerBody.Config.ReviveCount);
@@ -150,27 +141,10 @@ namespace ARPG.UI
             }
         }
 
-        // 复战重置：把"只由事件驱动"的提示 UI 与全局开关拉回开局状态。
-        //
-        // 这些状态不跟着 CharacterBody 的复位一起回来，因为它们的来源根本不是数值：
-        //   - 胜利时打了 CombatInputGate.SetBlocked(true) 并 DeactivateInput()，
-        //     原本只靠 VictoryView 的"重开场景"按钮还原。复战不重载场景，
-        //     不还原就是开局人物完全不能动——这是这一批里最致命的一项。
-        //   - 回生提示 / Game Over 只由"回生成功"或"真死"关闭，复战两条都不走。
-        //   - 命数点 / 回生点只由 OnLifeCleared、OnRevived 刷新，复战不重发这两个事件。
-        //
-        // 命数点与回生点刻意从 Config 读、不从 body 的当前值读：
-        // ResetAll() 里各组件的执行顺序未定义，UI 可能先于 CharacterBody 复位，
-        // 那时 body 上的还是上一场的残值。Config 是序列化 SO，整局不变，读它没有顺序依赖。
+        // 清理上一场的界面与输入状态；初始数值从 Config 读取，避免依赖各组件的复位顺序。
         public void ResetForEncounter()
         {
-            // 分两步，职责不同：
-            //   第一步让每个 View 清掉自己的临时状态（tween、倒计时、跟随目标、一次性标志）。
-            //   第二步由本方法把战斗初始值推一遍。
-            //
-            // 这两类东西不能混：View 清的是"上一场的历史"，没有外部数据源，只能自己清；
-            // 而这里推的值必须从 Config 读——各组件复位顺序未定义，
-            // 读 body 的当前值可能读到还没复位的残值。
+            // 先让视图清理 tween、计时器和跟随目标，再恢复战斗初始显示。
             for (int i = 0; i < managedViews.Count; i++)
             {
                 if (managedViews[i] == null) continue;
@@ -181,8 +155,7 @@ namespace ARPG.UI
             CombatInputGate.SetBlocked(false);
             lockOnIndicatorView.SetFinisherReady(false);
 
-            // 胜利时被 DeactivateInput() 关掉的输入要重新打开。
-            // 暂停中不动它：那时输入归暂停菜单，抢回来会把菜单卡死。
+            // 恢复胜利时关闭的输入；暂停期间仍由菜单持有设备。
             if (!GamePause.IsPaused)
             {
                 PlayerInput input = playerBody.GetComponent<PlayerInput>();
@@ -193,13 +166,11 @@ namespace ARPG.UI
             itemSlotView.SetGourdCount(playerBody.Config.GourdCount);
             bossStatusView.SetLifeDots(bossBody.Config.LifeCount);
 
-            // 锁定点在 View 自己的 Reset 里清掉了跟随目标，这里按当前 bossBody 重新钉上。
-            // 放在数值推送之后，保证连战换 Boss 时它钉的是新 Boss 而不是上一场那个。
+            // 视图复位已清空目标，此时重新绑定当前 Boss。
             lockOnIndicatorView.BindFollowTarget(bossBody);
         }
 
-        // 登记所有托管的 View。新增 View 时在这里加一行——
-        // 这是唯一需要同步的地方，比让每个 View 各自去 EncounterScope 注册容易核对得多。
+        // 集中登记需要复战复位的视图；新增受管视图时同步此列表。
         private void CollectManagedViews()
         {
             managedViews.Clear();
@@ -223,13 +194,7 @@ namespace ARPG.UI
             managedViews.Add(view);
         }
 
-        // 连战接缝：换 Boss / 换玩家时由流程层调用。当前无人调用。
-        //
-        // 为什么现在就留：HandleHPChanged 这一串判断全靠 `c == bossBody` 比对身份。
-        // 连战不重载场景，bossBody 这个序列化引用不会自己指向新 Boss；
-        // 引用不更新 = 新 Boss 的所有事件被静默丢弃，血条一动不动且不报错。
-        // 这类"不报错的静默失效"正是连战最难查的一类，入口提前留在这，
-        // 流程层接进来时不必再翻一遍本类的字段去猜该改哪几处。
+        // 供流程层切换玩家或 Boss 引用，并更新跟随目标；传入空值表示保留原角色。
         public void Rebind(CharacterBody player, CharacterBody boss)
         {
             if (player != null) playerBody = player;
@@ -246,9 +211,7 @@ namespace ARPG.UI
             CollectManagedViews();
         }
 
-        // Boss 名没有数据源：CharacterConfig 里没有任何名字字段，
-        // 所以连战换 Boss 时由流程层自己传。这里不臆造 config.BossName——
-        // 名字该挂在哪（Config / Boss 定义 SO / 流程层写死）是连战设计时才说得清的事。
+        // Boss 名称由流程层提供，CharacterConfig 不保存显示名称。
         public void SetBossName(string name)
         {
             bossStatusView.SetName(name);
@@ -360,7 +323,7 @@ namespace ARPG.UI
             victoryView.ShowVictory();
         }
 
-        // 处决结束会回待机，不把摇杆关掉的话还能接着走
+        // 清除移动意图和水平速度，避免胜利后玩家继续滑动。
         private void FreezePlayerMotion()
         {
             playerBody.MoveDirection = Vector3.zero;
@@ -368,7 +331,7 @@ namespace ARPG.UI
             playerBody.Rb.velocity = new Vector3(0f, velocity.y, 0f);
         }
 
-        // 手柄被 PlayerInput 独占时，胜利按钮收不到确认
+        // 释放 PlayerInput 独占的设备，让胜利界面收到手柄输入。
         private void ReleasePlayerDevicesForUi()
         {
             PlayerInput input = playerBody.GetComponent<PlayerInput>();

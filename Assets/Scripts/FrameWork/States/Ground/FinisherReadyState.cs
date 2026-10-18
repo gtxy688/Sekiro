@@ -9,7 +9,7 @@ namespace ARPG.FrameWork.States.Ground
 {
 
     // 完美弹反打崩 Boss 后的玩家确认窗口。
-    // 窗口长度由 DeflectToFinsher 动画决定，超时后 Boss 仅恢复 20% 架势。
+    // 窗口长度由 DeflectToFinsher 动画决定，超时后解除 Boss 崩解并保留 80% 架势。
     public class FinisherReadyState : BaseState
     {
         private const string ReadyAnim = "DeflectToFinsher";

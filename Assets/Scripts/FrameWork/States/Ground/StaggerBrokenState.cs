@@ -7,11 +7,8 @@ using ARPG.FrameWork.States.Base;
 namespace ARPG.FrameWork.States.Ground
 {
 
-    // 架势崩解硬直（M9）：
-    //   玩家崩解 → 播倒地动画，播完立刻恢复（不加额外硬直，不被处决）
-    //   Boss 攻击崩解 → 处决窗口跟 Stagger_Broken 动画走，播完未处决则立刻清架势条
-    // 由 CharacterBody.ForcePostureBroken 强切（顶层走 GroundedState 初始子状态），
-    // 结束由 body.RecoverFromBreak 切顶层，不依赖 parent 引用
+    // 播放架势崩解倒地动画，结束后解除崩解；Boss 在此期间可被普通忍杀。
+    // 达到配置时刻后可取消到格挡或垫步，并同步清除崩解数值。
     public class StaggerBrokenState : BaseState
     {
         // Animator 当帧还没切到 clip 时的兜底：玩家 Stagger_Broken 约 75 帧 / 30fps
@@ -77,7 +74,7 @@ namespace ARPG.FrameWork.States.Ground
             }
             else if (!triedNestedPath && timer > 0.05f)
             {
-                // 等 Animator 吃到 OnEnter 的 Play；仍对不上再解析一次子状态机路径
+                // 等待进入请求生效，仍未匹配时再尝试播放一次。
                 triedNestedPath = true;
                 AnimUtil.TryPlay(body.Animator, animName);
             }
@@ -91,10 +88,7 @@ namespace ARPG.FrameWork.States.Ground
 
         public override bool HandleCommand(ICommand cmd)
         {
-            // 到达 BrokenDeflectDodgeOpenTime 后：
-            //   DeflectCommand → DeflectState（格挡/抬刀）
-            //   DodgeCommand   → DodgeState（垫步）
-            // 系统回防（pressId = 0）只恢复普通格挡，不开启新的弹反窗口。
+            // 达到取消时刻后可切格挡或垫步；系统回防的 PressId 为 0，不开主动弹反窗口。
             if (cmd is DeflectCommand || cmd is DodgeCommand)
             {
                 int pressId = cmd is DeflectCommand deflectCmd ? deflectCmd.PressId : 0;

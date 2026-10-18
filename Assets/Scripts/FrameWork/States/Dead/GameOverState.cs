@@ -8,7 +8,7 @@ using ARPG.FrameWork.States.Base;
 namespace ARPG.FrameWork.States.Dead
 {
 
-    // 游戏结束（M14）：真死。未倒地则先 Dead 再 Deading；已躺着则直接 Deading。
+    // 游戏结束：真死。未倒地则先 Dead 再 Deading；已躺着则直接 Deading。
     // 按攻击键重开当前场景
     public class GameOverState : BaseState
     {

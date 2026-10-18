@@ -10,7 +10,7 @@ using ARPG.UI;
 namespace ARPG.Audio
 {
 
-    // 弦一郎语音 + 台词。时机走事件总线，不轮询战斗数值。
+    // 按战斗事件播放弦一郎语音和字幕，开场台词结束前通过 IsOpeningHold 暂缓 Boss 行动。
     public class BossVoiceDirector : MonoBehaviour
     {
         public static BossVoiceDirector Instance { get; private set; }
@@ -25,8 +25,7 @@ namespace ARPG.Audio
         [Tooltip("暂停菜单音效 100% 时的语音基础响度。")]
         public float volume = 0.2f;
 
-        // 陷阱3-3：可 Inspector 拖入玩家/Boss 引用，避免懒加载 FindObjectOfType；
-        // 未拖时仍走 ResolveBodies 查找兜底（场景零改动）。
+        // 优先使用绑定的角色，尚未绑定时由 Start 查找场景角色。
         [SerializeField] private CharacterBody playerBody;
         [SerializeField] private CharacterBody bossBody;
         private RectTransform playerPostureRect;
@@ -48,6 +47,7 @@ namespace ARPG.Audio
             }
         }
 
+        // 绑定战斗角色和字幕定位参照，由 CombatUIController 初始化或流程层更新。
         public void Bind(CharacterBody player, CharacterBody boss, RectTransform playerPosture)
         {
             playerBody = player;
@@ -57,12 +57,8 @@ namespace ARPG.Audio
             PlaceAbovePlayerPosture();
         }
 
-        // 复战 / 连战切场：台词是一场之内的演出，跨场不能留。
-        //
-        // 刻意不动 IsOpeningHold。它是"组件刚 Awake、开场词还没播完"的一次性锁，
-        // BTBrain 读它来决定 Boss 几时出手。连战不重建组件，Awake 不会再跑一次，
-        // 若在这里把它设回 true、而流程层新一场又没播开场词，Boss 就永远不出手——
-        // 表现是"AI 卡死"，实际是 UI 重置越了界。这种错极难定位，宁可让它保持松开。
+        // 停止上一场台词并重置倒地台词标记，保留一次性的开场等待状态。
+        // 复战不会自动重播开场词，因此不能在此重新锁住 Boss。
         public void ResetForEncounter()
         {
             if (playing != null)
@@ -73,7 +69,7 @@ namespace ARPG.Audio
             if (source != null)
                 source.Stop();
 
-            // 倒地台词"这场已经念过了"的标志；不清的话新一场真死时会被判定为已播而静音
+            // 新一场允许再次播放倒地台词。
             playerDownLinePlayed = false;
             view?.ResetForEncounter();
         }
@@ -172,6 +168,7 @@ namespace ARPG.Audio
             playing = StartCoroutine(PlayRoutine(cues));
         }
 
+        // 依次显示字幕并等待语音结束，整段演出完成后解除开场等待。
         private IEnumerator PlayRoutine(Cue[] cues)
         {
             EnsureView();
@@ -192,6 +189,7 @@ namespace ARPG.Audio
                 }
                 else
                 {
+                    // 缺少可选语音时仍为字幕保留阅读时间。
                     yield return new WaitForSecondsRealtime(MissingClipFallback);
                 }
             }
@@ -202,6 +200,7 @@ namespace ARPG.Audio
             IsOpeningHold = false;
         }
 
+        // 缓存语音加载结果，避免同一资源重复加载或反复警告。
         private AudioClip LoadClip(string id)
         {
             if (clips.TryGetValue(id, out AudioClip cached))
@@ -250,7 +249,7 @@ namespace ARPG.Audio
             }
         }
 
-        // 钉在底栏正中那条 PlayerPosture 上面，不要贴左下血条
+        // 以玩家架势条上边缘定位字幕，并转换到字幕父节点的局部坐标。
         private void PlaceAbovePlayerPosture()
         {
             if (view == null) return;

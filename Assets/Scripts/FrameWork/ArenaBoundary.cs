@@ -4,11 +4,8 @@ using UnityEngine;
 namespace ARPG.FrameWork
 {
 
-    // 擂台空气墙：自动找 Ground 层最大的 MeshCollider（擂台），在可行走范围外圈生成
-    // 四面静态盒墙，玩家/Boss 的走位、垫步、击退、跳跃都出不了场。墙挂在擂台根下，跟随擂台变换。
-    // 边界不用网格 AABB 直接框：AABB 会把塔楼/栏杆外沿也算进去，四角留出大段悬空照样掉。
-    // 做法是从上方按网格往下打射线，只统计"与主地面同层"的落点，求出真实可行走范围。
-    // 由 CombatManager.Start 调 Ensure() 装配，场景里不用手工挂。
+    // 从 Ground 层体积最大的碰撞体采样主地面范围，生成四面静态空气墙。
+    // 按落点高度排除塔楼等上层结构，避免直接使用碰撞体包围盒把边界扩到悬空区。
     public class ArenaBoundary : MonoBehaviour
     {
         [Tooltip("墙内收边距（≈胶囊半径），防止角色贴墙时半个身子悬出场外")]
@@ -77,6 +74,7 @@ namespace ARPG.FrameWork
             Transform container = new GameObject(ContainerName).transform;
             container.SetParent(transform, false);
 
+            // 根据可行走范围和上下延伸量，计算四面墙的世界坐标与尺寸。
             float centerY = floorY - depthBelowFloor + (heightAboveFloor + depthBelowFloor) * 0.5f;
             float wallHeight = heightAboveFloor + depthBelowFloor;
             float extentX = maxX - minX + WallThickness * 2f;
@@ -120,6 +118,7 @@ namespace ARPG.FrameWork
             float rayOriginY = area.max.y + 1f;
             float rayDist = area.size.y + 2f;
 
+            // 第一轮取落点高度中位数，确定主地面所在高度。
             List<float> ys = new List<float>();
             for (float x = area.min.x; x <= area.max.x; x += step)
             {
@@ -135,6 +134,7 @@ namespace ARPG.FrameWork
             ys.Sort();
             floorY = ys[ys.Count / 2];
 
+            // 第二轮只统计主地面高度带内的落点，求出水平边界。
             bool any = false;
             for (float x = area.min.x; x <= area.max.x; x += step)
             {

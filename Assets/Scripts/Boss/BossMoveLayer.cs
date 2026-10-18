@@ -1,6 +1,6 @@
 namespace ARPG.Boss
 {
-    // 招式所属层：主动选招 / 被弹后交锋 / 喝药打断
+    // 招式所属决策层：主动选招、近身交锋或喝药惩罚。
     public enum BossMoveLayer
     {
         Active = 0,

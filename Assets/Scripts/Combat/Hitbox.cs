@@ -6,10 +6,8 @@ using ARPG.FrameWork.Body;
 namespace ARPG.Combat
 {
 
-    // 武器 Hitbox（挂在武器骨骼/剑刃空物体上）
-    // 框架红线：不用 OnTrigger。由 AttackState 开关 + 每帧 SphereCast/Overlap 扫描
-    // （武器上一帧位置→当前帧位置，防止高速挥砍穿透）。
-    // 伤害数据全部来自 AttackConfig（SO），这里不硬编码任何数值。
+    // 由攻击状态开关，用 SphereCast / Overlap 查询近战命中与拼刀，统一交给 CombatManager。
+    // 当前伤害参数读取绑定的 AttackConfig，同一判定窗内对角色和拼刀对象分别去重。
     public class Hitbox : MonoBehaviour
     {
         [Header("判定参数")]
@@ -27,7 +25,6 @@ namespace ARPG.Combat
         private readonly HashSet<CharacterBody> hitTargets = new HashSet<CharacterBody>();
         // 拼刀去重：同一判定窗内对同一 Hitbox 只结算一次；且只让 InstanceID 较小方上报，避免双方各报一次
         private readonly HashSet<Hitbox> clashedPartners = new HashSet<Hitbox>();
-        // 开判定时已经叠在刀上的目标：先不算，等离开再扫进来才算新的一刀（连招第二刀）
         private readonly HashSet<CharacterBody> blockedUntilExit = new HashSet<CharacterBody>();
         private readonly HashSet<CharacterBody> overlappingThisFrame = new HashSet<CharacterBody>();
         private readonly Collider[] overlapBuf = new Collider[16];
@@ -47,7 +44,7 @@ namespace ARPG.Combat
             this.owner = owner;
         }
 
-        // 每次攻击前由 AttackState / 动画事件调用：绑定本招式的伤害配置
+        // 攻击状态为每个有效脉冲绑定伤害配置，并清除上一刀的命中记录。
         public void SetConfig(AttackConfig config)
         {
             this.config = config;
@@ -56,7 +53,7 @@ namespace ARPG.Combat
 
         public void Enable()
         {
-            // 弓段 / 0.01 假窗：Clip 上残留的 Enable 事件也不能扫刀。
+            // 无有效近战窗口的弓段或占位脉冲不启用扫描。
             if (!AttackWindowSync.CanMeleeHit(config.hitPulses))
                 return;
             isActive = true;
@@ -65,7 +62,7 @@ namespace ARPG.Combat
             hitTargets.Clear();
             blockedUntilExit.Clear();
             clashedPartners.Clear();
-            // 判定改到 HitStartTime 后才开，此时已经叠在刀上就是这一刀该中的，不再先屏蔽。
+            // 有效脉冲开启时已经重叠的目标，也在本窗口内判定命中。
         }
 
         public void Disable()

@@ -5,8 +5,7 @@ using ARPG.FrameWork.States.Base;
 
 namespace ARPG.FrameWork.States.Ground
 {
-    // 地面攻击状态：出招/连招/多段判定/转向全部继承 AttackStateBase，
-    // 差异只有四处：退出的待机形态、派生同款、地面专属的格挡/垫步取消、后摇接移动。
+    // 复用攻击基类的判定与表现，补充地面格挡 / 垫步取消和后摇接移动规则。
     public class AttackState : AttackStateBase
     {
         public AttackState(CharacterBody body, HierarchicalState parent, AttackConfig config)

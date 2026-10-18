@@ -1,3 +1,4 @@
+// 以纹理亮度生成透明遮罩，显示带颜色的治疗字样。
 Shader "ARPG/FX/HealSprite"
 {
     Properties
@@ -54,7 +55,7 @@ Shader "ARPG/FX/HealSprite"
                 return o;
             }
 
-            // 白字黑底 PNG：亮度当透明。RGB 乘上遮罩，避免透明像素仍带高亮绿被 Bloom 糊开。
+            // 预乘透明度，避免透明区域的颜色经 Bloom 扩散。
             fixed4 frag(v2f i) : SV_Target
             {
                 fixed4 tex = tex2D(_MainTex, i.uv);

@@ -35,6 +35,7 @@ namespace ARPG.Configs
         }
     }
 
+    // 相对攻击动画起点的音效事件，与近战判定区间独立。
     [Serializable]
     public class AttackSfxCue
     {
@@ -42,6 +43,7 @@ namespace ARPG.Configs
         public AudioClip clip;
     }
 
+    // 相对攻击动画起点的出箭事件，可覆盖该箭的战斗数值。
     [Serializable]
     public class ArrowSpawnCue
     {
@@ -68,7 +70,7 @@ namespace ARPG.Configs
         }
     }
 
-    // 这个标签让你可以在 Unity 项目的右键菜单里直接创建这个配置文件
+    // 攻击状态读取的动画、节奏和命中数据；玩家使用资产，Boss 按招式段临时烘焙。
     [CreateAssetMenu(fileName = "NewAttackConfig", menuName = "Combat/Attack Configuration")]
     public class AttackConfig : ScriptableObject
     {
@@ -84,8 +86,8 @@ namespace ARPG.Configs
         [Tooltip("打到玩家时的受击等级。Boss 被打仍看 Knockback。")]
         public HitGrade HitGrade = HitGrade.Light;
 
-        [Header("危字攻击（M17）")]
-        // 危字攻击不可被普通防御/弹反抵挡，玩家必须用对应方式应对
+        [Header("危字攻击")]
+        // 危字类型交给战斗结算决定可用的防御和反制方式。
         public PerilousType Perilous = PerilousType.None;
 
         [Header("判定 Hitbox")]
@@ -112,11 +114,11 @@ namespace ARPG.Configs
         public bool WaitAnimEnd;
 
         [Header("连招派生")]
-        // 极其关键：指向下一段攻击的配置！如果没有下一段，留空即可
+        // 连招窗口内接续的攻击配置，末段留空。
         public AttackConfig NextCombo;
 
         [Header("出伤脉冲（玩家 1 段 / Boss 多段）")]
-        [Tooltip("有元素时按每段 [start,end) 开关刀并清空已命中；空则走上面的单窗。玩家通常 1 段，Boss 可多段")]
+        [Tooltip("按各段 [start,end) 开关近战判定并清空已命中目标；空数组表示无近战判定。玩家通常 1 段，Boss 可多段")]
         public HitPulse[] hitPulses;
 
         [Header("出招音效（可选）")]
@@ -127,15 +129,8 @@ namespace ARPG.Configs
         [Tooltip("相对本招动画 0 点的秒。到点调 SpawnArrow。空 = 不出箭")]
         public ArrowSpawnCue[] arrowCues;
 
-        // 判定窗的唯一真相是 hitPulses。HitStartTime / RecoveryWindowStart 已降级为招式级字段
-        // （前摇可取消的截止、连招开放的起点），这里从 pulses 反向同步，避免两套数值各说各话。
-        //
-        // 只做「补」不做「削」：ComboWindowEnd 只会往上抬到 RecoveryWindowStart，
-        // 不会往回压，免得手工调好的连招窗口被自动同步吃掉。
-        //
-        // 生效范围只有磁盘上的 AttackConfig 资产（玩家 10 份 + bossAtk 模板）。
-        // BossAttackBaker 运行时烤出来的实例不触发 OnValidate，而且那边是刻意不同步的：
-        // 招式表 window 的 hitStartTime / recoverStart 带着 Boss 自己的连招节奏，不能被 pulses 覆盖。
+        // 编辑资产时用首末脉冲同步取消/连招起点，仅向后扩展连招终点，保留手调余量。
+        // Boss 运行时烘焙保留招式表的独立节奏，不通过此入口同步。
         private void OnValidate()
         {
             if (hitPulses == null || hitPulses.Length == 0) return;

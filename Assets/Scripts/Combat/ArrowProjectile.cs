@@ -5,11 +5,8 @@ using ARPG.FrameWork.Body;
 namespace ARPG.Combat
 {
 
-    // 箭：匀速直线 + 上一帧→当前帧 SphereCast。不挂 Hitbox / Collider。
-    //
-    // 实现 ICombatResettable：复战时把自己销毁，不让上一场射出的箭穿过复位继续命中。
-    // 让箭自己负责而不是交给某个管理者扫场——箭本来就管着自己的生命周期，
-    // 再多一个"清理者"去 Find 它们，是凭空多一处会漏的地方。
+    // 匀速飞行，用 SphereCast 和落点重叠检测上报命中，不需要 Hitbox 或 Collider。
+    // 命中、寿命结束或复战复位时自行销毁，避免旧箭影响下一场。
     public class ArrowProjectile : MonoBehaviour, ICombatResettable
     {
         [SerializeField] private Transform visualRoot;
@@ -48,8 +45,7 @@ namespace ARPG.Combat
             EnsureTrail();
         }
 
-        // 注册到本场战斗。箭是运行时生成的，注册/注销次数多，但一场只有个位数，成本可忽略。
-        // 用 Ensure() 而非 Current：箭可能被预置在场景里，那时 Scope 未必已被别人建出来。
+        // 注册复位能力；Ensure 兼容箭先于其他注册方初始化的情况。
         void Start()
         {
             EncounterScope.Ensure().Register(this);
@@ -63,7 +59,7 @@ namespace ARPG.Combat
             EncounterScope.Current?.Unregister(this);
         }
 
-        // 复战重置：直接销毁。箭是"上一场打出去的"，没有复位后继续存在的意义。
+        // 复战时清除上一场发射的箭。
         public void ResetForEncounter()
         {
             Destroy(gameObject);
@@ -75,6 +71,7 @@ namespace ARPG.Combat
             visualRoot.localScale = Vector3.one * visualScale;
         }
 
+        // 配置拖尾并创建本箭独占的材质，销毁时一并释放。
         void EnsureTrail()
         {
             if (!enableTrail) return;
@@ -122,6 +119,7 @@ namespace ARPG.Combat
             trail.Clear();
         }
 
+        // 设置发射方向、查询参数与伤害快照，同时清除旧拖尾和命中状态。
         public void Fire(
             CharacterBody owner,
             Vector3 direction,
@@ -171,6 +169,7 @@ namespace ARPG.Combat
             transform.position = current;
             transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
 
+            // 先同步动画驱动的受击盒，再扫描本帧飞行轨迹。
             Physics.SyncTransforms();
             Vector3 delta = current - lastPos;
             float distance = delta.magnitude;
@@ -186,6 +185,7 @@ namespace ARPG.Combat
                 }
             }
 
+            // 补查终点重叠，覆盖 SphereCast 从碰撞体内部出发的漏检。
             int overlap = Physics.OverlapSphereNonAlloc(
                 current, castRadius, overlapBuf, targetLayers, QueryTriggerInteraction.Collide);
             for (int i = 0; i < overlap; i++)
@@ -197,6 +197,7 @@ namespace ARPG.Combat
             lastPos = current;
         }
 
+        // 只消费首个有效角色命中，结算统一交给 CombatManager。
         private bool TryReport(Collider col, Vector3 hitPoint)
         {
             if (col == null) return false;

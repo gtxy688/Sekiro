@@ -7,33 +7,30 @@ using ARPG.FrameWork.States;
 namespace ARPG.Mgr
 {
 
-    // 1. 定义防御级别
+    // 表现层用于区分格挡与完美弹反的音效和火花。
     public enum DeflectType
     {
-        Normal,  // 普通防御 (浅黄色)
-        Perfect  // 完美弹反 (深黄色/橙色)
+        Normal,
+        Perfect
     }
 
-    // 这是一个静态类，全局唯一，充当“公告板”
+    // 战斗逻辑发布事件，UI、音效和相机按需订阅；订阅方停用时负责解绑。
     public static class CombatEventBus
     {
-        // ========== 1. 定义事件 (公告栏上留出贴条子的地方) ==========
-
-        // 1a. 已有事件
-        // 武器被格挡（位置, 防御类型）—— 打铁音效/火花
+        // 武器被格挡（位置, 防御类型），用于音效和火花。
         public static event Action<Vector3, DeflectType> OnWeaponDeflected;
 
         // 角色受伤（受击者, 伤害值, 剩余血量）
         public static event Action<CharacterBody, int, int> OnTakeDamage;
 
-        // 1b. 战斗数值事件（M2 触发，携带完整数据，表现层不读 CharacterBody 内部字段）
+        // 数值事件携带当前值，订阅者据此更新血量与架势显示。
         // 血量变化（角色, 当前血量, 最大血量）
         public static event Action<CharacterBody, int, int> OnHPChanged;
         // 架势变化（角色, 当前架势, 最大架势）
         public static event Action<CharacterBody, float, float> OnPostureChanged;
-        // 架势崩解（角色）—— 触发处决窗口
+        // 架势崩解（角色），用于崩解提示。
         public static event Action<CharacterBody> OnPostureBroken;
-        // 忍杀机会显隐（目标, 是否可忍杀）—— UI 红点只订阅事件，不轮询
+        // 忍杀机会变化（目标, 是否可忍杀），控制 UI 红点。
         public static event Action<CharacterBody, bool> OnFinisherOpportunityChanged;
         // 葫芦使用（角色, 剩余次数）
         public static event Action<CharacterBody, int> OnGourdUsed;
@@ -43,17 +40,17 @@ namespace ARPG.Mgr
         public static event Action<CharacterBody> OnReviveAvailable;
         // 倒地结束（角色）—— 弹出回生选项，开始接收输入
         public static event Action<CharacterBody> OnReviveChoiceReady;
-        // 胜利（Boss 命数清空）—— M10 处决完最后一条命触发
+        // 最后一条 Boss 命数处决完毕，触发胜利结算。
         public static event Action<CharacterBody> OnVictory;
-        // 清命（角色, 剩余命数）—— 忍杀灯熄灭一个（M10 UI）
+        // 清命（角色, 剩余命数），更新忍杀灯。
         public static event Action<CharacterBody, int> OnLifeCleared;
-        // 复活成功（角色）—— 隐藏回生提示（M14 UI）
+        // 复活成功（角色），隐藏回生提示。
         public static event Action<CharacterBody> OnRevived;
-        // 锁定状态变化（是否锁定）—— 锁定点 UI + 相机模式切换（M11/M12）
+        // 锁定状态变化（是否锁定），同步准星与相机模式。
         public static event Action<bool> OnLockOnChanged;
 
-        // 1c. 战斗表现事件
-        // 危字攻击（M17 触发）—— UI 弹"危"
+        // 战斗表现事件。
+        // 危险攻击类型，用于显示“危”字。
         public static event Action<PerilousType> OnPerilousAttack;
         // 忍杀触发（位置）—— 处决音效/特效
         public static event Action<Vector3> OnFinisherTriggered;
@@ -66,7 +63,7 @@ namespace ARPG.Mgr
         public static event Action<CharacterBody, bool> OnHeavyArrowDefended;
         // Boss JumpThrust 整段：镜头上抬 + 随 Boss 高度跟随（active, boss, 起手地面 Y）
         public static event Action<bool, CharacterBody, float> OnJumpThrustCamera;
-        // 出招音效（clip, 世界坐标）—— clip 由 AttackSfxCue 经事件传入，表现层不持有资源
+        // 出招音效（音频片段, 世界坐标），音频由攻击配置提供。
         public static event Action<AudioClip, Vector3> OnAttackSfx;
         // 出刀瞬间（Hitbox 打开）—— 玩家挥刀刀光
         public static event Action<CharacterBody> OnAttackSwingStart;
@@ -74,7 +71,7 @@ namespace ARPG.Mgr
         // Boss 弓段出箭
         public static event Action<CharacterBody> OnArrowReleased;
 
-        // ========== 2. 修改触发器 ==========
+        // 战斗模块通过这些入口发布事件，监听列表由本类维护。
 
         public static void TriggerWeaponDeflected(Vector3 hitPoint, DeflectType type)
         {

@@ -5,7 +5,7 @@ using UnityEngine;
 namespace ARPG.UI
 {
 
-    // 中文 TMP：图集满了会把缺字换成空格。进场景前打开多图集、互为回退，并预热会用到的字。
+    // 为中文 UI 配置字体回退、多图集和常用字预热，减少运行时缺字。
     public static class TmpChineseFont
     {
         private const string SimyouPath = "Fonts/SIMYOU SDF";
@@ -47,6 +47,7 @@ namespace ARPG.UI
             simyou = Resources.Load<TMP_FontAsset>(SimyouPath);
             fangsong = Resources.Load<TMP_FontAsset>(FangsongPath);
 
+            // 字体互为回退，并注册到 TMP 的全局回退列表。
             Prepare(simyou);
             Prepare(fangsong);
             AddFallback(simyou, fangsong);
@@ -54,6 +55,7 @@ namespace ARPG.UI
             RegisterGlobalFallback(simyou);
             RegisterGlobalFallback(fangsong);
 
+            // 动态字体预先加入常用字，静态图集保持原样。
             TryAdd(simyou, UiGlyphs);
             TryAdd(fangsong, UiGlyphs);
             ready = true;

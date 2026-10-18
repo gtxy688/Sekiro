@@ -5,7 +5,7 @@ namespace ARPG.Configs
     {
         Weapon = 0, // 刀（默认）
         Elbow = 1,
-        Kick = 2    // 预留，本需求不接线
+        Kick = 2
     }
 
 }

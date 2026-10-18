@@ -48,11 +48,7 @@ namespace ARPG.UI
             SetPlayerInput(input);
         }
 
-        // 倒地提示是"一段流程的中间态"：只由「回生成功」或「真死」收尾。
-        // 连战切场两条都不走，不主动收尾的话上一场的「死」字和选项会挂在新一场画面上，
-        // 而且光标还被 PushUi 占着，玩家动不了鼠标。
-        //
-        // HidePrompt 里重复 PopUi 是安全的：CursorController 的计数有 >0 保护。
+        // 复战时关闭倒地提示并释放光标和输入订阅，避免上一场状态残留。
         public override void ResetForEncounter()
         {
             HidePrompt();
@@ -111,6 +107,7 @@ namespace ARPG.UI
             fadeTween = canvasGroup.DOFade(0f, 0.15f).SetUpdate(true).OnComplete(Hide);
         }
 
+        // 压暗动画和死亡状态均准备好后，只显示一次回生选项。
         private void TryRevealChoices()
         {
             if (choicesShown || !fadeDone || !choiceReady) return;
@@ -160,6 +157,7 @@ namespace ARPG.UI
             reviveButton.onClick.AddListener(() => onRevive?.Invoke());
         }
 
+        // 切换输入引用时先解除旧订阅，随后载入改键数据并监听控制方案变化。
         private void SetPlayerInput(PlayerInput input)
         {
             if (input == null)

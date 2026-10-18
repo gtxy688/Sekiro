@@ -3,6 +3,7 @@ namespace ARPG.Editor
     using UnityEditor;
     using UnityEngine;
 
+    // 用资产 GUID 保存玩家和 Boss 的预览 Prefab，供时间轴跨窗口与重载复用。
     public static class AttackTimelinePrefs
     {
         const string PlayerGuidKey = "ARPG.AttackTimeline.PlayerPrefabGuid";

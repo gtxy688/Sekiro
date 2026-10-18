@@ -82,18 +82,6 @@ namespace ARPG.FrameWork.States.Ground
             // 硬直 = max(动画, 配置下限)：ParriedDuration 是最小硬直。
             if (animDone && timer >= duration)
             {
-                if (body.EnableStateDebugLog)
-                {
-                    Debug.Log(
-                        $"[CombatTiming][ParriedExit] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
-                        $"进入时刻={enterTime:F4}s，经过时间={Time.time - enterTime:F4}s，" +
-                        $"硬直计时={timer:F3}s，配置下限={duration:F3}s，" +
-                        $"仍是被弹动画={AnimUtil.IsPlaying(info, animName)}，" +
-                        $"动画长度={info.length:F3}s，进度={info.normalizedTime:F3}，" +
-                        $"状态速度={info.speed:F3}，速度倍率={info.speedMultiplier:F3}，" +
-                        $"Animator速度={body.Animator.speed:F3}",
-                        body);
-                }
 
                 body.EnterGrounded("parried: animation finished");
                 return;
@@ -101,14 +89,6 @@ namespace ARPG.FrameWork.States.Ground
 
             if (!hasSeenAnim && timer >= duration)
             {
-                if (body.EnableStateDebugLog)
-                {
-                    Debug.Log(
-                        $"[CombatTiming][ParriedExit] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
-                        $"进入时刻={enterTime:F4}s，经过时间={Time.time - enterTime:F4}s，" +
-                        $"硬直计时={timer:F3}s，配置下限={duration:F3}s，原因=未识别动画，兜底恢复",
-                        body);
-                }
                 body.EnterGrounded("parried: fallback duration reached");
             }
         }

@@ -11,10 +11,7 @@ namespace ARPG.Boss
     // 按层加权抽招。缺 Animator 状态、冷却中、距离/额外条件不满足 → 权重 0。
     public static class BossMovePicker
     {
-        // opponent：本 Boss 的对手（由调用方传入，不从 CombatManager 单例取）。
-        //   多 Boss / 复战时对手不止一个玩家，选招逻辑不该认识全局单例。
-        // whitelist：招式 id 过滤，null 或空 = 不过滤。由调用方（Boss 实例）持有，
-        //   绝不能挂在 BossMoveTable 上——SO 是共享资产，运行时写它会串到所有引用者。
+        // 对手与招式白名单由 Boss 实例传入，避免依赖全局角色或修改共享招式表；空白名单不过滤。
         public static BossMoveEntry Pick(
             BossMoveTable table,
             BossMoveLayer layer,
@@ -31,6 +28,7 @@ namespace ARPG.Boss
                 ? table.postureLowThreshold
                 : self.Config.MaxPosture * 0.5f;
 
+            // 第一遍累计有效权重，第二遍沿同一候选顺序定位随机落点。
             float total = 0f;
             for (int pass = 0; pass < 2; pass++)
             {
@@ -58,6 +56,7 @@ namespace ARPG.Boss
             return null;
         }
 
+        // 不满足层、冷却、动画或额外条件时返回零；只有主动层按条目距离过滤。
         public static float Weight(
             BossMoveEntry e,
             BossMoveLayer layer,
@@ -84,8 +83,7 @@ namespace ARPG.Boss
                         return 0f;
                     break;
                 case BossMoveExtra.PostureLow:
-                    // CurrentPosture 是累计值：0=架势空，Max=崩。
-                    // 累计已过阈值 = 架势偏高（濒临崩解）→ 放行（人设已确认：架势越高越容易放飞舟）。
+                    // PostureLow 是历史命名；实际要求累计架势达到阈值才放行。
                     if (self.CurrentPosture < postureLow)
                         return 0f;
                     break;
@@ -138,7 +136,7 @@ namespace ARPG.Boss
         public static BossAnimSequence ChooseSequence(
             BossMoveEntry e, Animator animator, CharacterBody self, BossMoveTable table)
         {
-            // 横扫已删除（未实现跳踩反制）：不再按命数在横扫/突刺落地间二选一，统一均匀抽可播序列
+            // 只在整套动画均存在的分支中等概率选择。
             return ChooseUniformSequence(e, animator);
         }
 
@@ -169,6 +167,7 @@ namespace ARPG.Boss
             return WindowFor(e, segmentIndex, null);
         }
 
+        // 分支自带窗口优先，否则使用招式共用窗口；段数超出时沿用最后一个窗口。
         public static BossMoveWindow WindowFor(BossMoveEntry e, int segmentIndex, BossAnimSequence seq)
         {
             if (seq != null && seq.windows != null && seq.windows.Length > 0)

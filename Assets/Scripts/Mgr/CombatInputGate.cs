@@ -3,7 +3,7 @@ using UnityEngine;
 namespace ARPG.Mgr
 {
 
-    // 胜利结算时关掉玩家操作，不冻 timeScale（和暂停分开）。
+    // 结算时阻止玩家操作，保留世界时间让演出继续播放。
     public static class CombatInputGate
     {
         public static bool Blocked { get; private set; }

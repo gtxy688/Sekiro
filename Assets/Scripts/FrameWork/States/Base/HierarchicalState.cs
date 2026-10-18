@@ -3,10 +3,10 @@ using ARPG.FrameWork.States;
 
 namespace ARPG.FrameWork.States.Base
 {
-    // 复合状态/父状态 
+    // 父状态先拦截命令与受击，未处理时再转交当前子状态。
     public abstract class HierarchicalState : BaseState
     {
-        // 父状态内部自己养的“子状态机”
+        // 每个父状态独立持有自己的子状态机。
         public StateMachine SubStateMachine { get; private set; }
 
         public HierarchicalState(CharacterBody body) : base(body)
@@ -42,17 +42,16 @@ namespace ARPG.FrameWork.States.Base
             SubStateMachine.ChangeState(null, "parent: exit child");
         }
 
-        // 命令的路由转发 (父类 -> 子类)
+        // 父层先处理跨子状态规则，未消费的命令再交给当前叶子。
         public override bool HandleCommand(ICommand cmd)
         {
-            // 第一步：父状态自己先看看要不要拦截这个命令？
-            // (交由具体的父状态子类去实现 OnParentHandleCommand)
+            // 先应用父状态的公共限制。
             if (OnParentHandleCommand(cmd))
             {
-                return true; // 父类拦截了！停止传递。
+                return true;
             }
 
-            // 第二步：如果父类不关心，往下抛给当前正在运行的子状态
+            // 未拦截时交给当前子状态。
             if (SubStateMachine.CurrentState != null)
             {
                 return SubStateMachine.CurrentState.HandleCommand(cmd);
@@ -67,17 +66,16 @@ namespace ARPG.FrameWork.States.Base
             return false; 
         }
 
-        // 受击路由转发（M1）：先问父状态要不要拦截，再往下抛给当前子状态。
-        // 这样 DeflectState 即使在 GroundedState 的"子"状态机里，也能被查问到。
+        // 父层先处理统一受击规则，未拦截时继续转交叶子的防御或无敌判定。
         public override bool OnHitReceived(HitData hit)
         {
-            // 第一步：父状态先看看要不要拦截？（如 StunnedState 受击期间二次受击）
+            // 先应用父状态的受击规则。
             if (OnParentHandleHit(hit))
             {
                 return true;
             }
 
-            // 第二步：抛给当前正在运行的子状态
+            // 未拦截时交给当前子状态。
             if (SubStateMachine.CurrentState != null)
             {
                 return SubStateMachine.CurrentState.OnHitReceived(hit);

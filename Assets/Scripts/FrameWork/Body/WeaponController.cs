@@ -6,9 +6,8 @@ using ARPG.Mgr;
 namespace ARPG.FrameWork.Body
 {
 
-    // 角色的武器模块：绑定 Hitbox、控制判定开关、生成箭矢。
-    // Inspector 引用保留在 CharacterBody，当前使用的 Hitbox 由本类管理。
-    // 近战命中窗口由攻击状态推进，实际扫描和上报由 Hitbox 完成。
+    // 绑定武器、肘击与踢击 Hitbox，按攻击状态请求开关判定，并按出箭 cue 生成箭矢。
+    // Inspector 引用读取 CharacterBody，实际近战扫描和上报由 Hitbox 完成。
     public class WeaponController
     {
         private readonly CharacterBody body;
@@ -40,7 +39,7 @@ namespace ARPG.FrameWork.Body
             CombatEventBus.TriggerAttackSwingStart(body);
         }
 
-        // 关闭武器判定（M3/M8）
+        // 关闭武器判定
         public void DisableWeaponHit()
         {
             Hitbox target = ActiveHitbox != null ? ActiveHitbox : Weapon;
@@ -82,8 +81,7 @@ namespace ARPG.FrameWork.Body
             if (body.projectileAimPoint != null)
                 return body.projectileAimPoint.position;
 
-            // Hurtbox 常挂在根上，transform.position 是脚底——箭会朝地飞。
-            // 优先用碰撞体中心（胸口附近），再退到根上方。
+            // 未指定瞄准点时优先取 Hurtbox 碰撞体中心，其次取角色碰撞体中心。
             Hurtbox hurtbox = body.GetComponentInChildren<Hurtbox>();
             if (hurtbox != null)
             {

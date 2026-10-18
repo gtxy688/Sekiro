@@ -5,14 +5,8 @@ using UnityEngine.UI;
 
 namespace ARPG.UI
 {
-    // 暂停菜单的配色、选中态画法，以及一批无状态的查找 / 摆位小工具。
-    //
-    // 从 PauseMenuController 里分出来的理由很实际：那一个类原本 1450 行，
-    // 而这里每个成员都是静态的、不碰任何实例状态——搬走不需要动一行调用逻辑，
-    // 零风险地先削掉一块，剩下的才是真正需要状态的部分（页面机、改键流程）。
-    //
-    // 刻意不含：任何 Button 字段、任何"现在是第几页"这类状态。
-    // 一旦这里开始持有状态，它就和 Controller 没有区别，拆分也就白拆了。
+
+    // 集中暂停菜单的配色、选中态和布局工具，页面状态由 PauseMenuController 持有。
     public static class PauseMenuStyle
     {
         public const string KitTrackPath =
@@ -52,8 +46,7 @@ namespace ARPG.UI
             return button != null && selected != null && button.gameObject == selected;
         }
 
-        // 注意：按钮的 transition 一律设成 None。
-        // ColorTint 会每帧把 Image.color 盖回去，选中态只能自己画。
+        // 按钮需关闭默认 ColorTint，避免覆盖这里设置的选中颜色。
         public static void ApplyButtonVisual(Button button, bool schemeActive, bool uiSelected)
         {
             if (button == null) return;
@@ -97,7 +90,6 @@ namespace ARPG.UI
             TextMeshProUGUI valueLabel)
         {
             if (slider == null) return;
-            // slider 非空，故 CurrentSelected 为 null 时结果自然是 false，无需再判 EventSystem
             bool selected = CurrentSelected == slider.gameObject;
             Color text = selected ? AccentColor : SliderLabelIdle;
             if (titleLabel != null) titleLabel.color = text;

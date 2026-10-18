@@ -3,6 +3,7 @@ namespace ARPG.Editor
     using UnityEditor.Animations;
     using UnityEngine;
 
+    // 按 Animator 状态短名递归查找动画片段，供时间轴估算长度。
     public static class AttackTimelineClipFinder
     {
         public static AnimationClip Find(Animator animator, string stateName)

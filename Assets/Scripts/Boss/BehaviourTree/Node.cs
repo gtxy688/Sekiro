@@ -4,15 +4,15 @@ namespace ARPG.Boss.BehaviourTree
 {
 
 
-    // 1. 行为树的三大核心返回状态
+    // 节点评估结果，供复合节点决定续跑、推进或尝试下一分支。
     public enum NodeState
     {
         Running, // 运行中：任务还没执行完，下一帧还要继续
-        Success, // 成功：任务搞定了
-        Failure  // 失败：条件不满足，或任务搞砸了
+        Success, // 当前任务完成
+        Failure  // 条件不满足或任务失败
     }
 
-    // 2. 所有节点的绝对基类
+    // 行为树节点基类，统一评估接口、子节点和黑板传递。
     public abstract class Node
     {
         protected NodeState state;
@@ -21,19 +21,17 @@ namespace ARPG.Boss.BehaviourTree
         // 如果是复合节点（比如 Sequence/Selector），它会有子节点
         protected List<Node> children = new List<Node>();
 
-        // 共享黑板（M5）：构建树时注入根节点，向下传递
+        // 构建树时由根节点向下传递的实例级黑板。
         protected Blackboard blackboard;
 
-        // 无参构造（用于叶子节点）
         public Node() { }
 
-        // 带参构造（用于控制节点，传入它的小弟）
         public Node(List<Node> children)
         {
             this.children = children;
         }
 
-        // 黑板注入（M5）：递归传给所有子节点。持有树外执行器的节点应 override 再往下传。
+        // 递归注入子节点；另持有执行器的节点需重写并继续传递黑板。
         public virtual void SetBlackboard(Blackboard bb)
         {
             blackboard = bb;
@@ -43,7 +41,6 @@ namespace ARPG.Boss.BehaviourTree
             }
         }
 
-        // 魔法的核心：每一个节点都必须实现自己的 Evaluate 方法
         public abstract NodeState Evaluate();
     }
 

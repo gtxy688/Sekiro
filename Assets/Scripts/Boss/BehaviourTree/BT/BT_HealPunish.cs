@@ -78,6 +78,7 @@ namespace ARPG.Boss.BehaviourTree
             return executor.Begin(heavy, interruptCurrent: false);
         }
 
+        // 决策前预先记录喝药时机；已有惩罚或 Boss 正在攻击时不重复排队。
         public void ArmIfPlayerHealing()
         {
             if (punishAt >= 0f) return;

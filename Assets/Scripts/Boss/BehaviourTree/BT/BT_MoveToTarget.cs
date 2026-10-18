@@ -6,10 +6,7 @@ using ARPG.FrameWork.States;
 namespace ARPG.Boss.BehaviourTree
 {
 
-    // 走位节点：远距离追击玩家；进入攻击距离后不再立正站桩，改为绕玩家侧向走位
-    // （缓步逼近 + 周期性换边绕圈），保持面向玩家。选招阶段（PickActive 全冷却/抽不到）
-    // 由本节点撑起"活人感"。返回 Running 但**不是 ISelectorLock**，Selector 每帧重评，
-    // PickActive 冷却转好后照样能抢走出招。
+    // 远处追击、近处绕行；不锁定 Selector，使高优先级出招节点每帧都能抢占。
     public class BT_MoveToTarget : Node
     {
         private readonly CharacterBody body;
@@ -37,7 +34,7 @@ namespace ARPG.Boss.BehaviourTree
 
         public override NodeState Evaluate()
         {
-            // 硬直/崩解/忍杀/识破后冻结：不发 Move，否则 Idle 会切走位，CombatTarget 一对准就转。
+            // 硬直或朝向冻结时不发移动命令，避免重新切入走位状态并转向。
             if (body.IsParried || body.IsPostureBroken || body.IsFinisherLocked || body.IsCombatYawFrozen)
             {
                 return NodeState.Running;
@@ -68,7 +65,7 @@ namespace ARPG.Boss.BehaviourTree
             Vector3 toTarget = target.position - body.transform.position;
             toTarget.y = 0f;
 
-            // 保持面向玩家（侧向走也盯着他，像只狼 Boss 的试探步）
+            // 走位方向可为侧向，但朝向始终跟随玩家。
             if (toTarget.sqrMagnitude > 0.001f)
             {
                 Vector3 face = toTarget.normalized;

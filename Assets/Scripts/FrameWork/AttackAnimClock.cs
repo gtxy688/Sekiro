@@ -3,6 +3,7 @@ using UnityEngine;
 namespace ARPG.FrameWork
 {
 
+    // 将当前攻击动画的进度换算为秒，供命中、音效和出箭窗口共用。
     public static class AttackAnimClock
     {
         public const int Layer = 0;
@@ -11,6 +12,7 @@ namespace ARPG.FrameWork
         {
             int hash = Animator.StringToHash(animName);
 
+            // 混合期间优先读目标状态，让新攻击从自己的动画时间开始推进。
             if (animator.IsInTransition(Layer))
             {
                 AnimatorStateInfo next = animator.GetNextAnimatorStateInfo(Layer);

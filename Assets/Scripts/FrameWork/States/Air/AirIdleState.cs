@@ -8,6 +8,7 @@ using ARPG.FrameWork.States.Base;
 namespace ARPG.FrameWork.States.Air
 {
 
+    // 按起跳、滞空、二段跳和落地阶段播放动画，落地动作结束后允许父状态回地面。
     public class AirIdleState : BaseState
     {
         private const float MinAirTime = 0.08f;
@@ -155,7 +156,7 @@ namespace ARPG.FrameWork.States.Air
 
         public override bool OnHitReceived(HitData hit)
         {
-            // 空中挨扫不再自动涨 Boss 架势 / ForceParryStun；裸受击交给上层 ReceiveHit
+            // 空中普通受击交给 CharacterBody.ReceiveHit 结算。
             return false;
         }
 
@@ -214,6 +215,7 @@ namespace ARPG.FrameWork.States.Air
             phase = Phase.Airborne;
         }
 
+        // 下降且接地或进入提前落地高度时播放 Fall，起跳宽限内不触发。
         private void TryStartLanding()
         {
             bool rising = body.Rb.velocity.y > 0.1f;

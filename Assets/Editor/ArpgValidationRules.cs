@@ -9,16 +9,14 @@ using ARPG.Boss;
 using ARPG.Configs;
 namespace ARPG.Editor
 {
-    // 战斗配置的静态校验规则。校验窗口和构建前校验共用这一份，避免两套规则各自漂移。
-    //
-    // 为什么需要它：招式表里的动画状态名写错，运行状态机不会报错，只是那个招式永远不触发——
-    // 排查一次要翻遍 Animator 和招式表。多一个 Boss 就是几十条新招式，出错概率和排查成本都翻倍。
+    // 校验结果的严重程度；错误会阻止构建，警告允许保留有意配置。
     public enum ValidationSeverity
     {
         Error,      // 一定出错，构建必须拦下
         Warning,    // 可疑，但可能是有意配置
     }
 
+    // 一条可定位到资产的静态校验结果，供窗口展示和构建日志共用。
     public class ValidationIssue
     {
         public ValidationSeverity Severity;
@@ -32,17 +30,16 @@ namespace ARPG.Editor
         }
     }
 
+    // 校验窗口与构建入口共用的静态规则，检查动画引用、配置范围和时间顺序。
     public static class ArpgValidationRules
     {
         const string BossControllerPath = "Assets/Anim/boss.controller";
         const string PlayerControllerPath = "Assets/Anim/player.controller";
 
-        // 判定窗口短于这个秒数就当"假红条"。
-        // 原因：进招第 0 帧 animTime=0，窗口 [0, 0.01) 会让 `0 >= 0 && 0 < 0.01` 成立，
-        // 本该无判定的段（弓段、垫步）会亮一帧刀，表现是"莫名其妙被打"。
-        // 真正要关判定就把四个字段写成相等，别缩成一小段。
+        // 检出用于假装关闭判定的极短窗口；应显式清空脉冲，而非保留极短区间。
         const float FakeWindowSeconds = 0.02f;
 
+        // 控制器缺失时保留其他检查，只跳过依赖动画状态名的校验。
         public static List<ValidationIssue> RunAll()
         {
             List<ValidationIssue> issues = new List<ValidationIssue>();
@@ -72,8 +69,7 @@ namespace ARPG.Editor
 
         // ---------- CharacterConfig：弹反窗口与空按惩罚 ----------
 
-        // 这几个值配错不会抛异常，只会表现成"弹反窗口莫名变短 / 干脆没有"或除零。
-        // 运行时有安全夹紧兜底，但那时玩家已经在打了，所以在编辑器侧先拦下来。
+        // 提前检出弹反窗口与空按惩罚的非法组合，避免运行时只能依靠夹紧值兜底。
         static void ValidateCharacterConfigs(List<ValidationIssue> issues)
         {
             string[] guids = AssetDatabase.FindAssets("t:CharacterConfig");
@@ -141,6 +137,7 @@ namespace ARPG.Editor
                 return;
             }
 
+            // 招式 ID 同时用于查表与冷却键，必须非空且唯一。
             HashSet<string> seenIds = new HashSet<string>();
 
             for (int i = 0; i < table.moves.Length; i++)
@@ -168,6 +165,7 @@ namespace ARPG.Editor
                 if (entry.weight <= 0f)
                     issues.Add(Issue(ValidationSeverity.Warning, where, "weight <= 0，不会被抽到。", table));
 
+                // 每个分支都必须完整提供 Animator 中存在的状态，才能被选招器接受。
                 if (entry.sequences == null || entry.sequences.Length == 0)
                 {
                     issues.Add(Issue(ValidationSeverity.Error, where, "没有动画分支（sequences 为空）。", table));
@@ -205,6 +203,7 @@ namespace ARPG.Editor
                     }
                 }
 
+                // 共用窗口和分支自带窗口都检查，避免切换分支后才暴露非法配置。
                 ValidateWindows(entry.windows, where + " / 招级窗口", table, issues);
                 if (entry.sequences != null)
                 {

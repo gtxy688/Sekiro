@@ -45,20 +45,14 @@ namespace ARPG.Combat
                 Current = null;
         }
 
-        // 在 Start 或之后取得范围对象；没有已初始化的 Scope 就创建空范围，保证复位注册可用。
-        // 不在 Awake 调用：其他 Scope 可能尚未执行 Awake，会误建重复对象。
-        // 各组件 Start 顺序不定，因此每个注册方自行 Ensure，先创建的对象会被后续调用复用。
+        // 在 Start 或之后取得范围对象，缺失时创建空范围供后续注册方复用。
+        // 避免在 Awake 调用，否则可能先于场景 Scope 初始化而误建重复对象。
         public static EncounterScope Ensure()
         {
             if (Current != null) return Current;
 
             GameObject host = new GameObject("EncounterScope (Auto)");
             EncounterScope scope = host.AddComponent<EncounterScope>();
-            Debug.Log(
-                "[EncounterScope] 场景里没有 EncounterScope，已自动创建一个空的。\n" +
-                "当前战斗一切正常（Player/Opponents 留空 = 回退 PlayerRef / BossRef）。\n" +
-                "将来做多 Boss / 连战时，请在场景里显式挂一个并填好 Player 与 Opponents。",
-                scope);
             return scope;
         }
 
@@ -76,9 +70,7 @@ namespace ARPG.Combat
             resettable.Remove(target);
         }
 
-        // 各组件的 Start 注册顺序不定，倒序遍历也不代表业务复位顺序。
-        // ResetForEncounter 必须可重复调用且顺序无关：恢复自身状态，初始值从配置读取。
-        // 倒序便于移除已销毁的登记项，避免跳过后续元素。
+        // 各组件自行复位且不得依赖调用顺序；倒序仅用于安全移除已销毁的登记项。
         public void ResetAll()
         {
             for (int i = resettable.Count - 1; i >= 0; i--)

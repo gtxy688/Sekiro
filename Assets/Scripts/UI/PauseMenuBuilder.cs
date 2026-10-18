@@ -5,27 +5,16 @@ using UnityEngine.UI;
 
 namespace ARPG.UI
 {
-    // 暂停菜单的 UI 构建原语：造 Image / 造按钮 / 造面板，以及运行时程序生成的贴图。
-    //
-    // 为什么是实例类而不是静态类：它缓存运行时生成的 Sprite 与 Texture2D。
-    // 这些资源每次 Build 都要复用，且必须跟着持有者的生命周期销毁，
-    // 做成静态就等于把一堆 Texture2D 挂成全局，切场景也带不走。
-    //
-    // 刻意不持有：
-    //   - 任何"当前选中哪个按钮""现在是第几页"这类状态（那是 Controller 的事）
-    //   - 三个从 GUI 套件加载的 Sprite（它们在 Controller 上是 [SerializeField]，
-    //     允许在 Inspector 里预先拖好，因此归 Controller 管，由调用方传进来）
-    //
-    // 这里每个方法都只负责"造出来并返回"，不往任何外部字段写值——
-    // 赋值一律由调用方（BuildUIInto / CreateSliderRow 等）自己做，
-    // 所以搬移这些方法不需要动 Controller 的字段结构。
+
+    // 构建暂停菜单控件，并缓存生成的纹理。
+    // 生成资源跟随 Controller 生命周期清理，页面状态和外部 Sprite 由调用方管理。
     public class PauseMenuBuilder
     {
         private readonly List<Texture2D> generatedTextures = new List<Texture2D>();
         private Sprite diamondSprite;
         private Sprite fillBarSprite;
 
-        // 滑块两端的菱形手柄。取用时才生成，避免没建过 UI 也白造两张贴图。
+        // 按需生成并缓存滑块手柄，避免重复创建纹理。
         public Sprite DiamondSprite
         {
             get
@@ -52,8 +41,7 @@ namespace ARPG.UI
                 fillBarSprite = CreateFillBarSprite();
         }
 
-        // 生成的贴图不走 Unity 的资源管理，必须显式销毁，否则每次重建面板都泄漏两张。
-        // 由 Controller 在 OnDestroy 里调用。
+        // 由 Controller 销毁时释放生成纹理，避免重建界面后残留资源。
         public void DestroyGenerated()
         {
             for (int i = 0; i < generatedTextures.Count; i++)
@@ -66,8 +54,6 @@ namespace ARPG.UI
             fillBarSprite = null;
         }
 
-        // 以下三个没有做成 static：调用方统一写 builder.CreateImage(...) 更顺，
-        // 而 C# 不允许用实例名访问静态成员（CS0176），混着写编译不过。
         public Image CreateImage(Transform parent, string name, Color color)
         {
             GameObject go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -147,8 +133,7 @@ namespace ARPG.UI
             return button;
         }
 
-        // 叉号图标由调用方传入：它是 Controller 上的 [SerializeField]，
-        // 可能已经在 Inspector 里拖好了，Builder 不该越过调用方自己去找图。
+        // 图标由 Controller 传入，以保留 Inspector 中的资源配置。
         public Button CreateCloseButton(
             Transform parent,
             Sprite icon,

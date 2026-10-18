@@ -10,9 +10,8 @@ using ARPG.Player;
 namespace ARPG.Camera
 {
 
-    // M12 战斗相机系统：管理 FreeLook（自由探索）、LockOn（锁定跟随）与 Finisher（忍杀特写）三级虚拟相机。
-    // 依靠 CombatEventBus 事件驱动，不每帧轮询状态。
-    // 优先级层级：FreeLook (10) < LockOn (20) < Finisher (30)。
+    // 管理自由、锁定和处决三种机位，优先级依次升高。
+    // 战斗事件负责切换，每帧更新避障虚化、跳跃突刺和重箭镜头偏移。
     public class CameraController : MonoBehaviour
     {
         [System.Serializable]
@@ -84,8 +83,7 @@ namespace ARPG.Camera
             dollyDuration = 1.4f
         };
 
-        // 参考 Docs/references/pics/识破忍杀：越肩后方机位，往右侧偏一点、略抬高俯视，
-        // 瞄准点压低对准"玩家踩住 Boss 兵器"的关键画面，Boss 正面和踏刀点都要在画面里。
+        // 识破机位从右后方略微俯视，将 Boss 正面和踩刀位置同时纳入画面。
         [Tooltip("识破踩刀处决机位（Finsher_Mikiri）")]
         [SerializeField] private FinisherCameraProfile mikiriFinisherProfile = new FinisherCameraProfile
         {
@@ -202,6 +200,7 @@ namespace ARPG.Camera
                 StartCoroutine(SnapBehindAfterFollowReady());
         }
 
+        // 等待跟随代理完成首帧定位，再将自由相机转到玩家背后。
         private IEnumerator SnapBehindAfterFollowReady()
         {
             yield return null;
@@ -232,7 +231,7 @@ namespace ARPG.Camera
             // 关闭时不立刻丢掉 Boss：下落跟髋还要读高度，env 到 0 再清。
         }
 
-        // JumpThrust：混合权重。下落还原主要跟髋高，这段只收尾。
+        // 渐变 JumpThrust 镜头权重，完全退出后释放 Boss 跟随引用。
         private void UpdateJumpThrustCamera()
         {
             if (isInFinisher) return;
@@ -246,8 +245,7 @@ namespace ARPG.Camera
             }
         }
 
-        // 镜头被墙挤死（实际距离远小于期望距离）→ 虚化玩家给镜头让位。
-        // 用迟滞区间（enter 低 / exit 高）做开关，临界距离来回横跳时不会闪烁。
+        // 镜头被障碍挤近时淡出玩家；进入和退出使用不同阈值，避免临界距离反复闪烁。
         private void UpdateObstacleFade()
         {
             bool squeezed = false;
@@ -266,7 +264,7 @@ namespace ARPG.Camera
             obstacleFader.SetOccluded(squeezed);
         }
 
-        // 当前机位的"期望"镜头距离。永远用基准值算，避免和重箭反应偏移互相喂形成反馈回路。
+        // 用基准机位计算期望距离，避免重箭偏移影响避障比例并形成反馈。
         private float GetDesiredFollowDistance()
         {
             if (lockVcam.Priority > freeLook.Priority)
@@ -279,7 +277,7 @@ namespace ARPG.Camera
                 : Mathf.Lerp(baseOrbitRadius[1], baseOrbitRadius[0], (y - 0.5f) * 2f);
         }
 
-        // 重箭命中：玩家借力后滑，镜头跟着下压 + 后拉，让"顶开"的力量感落在镜头上。
+        // 玩家挡住重箭时记录下压、后拉的峰值和起始时间。
         private void HandleHeavyArrowDefended(CharacterBody body, bool perfect)
         {
             if (isInFinisher) return;
@@ -290,6 +288,7 @@ namespace ARPG.Camera
             arrowReactStart = Time.time;
         }
 
+        // 将重箭反应和跳跃突刺偏移叠加到缓存机位，结束时恢复基准。
         private void UpdateArrowReaction()
         {
             float e = isInFinisher ? 0f : ComputeArrowEnvelope();
@@ -393,6 +392,7 @@ namespace ARPG.Camera
             releaseLockYawCo = StartCoroutine(ReleaseLockYawAfterBlend());
         }
 
+        // 等待切镜结束再解除代理朝向，避免自由镜头混合过程中突然旋转。
         private IEnumerator ReleaseLockYawAfterBlend()
         {
             yield return null;
@@ -408,8 +408,7 @@ namespace ARPG.Camera
             releaseLockYawCo = null;
         }
 
-        // World Space 下 X=角色 yaw 时镜头在 -forward，即背后。
-        // 不要 ForceCameraPosition(场景主相机)：编辑器里主相机经常在侧面，会把 FreeLook 钉在侧机位。
+        // 用玩家朝向计算背后机位，避免继承编辑器中主相机的任意位置。
         private void SnapFreeLookBehindPlayer()
         {
             Transform player = playerFollow;
@@ -436,7 +435,7 @@ namespace ARPG.Camera
             orbitInput.IgnoreLookUntil(Time.unscaledTime + 0.45f);
         }
 
-        // ===== 2. 处决特写运镜逻辑（只狼式刀刃侧低机位特写） =====
+        // ===== 处决特写 =====
 
         private FinisherCameraProfile GetProfileForKind(FinisherKind kind)
         {
@@ -464,15 +463,15 @@ namespace ARPG.Camera
 
             FinisherCameraProfile profile = GetProfileForKind(kind);
 
-            // 1. 设置 Follow 与 LookAt：跟随主角跟随代理点，看向受害者
+            // 跟随玩家代理点，并转向被处决者。
             followProxy.SetYawTarget(victimT);
             finisherVcam.Follow = followProxy.transform;
             finisherVcam.LookAt = victimT;
 
-            // 2. 处决机位：偏向刀刃侧、低机位微仰
+            // 使用对应处决类型的机位偏移。
             Vector3 preferredOffset = profile.followOffset;
 
-            // 3. 避障检测：检查后方是否贴墙
+            // 后方贴墙时缩短偏移，避免特写相机穿入障碍。
             Vector3 origin = followProxy.transform.position;
             Vector3 worldOffset = followProxy.transform.TransformDirection(preferredOffset);
             Vector3 worldTargetPos = origin + worldOffset;
@@ -482,7 +481,7 @@ namespace ARPG.Camera
                 preferredOffset.z = -safeDist;
             }
 
-            // 4. 配置虚拟相机参数
+            // 配置跟随与瞄准，保持处决动作在画面中心。
             CinemachineTransposer transposer = finisherVcam.GetCinemachineComponent<CinemachineTransposer>();
             transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
             transposer.m_FollowOffset = preferredOffset;
@@ -507,10 +506,10 @@ namespace ARPG.Camera
             finisherVcam.m_Lens.FieldOfView = profile.fov;
             finisherVcam.m_StandbyUpdate = CinemachineVirtualCameraBase.StandbyUpdateMode.Always;
 
-            // 5. 提升优先级切入特写
+            // 提高优先级切入特写。
             finisherVcam.Priority = finisherPriority;
 
-            // 6. 处决微推镜头（Dolly In 沿攻击朝向向前推进）
+            // 按配置启动缓慢推近。
             if (profile.enableDolly)
             {
                 if (finisherDollyCo != null) StopCoroutine(finisherDollyCo);
@@ -561,8 +560,7 @@ namespace ARPG.Camera
             }
         }
 
-        // ===== 3. 初始化机位与运行时表现组件 =====
-
+        // 在 Awake 配置机位和输入，再缓存表现偏移使用的基准值。
         private void InitializeCamera()
         {
             ConfigureFreeLookFollow();
@@ -607,6 +605,7 @@ namespace ARPG.Camera
             freeLook.LookAt = followProxy.transform;
         }
 
+        // 自由镜头直接瞄准跟随点，避免瞄准阻尼叠加出额外延迟。
         private void ApplyFreeLookAim()
         {
             for (int i = 0; i < 3; i++)
@@ -644,6 +643,7 @@ namespace ARPG.Camera
             }
         }
 
+        // 由自定义输入组件直接更新轴值，关闭 Cinemachine 默认输入和轴速度以避免重复驱动。
         private void ConfigureOrbitInput()
         {
             CinemachineInputProvider provider = freeLook.GetComponent<CinemachineInputProvider>();
@@ -655,6 +655,7 @@ namespace ARPG.Camera
             freeLook.m_YAxis.m_MaxSpeed = 0f;
         }
 
+        // 将相机和混合统一到 LateUpdate，保持切镜与跟随的更新阶段一致。
         private void ConfigureBrainBlend()
         {
             brain = UnityEngine.Camera.main.GetComponent<CinemachineBrain>();
@@ -759,8 +760,7 @@ namespace ARPG.Camera
             vcamCollider.m_Strategy = CinemachineCollider.ResolutionStrategy.PreserveCameraHeight;
             vcamCollider.m_CameraRadius = 0.25f;
             vcamCollider.m_MinimumDistanceFromTarget = 0.4f;
-            // 阻尼/平滑都调缓：被墙挤近和松开回位都慢慢来，
-            // 靠帧内硬位移是绕墙抖动的主要来源；挤死时的观感交给玩家虚化兜底
+            // 平滑障碍挤压和回位；距离过近时由玩家淡出保持视野。
             vcamCollider.m_Damping = 0.3f;
             vcamCollider.m_DampingWhenOccluded = 0.15f;
             vcamCollider.m_SmoothingTime = 0.2f;

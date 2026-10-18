@@ -1,3 +1,4 @@
+// 将火花纹理叠加到场景，供粒子与武器拖尾使用。
 Shader "ARPG/FX/AdditiveSpark"
 {
     Properties
@@ -59,7 +60,7 @@ Shader "ARPG/FX/AdditiveSpark"
                 return o;
             }
 
-            // 粒子永远是四边形；暗部压成 0，只留下星光，才不会看见方块。
+            // 压低遮罩暗部，避免加色混合时露出纹理边框。
             fixed4 frag(v2f i) : SV_Target
             {
                 fixed4 tex = tex2D(_MainTex, i.uv);

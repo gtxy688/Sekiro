@@ -1,6 +1,6 @@
 namespace ARPG.Boss.BehaviourTree
 {
-    // 条件节点 
+    // 将条件委托转换为 Success / Failure，供复合节点分支选择。
     public class ConditionNode : Node
     {
         public delegate bool ConditionDelegate();
@@ -13,7 +13,6 @@ namespace ARPG.Boss.BehaviourTree
 
         public override NodeState Evaluate()
         {
-            // 条件满足返回 Success，否则返回 Failure
             state = condition() ? NodeState.Success : NodeState.Failure;
             return state;
         }

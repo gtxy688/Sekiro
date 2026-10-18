@@ -6,6 +6,7 @@ using ARPG.Player;
 namespace ARPG.Mgr
 {
 
+    // 订阅战斗事件，生成格挡火花并控制玩家挥刀拖尾。
     public class FXManager : MonoBehaviour
     {
         [Header("特效预制体")]
@@ -27,7 +28,6 @@ namespace ARPG.Mgr
         [Tooltip("沿镜头往外拉一点，避免埋进刀模。不要太大，否则会离开碰撞点。")]
         public float pullTowardCamera = 0.08f;
 
-        // 订阅事件
         private void OnEnable()
         {
             CombatEventBus.OnWeaponDeflected += SpawnDeflectFX;
@@ -42,12 +42,10 @@ namespace ARPG.Mgr
             CombatEventBus.OnAttackSwingEnd -= HandleSwingEnd;
         }
 
-        // 处理事件
         private void SpawnDeflectFX(Vector3 hitPoint, DeflectType type)
         {
             GameObject prefabToSpawn = null;
 
-            // 根据传入的枚举类型，决定使用哪个特效
             switch (type)
             {
                 case DeflectType.Normal:
@@ -63,6 +61,7 @@ namespace ARPG.Mgr
                 Instantiate(prefabToSpawn, ResolveSpawnPos(hitPoint), Quaternion.identity);
         }
 
+        // 将特效略微拉向镜头，避免火花埋入角色或武器模型。
         Vector3 ResolveSpawnPos(Vector3 hitPoint)
         {
             Vector3 pos = hitPoint + offset;
@@ -72,8 +71,7 @@ namespace ARPG.Mgr
             return pos;
         }
 
-        // 原本这里有一份自己的实现（查 PlayerBrain 组件），与 HitReactionUtil 那套
-        // （比 PlayerRef 引用）标准不同，两者可能给出矛盾答案。已统一到阵营字段。
+        // 与命中结算共用阵营判断，只为玩家生成挥刀拖尾。
         static bool IsPlayer(CharacterBody body) => HitReactionUtil.IsPlayer(body);
 
         void HandleSwingStart(CharacterBody attacker)

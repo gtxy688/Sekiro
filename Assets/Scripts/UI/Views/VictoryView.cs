@@ -44,9 +44,7 @@ namespace ARPG.UI
             canvasGroup.blocksRaycasts = true;
         }
 
-        // 连战：胜利面板靠 Hide 收掉，输入封锁由 Controller 那边统一解。
-        // 这里不碰 CombatInputGate / PlayerInput——那是 Controller 的职责，
-        // 两边都管就会出现"View 解了锁但 Controller 又锁回去"的顺序依赖。
+        // 复战时隐藏胜利面板，玩家输入由 CombatUIController 统一恢复。
         public override void ResetForEncounter()
         {
             Hide();

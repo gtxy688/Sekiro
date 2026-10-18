@@ -6,6 +6,7 @@ namespace ARPG.Editor
     using UnityEditor;
     using UnityEngine;
 
+    // 招式表 Inspector：进入数值/时间轴工具，或从默认目录覆盖填表。
     [CustomEditor(typeof(BossMoveTable))]
     public class BossMoveTableEditor : UnityEditor.Editor
     {

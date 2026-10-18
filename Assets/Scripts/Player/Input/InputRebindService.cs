@@ -4,8 +4,7 @@ using UnityEngine.InputSystem;
 namespace ARPG.Player
 {
 
-    // 运行时改键：只动 Binding override，不改 Action 订阅。
-    // 必须作用在 PlayerInput 正在用的那份 InputActionAsset 上。
+    // 在 PlayerInput 的动作资产上读写改键覆盖，不改变动作事件订阅。
     public static class InputRebindService
     {
         public const string PrefsKey = "PlayerBindingOverrides";
@@ -22,6 +21,7 @@ namespace ARPG.Player
             "攻击", "防御", "垫步", "跳跃", "葫芦", "锁定"
         };
 
+        // 从本地存档恢复绑定覆盖，未保存过改键时沿用资产默认绑定。
         public static void Load(InputActionAsset asset)
         {
             if (!PlayerPrefs.HasKey(PrefsKey)) return;
@@ -31,7 +31,7 @@ namespace ARPG.Player
             asset.LoadBindingOverridesFromJson(json);
         }
 
-        // 跟 PlayerInput Auto-Switch 走；方案还空时看最近动过的设备
+        // 优先使用 PlayerInput 的控制方案，尚未选定时参考最近更新的设备。
         public static string ResolveControlGroup(PlayerInput input)
         {
             if (input != null)
@@ -60,9 +60,9 @@ namespace ARPG.Player
             PlayerPrefs.Save();
         }
 
+        // 返回指定设备组的首条非组合绑定，找不到时返回 -1。
         public static int FindBindingIndex(InputAction action, string group)
         {
-            // 同一 Scheme 取第一条完整绑定（LockOn 手柄只保留 rightStickPress）
             for (int i = 0; i < action.bindings.Count; i++)
             {
                 InputBinding binding = action.bindings[i];
@@ -80,6 +80,7 @@ namespace ARPG.Player
             return index >= 0 ? action.GetBindingDisplayString(index) : "—";
         }
 
+        // 只恢复指定设备组的可改键动作，保留另一组的设置。
         public static void ResetGroup(InputActionAsset asset, string group)
         {
             for (int i = 0; i < RemappableActions.Length; i++)
@@ -92,6 +93,7 @@ namespace ARPG.Player
             Save(asset);
         }
 
+        // 启动交互改键；完成或取消后恢复动作启用状态，调用方负责取消仍在等待的操作。
         public static InputActionRebindingExtensions.RebindingOperation BeginRebind(
             InputAction action,
             int bindingIndex,
@@ -101,7 +103,7 @@ namespace ARPG.Player
         {
             string oldPath = action.bindings[bindingIndex].effectivePath;
 
-            // PerformInteractiveRebinding 要求 Action 处于 Disable；暂停时 Player Map 仍是开的
+            // 交互改键要求动作停用；暂停菜单本身不会关闭 Player Map。
             bool wasEnabled = action.enabled;
             action.Disable();
 
@@ -156,6 +158,7 @@ namespace ARPG.Player
             }
         }
 
+        // 新按键被其他动作占用时，将那个动作换到本次修改前的按键。
         private static void SwapDuplicates(
             InputActionAsset asset,
             InputAction reboundAction,
@@ -185,7 +188,7 @@ namespace ARPG.Player
             return NormalizePath(a) == NormalizePath(b);
         }
 
-        // <Keyboard>/j 与 /Keyboard/j 视为同一键
+        // 统一路径格式，让 <Keyboard>/j 与 /Keyboard/j 按同一按键比较。
         private static string NormalizePath(string path)
         {
             return path.TrimStart('/').Replace("<", string.Empty).Replace(">", string.Empty);

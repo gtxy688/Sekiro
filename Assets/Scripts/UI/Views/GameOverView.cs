@@ -5,7 +5,7 @@ using ARPG.Mgr;
 namespace ARPG.UI
 {
 
-    // 真死提示：回生超时或没有复活次数。和回生/胜利同一套暗金面板。
+    // 玩家真正死亡时显示提示，与回生和胜利界面共用暗金样式。
     public class GameOverView : UIView
     {
         [SerializeField] private TMPro.TextMeshProUGUI deathText;
@@ -24,10 +24,7 @@ namespace ARPG.UI
             }
         }
 
-        // 连战：真死面板必须在切场时收掉。
-        // 走 Hide 而不是直接 SetActive(false)，是为了让 OnDisable 里的 PopUi 配平
-        // ShowGameOver 时 Push 的那一次——直接关物体同样会触发 OnDisable，
-        // 但显式写在这里，读者不必去翻 Unity 的生命周期才知道光标是谁放开的。
+        // 复战时隐藏真死面板，由 OnDisable 配对释放 ShowGameOver 占用的光标。
         public override void ResetForEncounter()
         {
             Hide();

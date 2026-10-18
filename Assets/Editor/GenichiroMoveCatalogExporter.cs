@@ -32,6 +32,7 @@ public static class GenichiroMoveCatalogExporter
         EditorUtility.DisplayDialog("导出完成", $"已写入 {CatalogPath}\n请检查 diff 后提交。", "确定");
     }
 
+    // 将资产数据写成可回填的 C# 目录源码，辅助方法与填表后处理由下方模板拼接。
     public static string BuildCatalogSource(BossMoveTable table)
     {
         var sb = new StringBuilder();
@@ -260,6 +261,7 @@ public static class GenichiroMoveCatalogExporter
         }
     }
 
+    // 必填节奏参数先写，脉冲、箭和非默认覆盖项再按参数位置追加。
     static void AppendWindowCall(StringBuilder sb, BossMoveWindow w)
     {
         sb.Append("Win(");
@@ -268,6 +270,7 @@ public static class GenichiroMoveCatalogExporter
         sb.Append(F(w.comboWindowEnd)).Append(", ");
         sb.Append(F(w.stateDuration));
 
+        // 单刀数值仅在区别于默认值时输出，避免生成目录重复列出无效覆盖。
         if (w.hitPulses != null && w.hitPulses.Length > 0)
         {
             sb.Append(", new[] { ");
@@ -309,6 +312,7 @@ public static class GenichiroMoveCatalogExporter
             sb.Append(" }");
         }
 
+        // 出现后置可选参数时，缺失的前置数组需用 null 占位以维持调用含义。
         bool hasOptional = w.perilous != PerilousType.None || w.hitboxSlot != AttackHitboxSlot.Weapon
             || w.rotateEnd != 0.35f || w.transitionDuration != 0.1f
             || w.hitGrade != HitGrade.Light || w.overrideCombat

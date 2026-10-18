@@ -11,17 +11,12 @@ using ARPG.Player;
 namespace ARPG.FrameWork.States.Base
 {
 
-    // 攻击状态基类：地面 AttackState 与空中 AirAttackState 共用同一套
-    // 出招/动画时钟/多段脉冲判定/音效/出箭/转向/霸体/连招窗口逻辑，
-    // 子类只保留四处差异：
-    //   1. 退出目标（地面回 Idle / 空中回 AirIdle 续滞空）
-    //   2. NextCombo 派生出的下一段是哪个子类
-    //   3. 专属命令：地面可格挡/垫步取消、攻击接移动；空中可 Jump2 连段
-    //   4. 空中落地立刻离空（WantsImmediateLand），地面恒 false
+    // 共用地面与空中攻击的动画时钟、命中脉冲、音效、出箭和转向逻辑。
+    // 子类决定结束后的去向、连招状态和可接受的取消命令。
     public abstract class AttackStateBase : BaseState
     {
         protected readonly HierarchicalState parent;
-        protected readonly AttackConfig config; // 当前动作的全部数值与窗口均来自 SO
+        protected readonly AttackConfig config; // 本次攻击配置；Boss 可由招式表烘焙生成
         protected float animTime;
 
         private bool weaponHitEnabled;
@@ -81,23 +76,13 @@ namespace ARPG.FrameWork.States.Base
                 return;
             }
 
-            // 招式在 _Attack/_Bow/_Clash/_Danger 子状态机里，必须走 Parent.State。
+            // 统一请求攻击动画，JumpThrust 使用直接播放，其余招式使用融合。
             bool attackAnimStarted = AnimUtil.TryBeginAttackAnim(body.Animator, config, body.CurrentMoveEntry);
             if (!attackAnimStarted)
             {
                 Debug.LogError($"{body.name} 的 Animator 缺少攻击状态：{config.AnimName}");
             }
 
-            // 记录攻击状态起手请求；真正接触目标的时刻由 MeleeContact 日志确认。
-            if (body.EnableStateDebugLog)
-            {
-                Debug.Log(
-                    $"[CombatTiming][AttackStart] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
-                    $"招式={config.AnimName}，来源状态={parent?.SubStateMachine?.PreviousStatePath ?? "<unknown>"}，" +
-                    $"HitStartTime={config.HitStartTime:F3}s，融合配置={config.TransitionDuration:F3}，" +
-                    $"动画请求成功={attackAnimStarted}，Animator速度={body.Animator.speed:F3}",
-                    body);
-            }
 
             // 允许转向的招：起手先对准目标，整招丢掉 Clip 根旋转，否则挥砍 Root yaw 会盖掉代码朝向。
             // 识破冻结也在这里解开：下一刀才允许再转向玩家。
@@ -115,7 +100,7 @@ namespace ARPG.FrameWork.States.Base
 
             body.AttackUninterruptible = IsUninterruptibleAttack(config, body.CurrentMoveEntry);
 
-            // 危字攻击：发事件 → UI 弹"危"字提示（M17）
+            // 危字攻击：发事件 → UI 弹"危"字提示
             if (config.Perilous != PerilousType.None)
             {
                 CombatEventBus.TriggerPerilousAttack(config.Perilous);
@@ -142,9 +127,7 @@ namespace ARPG.FrameWork.States.Base
             // 位移不在此处理：突进/前移完全由攻击动画的 Root 曲线驱动（全权根运动），
             // 代码只负责状态时长与连招窗口判定
 
-            // 动作彻底结束：stateDuration 到点，或（无连招的招）动画实际播完且判定段已全部关闭。
-            // 后一条专治"stateDuration 大于实际 clip 长度"的末帧冻结罚站——射箭/收弓段最容易踩：
-            // 动画播完停在最后一帧，animTime 却永远达不到 stateDuration，角色僵在原地等时长。
+            // 按配置时长或动画结束退出；无连招动作播完且判定关闭后可提前结束，避免停在末帧。
             bool noMelee = !AttackWindowSync.CanMeleeHit(config.hitPulses);
             bool animFinished = IsAnimFinished(config.AnimName);
             bool animPlayedOut = config.NextCombo == null
@@ -247,12 +230,8 @@ namespace ARPG.FrameWork.States.Base
             return false;
         }
 
-        // 这一招总共挥几下 = 各段「真判定」段数之和与动画段数取大。
-        // 取大是因为两者都可能单独偏小：Kengeki_Slash 是 5 段动画但只在第 1 段带判定
-        // （后续段 WindowFor 按段号 Clamp，fallback 到同一个窗口），
-        // Kengeki_Bow 则是单段动画带多段判定。只看其中一个都会把它误判成单发招。
-        // 只数 PulseIsMelee 的段：招式表里有 start == end 的占位段（转视角/位移用，见
-        // Slash_Rush2 的一个脉冲），数进来会把单发招误判成连招。
+        // 取有效近战脉冲总数与最长动画序列段数的较大值，兼容共用窗口和单动画多刀。
+        // 零长度等占位脉冲不计数，避免把转向或位移段当成额外一刀。
         public static int HitChanceCount(CharacterBody body)
         {
             if (body == null) return 1;
@@ -322,6 +301,7 @@ namespace ARPG.FrameWork.States.Base
                 && current.normalizedTime >= 1f;
         }
 
+        // 校验窗口顺序及脉冲范围，非法配置由进入逻辑退回待机。
         private bool ValidateWindows()
         {
             bool valid =
@@ -380,10 +360,8 @@ namespace ARPG.FrameWork.States.Base
             return true;
         }
 
-        // 判定窗只认 hitPulses：每段 Enable 会清 hitTargets，所以每刀只打一次。
-        // 相邻两刀无空隙时 pulseIndex 变化也要重开，才能换伤害。
-        // NoHit / 0.01s 假红条：CanMeleeHit 为假，全程不开刀。
-        // HitStartTime / RecoveryWindowStart 不再是判定依据，只管连招开放与可取消窗口。
+        // 只按有效 hitPulses 开关判定；脉冲变化也重开，以更新伤害并清除上一刀的命中记录。
+        // HitStartTime 和 RecoveryWindowStart 用于取消与连招窗口，不直接开关 Hitbox。
         private void ApplyHitbox()
         {
             int pulseIndex = -1;
@@ -423,6 +401,7 @@ namespace ARPG.FrameWork.States.Base
                 config, pulse, fallbackDamage, fallbackPosture, fallbackKnockback, fallbackGrade);
         }
 
+        // 动画时间越过 cue 后只触发一次，兼容一帧跨过多个 cue。
         private void ApplySfx()
         {
             AttackSfxCue[] cues = config.sfxCues;
@@ -441,6 +420,7 @@ namespace ARPG.FrameWork.States.Base
             }
         }
 
+        // 按出箭 cue 逐次发射，并保留进招时的招式表上下文供伤害解析。
         private void ApplyArrows()
         {
             ArrowSpawnCue[] cues = config.arrowCues;
@@ -479,15 +459,13 @@ namespace ARPG.FrameWork.States.Base
             body.SetSteerYaw(direction, config.RotationSpeed);
         }
 
-        // 弓段 NoHit 的 rotateEnd 只有 0.15~0.35s，拉弓瞄准会停转、身体朝向和出箭对不上。
-        // 有出箭点、或长无近战窗（拉弓）时整段跟着玩家转。
+        // 出箭或较长的无近战段持续朝向目标，避免常规转向窗结束后瞄准停止。
         private bool ShouldSteerTowardTarget()
         {
             if (HasArrowCues()) return true;
             bool noMelee = !AttackWindowSync.CanMeleeHit(config.hitPulses);
             if (noMelee && config.StateDuration > 0.8f) return true;
-            // 多段连刀（飞舟等）在最后一刀结束前都对准玩家。Hits() 默认 rotateEnd=0.35，
-            // 飞舟第一刀约 1.85s，转向早停就会打空气。
+            // 多段刀持续转向到后摇开放，避免后续脉冲过早失去目标。
             if (HasHitPulses() && config.hitPulses.Length > 1)
                 return animTime <= config.RecoveryWindowStart;
             return animTime <= config.RotationWindowEnd;

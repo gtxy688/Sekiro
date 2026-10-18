@@ -20,8 +20,7 @@ namespace ARPG.Editor
         [SerializeField] string filter = "";
         [SerializeField] int sequenceIndex;
 
-        // 折叠状态不持久化：Unity 序列化不了 Dictionary，
-        // 而重载后全展开对用户没有实际损失，不值得为它改数据结构
+        // 折叠状态只在窗口内保留，脚本重载后恢复默认折叠。
         readonly System.Collections.Generic.Dictionary<string, bool> fold =
             new System.Collections.Generic.Dictionary<string, bool>();
 
@@ -137,6 +136,7 @@ namespace ARPG.Editor
             }
         }
 
+        // 按动画分支展示段，再按近战/箭拆分单次命中；下级未覆盖时显示上级数值。
         void DrawSegments(BossMoveEntry entry)
         {
             BossAnimSequence sequence = CurrentSequence(entry);
@@ -194,6 +194,7 @@ namespace ARPG.Editor
                     arrow: ranged);
                 EditorGUILayout.EndHorizontal();
 
+                // 先解析段级继承值，后续单刀和单箭以此作为未覆盖时的显示值。
                 int inheritDmg = w.overrideCombat ? w.baseDamage : entry.baseDamage;
                 float inheritPos = w.overrideCombat ? w.postureDamage : entry.postureDamage;
                 float inheritKb = w.overrideCombat ? w.knockback : entry.knockback;
@@ -291,6 +292,7 @@ namespace ARPG.Editor
             }
         }
 
+        // 开启覆盖时复制继承值；修改等级时按刀/箭默认数值重新填伤害。
         void DrawOverrideCombat(
             ref bool ov,
             ref int dmg,

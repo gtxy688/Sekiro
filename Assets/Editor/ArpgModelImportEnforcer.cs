@@ -4,13 +4,7 @@ using UnityEditor;
 using UnityEngine;
 namespace ARPG.Editor
 {
-    // 新导入的动画 FBX 自动套用 Root Transform 规范，省掉每次手动跑 BatchRootTransformSettings。
-    //
-    // 两条自保规则：
-    // 1. 只管 Assets/Sekrio/ 下的动画 FBX，别的一概不碰。
-    // 2. 只在首次导入时接管（importSettingsMissing）。已经手工调过的配置绝不覆盖——
-    //    导入期静默改写用户调整过的设置，是最招人恨的一类工具行为。
-    //    覆盖时一律打 Log，让"为什么变了"有据可查。
+    // 仅首次导入 Assets/Sekrio 下的动画 FBX 时套用根运动设置，保留之后的手动调整。
     public class ArpgModelImportEnforcer : AssetPostprocessor
     {
         const string AnimRoot = "Assets/Sekrio/";

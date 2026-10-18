@@ -1,3 +1,4 @@
+// 从白字黑底纹理提取“危”字，扩展笔画并叠加红色发光。
 Shader "ARPG/FX/PerilousKanji"
 {
     Properties
@@ -66,11 +67,11 @@ Shader "ARPG/FX/PerilousKanji"
             float MaskAt(float2 uv)
             {
                 fixed4 tex = tex2D(_MainTex, uv);
-                // 只用亮度，避免黑底 Alpha=1 时整块 Quad 被点亮
+                // 以亮度取遮罩，避免不透明黑底也参与发光。
                 return max(max(tex.r, tex.g), tex.b);
             }
 
-            // 白字黑底：亮度当遮罩。邻域取 max 把笔画胀开，再按 Cutoff 削黑底。
+            // 邻域取最大值加粗笔画，再按阈值去除黑底。
             fixed4 frag(v2f i) : SV_Target
             {
                 float mask = MaskAt(i.uv);

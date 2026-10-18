@@ -7,15 +7,7 @@ using ARPG.FrameWork.States;
 using ARPG.Mgr;
 namespace ARPG.Combat
 {
-    // 无状态命中结算。从 CombatManager 里分出来的那一半——也是原本就写对的那一半。
-    //
-    // 判断依据：这三个 Report 方法里，attacker 与 target 全部取自 hitbox/hurtbox.Owner，
-    // 从头到尾没有一次问过"谁是玩家、谁是 Boss"。这正是中间层该有的样子，
-    // 所以多 Boss / 复战对它没有任何影响，一行都不用改。
-    //
-    // 明确不做：不触发顿帧。顿帧改的是全局 Time.timeScale，属于时间表现层，
-    // 结算器不该有这个权力。现在顿帧由 TimeScaleController 独占执行，
-    // 连 CombatManager 都只剩"申报"权，这里更不该碰。
+    // 按 Hitbox / Hurtbox 所属角色转发命中并处理拼刀架势，不依赖玩家或 Boss 的场景引用。
     public class CombatResolver : MonoBehaviour
     {
         public static CombatResolver Instance { get; private set; }
@@ -50,19 +42,7 @@ namespace ARPG.Combat
             // 排除打到自己（双保险，Hitbox 侧已过滤）
             if (attacker == null || target == null || attacker == target) return;
 
-            // 全局规则扩展位（后续：减伤 Buff、全场无敌、友军伤害开关等）
-
-            // 伤害数据来自 AttackConfig（SO），这里只做转发（含危字标记 M17 / 击退 / 受击等级）
-            // 接触时间记录在防御/伤害结算之前；接触不代表一定扣血。
-            if (attacker.EnableStateDebugLog || target.EnableStateDebugLog)
-            {
-                Debug.Log(
-                    $"[CombatTiming][MeleeContact] t={Time.time:F4}s frame={Time.frameCount} " +
-                    $"{attacker.name} -> {target.name}，招式={hitbox.Config.AnimName}，" +
-                    $"目标状态={target.CurrentStatePath}，目标被弹硬直={target.IsParried}，" +
-                    $"目标格挡={target.IsGuarding}（结算前接触）",
-                    target);
-            }
+            // 近战伤害与受击参数读当前 AttackConfig，防御和扣血由目标 ReceiveHit 继续处理。
             target.ReceiveHit(attacker, hitbox.Config.BaseDamage, hitbox.Config.PostureDamage, hitPoint,
                               hitbox.Config.Perilous != PerilousType.None, hitbox.Config.Perilous,
                               hitbox.Config.Knockback, hitbox.Config.HitGrade, false);
@@ -97,7 +77,7 @@ namespace ARPG.Combat
             if (a.Config != null)
                 b.Owner.AccumulatePosture(a.Config.PostureDamage * clashPostureMultiplier);
 
-            // 表现层事件：打铁音效/火花（M13/M15 订阅）
+            // 通知表现层播放打铁音效和火花。
             CombatEventBus.TriggerWeaponDeflected(
                 CombatFxPoint.BetweenHitboxes(a, b, point), DeflectType.Normal);
         }

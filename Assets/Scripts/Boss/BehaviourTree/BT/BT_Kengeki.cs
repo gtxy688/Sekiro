@@ -6,7 +6,7 @@ using ARPG.FrameWork.Body;
 namespace ARPG.Boss.BehaviourTree
 {
 
-    // 被完美弹刀后：硬直中等待，结束后在交锋距离内抽还击招。
+    // 消费 KengekiArmed 交锋标记，在近身范围选择还击招；硬直中保持等待。
     public class BT_Kengeki : Node, ISelectorLock
     {
         private readonly CharacterBody body;

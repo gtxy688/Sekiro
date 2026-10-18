@@ -6,17 +6,10 @@ using ARPG.FrameWork.States;
 
 namespace ARPG.Combat
 {
-    // 玩家挨 Boss 时的受击/格挡/弹反选动画。Boss 被打不走这里。
+    // 统一受击、格挡与弹反的动画选择，以及连续受击的刷新规则。
     public static class HitReactionUtil
     {
-        // 判断身份一律查阵营字段，不再比对象引用。
-        //
-        // 旧实现是 body == CombatManager.Instance.PlayerRef，意思是：
-        // 除 PlayerRef 那一个对象外，世界上没有任何东西能是「玩家」。
-        // 加第二个 Boss、加友方 NPC、复战换角色，它一律判错。
-        //
-        // 全项目只有这一份 IsPlayer。AudioManager 与 FXManager 里各有一份私有副本，
-        // 判定标准还不一样（它们查 PlayerBrain 组件），已统一改成调这里。
+        // 身份按阵营判断，避免依赖场景中某个固定玩家引用。
         public static bool IsPlayer(CharacterBody body)
         {
             return body != null && body.Faction == Faction.Player;
@@ -142,6 +135,7 @@ namespace ARPG.Combat
             return Pick(body, cfg.HurtAnim_Normal, "Hurt_Light", "Hurt_Ground");
         }
 
+        // 优先选 Animator 实际存在的动画；都缺失时保留首个配置名，供调用方诊断或回退。
         static string Pick(CharacterBody body, params string[] names)
         {
             UnityEngine.Animator anim = body.Animator;

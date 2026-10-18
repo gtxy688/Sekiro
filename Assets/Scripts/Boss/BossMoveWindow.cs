@@ -6,8 +6,8 @@ using ARPG.Configs;
 namespace ARPG.Boss
 {
 
-    // 单段判定窗，字段与 AttackConfig 同义，烘焙时拷过去。
-    // 无判定段：hitStartTime == recoverStart == comboWindowEnd == stateDuration。
+    // 单段动画的节奏、判定和事件配置，由 BossAttackBaker 转为运行时 AttackConfig。
+    // 近战只由 hitPulses 决定；关闭近战的工具会同步将节奏窗口收至段末。
     [Serializable]
     public class BossMoveWindow
     {
@@ -25,7 +25,7 @@ namespace ARPG.Boss
         [Tooltip("本段用哪把 Hitbox。默认刀；Elbow 段（拳头）选 Elbow。角色必须绑定对应槽位的 Hitbox。")]
         public AttackHitboxSlot hitboxSlot = AttackHitboxSlot.Weapon;
 
-        [Tooltip("一条 Clip 内多次出伤。空 = 只用 hitStartTime/recoverStart 一刀")]
+        [Tooltip("一条动画内的近战判定区间；空数组表示本段无近战判定")]
         public HitPulse[] hitPulses;
 
         [Tooltip("相对本段动画 0 点。clip 为空则跳过")]

@@ -4,9 +4,7 @@ using ARPG.FrameWork.States.Base;
 
 namespace ARPG.FrameWork.States.Dead
 {
-    // 死亡父状态（M14，顶层 HierarchicalState）：
-    // canRevive=true → 回生待机子状态（起死回生 / 就此死去）
-    // canRevive=false → 游戏结束子状态（按攻击键重开场景）
+    // 死亡父状态：可回生时进入选择待机，否则进入游戏结束并允许攻击键重载场景。
     public class DeadState : HierarchicalState
     {
         private readonly bool canRevive;

@@ -100,7 +100,7 @@ namespace ARPG.FrameWork.States.Ground
                 return true;
             }
 
-            // M10：只有在崩解机会已经出现后新按的攻击键才会生成 FinisherCommand。
+            // 只有在崩解机会已经出现后新按的攻击键才会生成 FinisherCommand。
             // 普通 AttackCommand 即使仍在连招缓冲中，也绝不能因本刀把 Boss 打崩而变成忍杀。
             if (cmd is FinisherCommand)
             {

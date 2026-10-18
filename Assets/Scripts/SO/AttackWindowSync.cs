@@ -4,17 +4,13 @@ using ARPG.Boss;
 namespace ARPG.Configs
 {
 
+    // 攻击窗口的共用规则：有效近战脉冲、无判定段以及覆盖所有事件点的时长。
     public static class AttackWindowSync
     {
-        // 短于约一帧的红条是时间轴「缩到最小」的假窗，进招第 0 帧仍会开刀。
+        // 过短脉冲视为无效，避免把缩成细线的时间轴红条保留为近战判定。
         public const float MinMeleeHitSpan = 0.02f;
 
-        // 判定窗的唯一真相：只看 hitPulses。空数组 = 本段无判定（NoHit / 弓段 / 位移段）。
-        //
-        // 原来这里还有一条「pulses 为空就回退到 HitStartTime ~ RecoveryWindowStart」的分支，
-        // 于是同一个事实存在两种写法，改了单窗字段却因为 pulses 非空而静默失效。
-        // 统一后规则只剩一条：有 pulses 且跨度够 = 能出刀，否则 = 不出刀。
-        // HitStartTime / RecoveryWindowStart 退化为纯招式级字段（连招开放 / 可取消窗口）。
+        // 近战只认跨度足够的 hitPulses；空数组表示无近战，不回退到节奏窗口。
         public static bool CanMeleeHit(HitPulse[] pulses)
         {
             if (pulses == null || pulses.Length == 0) return false;
@@ -28,6 +24,7 @@ namespace ARPG.Configs
             return false;
         }
 
+        // 有出箭点即按箭处理；无近战且持续至少 0.8 秒的段也使用箭数值。
         public static bool IsArrowWindow(BossMoveWindow w)
         {
             if (w == null) return false;
@@ -57,6 +54,7 @@ namespace ARPG.Configs
             return p != null && p.end - p.start >= MinMeleeHitSpan;
         }
 
+        // 关闭近战时将节奏窗口一并收至段末，避免留下提前取消或连招入口。
         public static void ApplyNoHit(AttackConfig cfg)
         {
             cfg.hitPulses = new HitPulse[0];
@@ -101,7 +99,7 @@ namespace ARPG.Configs
             CoverDuration(w);
         }
 
-        // 时间轴只保存红条时，stateDuration 可能仍是旧占位值。时长必须盖住判定/连招窗，否则 AttackState 会拒收。
+        // 时长必须覆盖节奏窗口和事件点，避免攻击状态提前结束或拒收配置。
         public static void CoverDuration(AttackConfig cfg)
         {
             if (cfg.ComboWindowEnd < cfg.RecoveryWindowStart)
@@ -170,6 +168,7 @@ namespace ARPG.Configs
             return need;
         }
 
+        // 保存时间轴时复制并裁剪脉冲，丢弃裁剪后过短的区间，保留原数据不变。
         public static HitPulse[] ClampPulses(HitPulse[] pulses, float clipLength)
         {
             if (pulses == null || pulses.Length == 0)

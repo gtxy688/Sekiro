@@ -8,16 +8,8 @@ namespace ARPG.UI
     using UnityEditor;
     #endif
 
-    // 世界空间汉字提示（危 / 治 / 回生）的公共实现。
-    //
-    // 为什么收：这三个原来各写一份、逐行相同，只差染色与触发时机。
-    // 复制品的问题不在于今天多占 300 行，而在于修一个 bug 要记得改三处——
-    // 上次给 tween 补 SetLink / DOKill 时就漏了一处，这类遗漏一定会重演。
-    //
-    // 绘制：直接画 png（白字黑底，把亮度当透明），透明混合，不走加法 Shader
-    // （加法会把整块 Quad 烧成一个亮方块）。材质 ZTest Always。
-    //
-    // 跟随、渲染和颜色配置集中在基类，由场景与 Prefab 提供；子类只保留触发入口。
+    // 负责「危」「治」「回生」的世界空间跟随和弹出、淡出动画，配置来自场景或 Prefab。
+    // 图像材质用亮度表示透明度并保持前景显示，避免黑底和加法混合亮块。
     [ExecuteAlways]
     public abstract class WorldGlyphView : UIView, IFollowTargetView
     {
@@ -32,7 +24,6 @@ namespace ARPG.UI
 
         private float alpha;
         private Tweener alphaTween;
-        // 必须写全名：全局命名空间已有行为树 Sequence，会盖住 using DG.Tweening
         private DG.Tweening.Sequence showSeq;
         private MaterialPropertyBlock block;
 
@@ -43,8 +34,7 @@ namespace ARPG.UI
             Hide();
         }
 
-        // 连战切场：汉字可能正播到一半（tween 挂在 transform 上），
-        // 不 Kill 掉的话新一场开局会看见上一场的字飘在头顶淡出。
+        // 停止上一场的提示动画并隐藏，避免复战时残留文字。
         public override void ResetForEncounter()
         {
             KillTweens();
@@ -73,7 +63,7 @@ namespace ARPG.UI
             followTarget = found != null ? found : target.transform;
         }
 
-        // 子类各自的触发入口（ShowWarning / ShowHeal / ShowRevive）只管调它
+        // 重播缩放和透明度动画，完成后隐藏提示。
         protected void PlayGlyph()
         {
             BindRefs();
@@ -107,6 +97,7 @@ namespace ARPG.UI
             KillTweens();
         }
 
+        // 跟随绑定骨骼并朝向相机；位于镜头后方时停止绘制。
         private void FollowWorld()
         {
             Vector3 pos = followTarget != null

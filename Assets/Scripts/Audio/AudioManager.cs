@@ -9,9 +9,7 @@ using ARPG.Player;
 namespace ARPG.Audio
 {
 
-    // 音效管理器：订阅 CombatEventBus，播放对应 AudioClip
-    // 与 FXManager 同模式（事件驱动，不做每帧轮询）
-    // 战斗音效从 Resources 文件夹装池，每次随机且不连抽同一条
+    // 订阅战斗事件并从 Resources 音效池随机播放，避免连续选中同一段音效。
     public class AudioManager : MonoBehaviour
     {
         private const string BlockFolder = "Sounds/Block";
@@ -153,6 +151,7 @@ namespace ARPG.Audio
             audioSource.PlayOneShot(clip, volumeScale);
         }
 
+        // 从上次索引之外随机选择；池中只有一条时允许重复。
         private static AudioClip Pick(AudioClip[] pool, ref int lastIndex)
         {
             int i;
@@ -170,8 +169,7 @@ namespace ARPG.Audio
             return pool[i];
         }
 
-        // 原本这里有一份自己的实现（查 PlayerBrain 组件），与 HitReactionUtil 那套
-        // （比 PlayerRef 引用）标准不同，两者可能给出矛盾答案。已统一到阵营字段。
+        // 音效分类使用角色阵营，与战斗侧保持一致。
         private static bool IsPlayer(CharacterBody body) => HitReactionUtil.IsPlayer(body);
 
         private void HandleWeaponDeflected(Vector3 hitPoint, DeflectType type)
@@ -274,7 +272,7 @@ namespace ARPG.Audio
             PlayPool(victoryPool, ref lastVictoryIndex, VictoryFolder, warnIfEmpty: false);
         }
 
-        // 时间轴手动插的 sfxCues 仍走这里；与开刀池可并存
+        // 播放配置时间轴上的音效 cue，可与挥刀音效同时触发。
         private void HandleAttackSfx(AudioClip clip, Vector3 worldPos)
         {
             if (clip == null) return;

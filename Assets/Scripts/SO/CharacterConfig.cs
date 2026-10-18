@@ -6,8 +6,7 @@ using ARPG.FrameWork.States.Ground;
 namespace ARPG.Configs
 {
 
-    // 玩家和 Boss 的角色属性配置，供数值、移动和状态逻辑读取。
-    // 最大值与初始次数在这里配置；当前 HP、架势等可变数据保存在各角色的 CombatStats。
+    // 玩家和 Boss 共用的属性与状态参数；当前 HP、架势保存在各角色的 CombatStats。
     // 攻击伤害另由 AttackConfig、BossMoveTable 和结算默认值提供。
     [CreateAssetMenu(fileName = "NewCharacterConfig", menuName = "Combat/Character Config")]
     public class CharacterConfig : ScriptableObject
@@ -32,7 +31,7 @@ namespace ARPG.Configs
         public float HeavyStunDuration = 1.2f;
 
         [Header("受击动画（接口预留，留空 = 回退到普通受击动画）")]
-        public string HurtAnim_Normal = "Hurt_Light";      // 玩家裸吃 Light（旧名 Hurt_Ground）
+        public string HurtAnim_Normal = "Hurt_Light";      // 玩家无防御时承受 Light 命中。
         public string HurtAnim_Light2 = "Hurt_Light2";     // Light 连续受击
         public string HurtAnim_Mid = "Hurt_Mid";
         public string HurtAnim_Heavy = "Hurt_Heavy";       // 强力招式（击飞/倒地），空则用 HurtAnim_Normal
@@ -53,19 +52,17 @@ namespace ARPG.Configs
         [Tooltip("MidToGuard 动画开始后多久允许提前格挡/垫步。0 = 必须播完再行动。")]
         public float MidToGuardDeflectDodgeOpenTime = 0f;
 
-        [Header("防御/弹反（M4）")]
+        [Header("防御/弹反")]
         public float DeflectWindow = 0.3f;             // 完美弹反窗口（秒）
         public float DeflectPostureGain = 30f;         // 完美弹反成功：攻击者涨的架势
         public float GuardPostureFactor = 0.5f;        // 格挡时自己涨架势的比例（×对方架势伤害）
-        public float ParriedDuration = 1.0f;          // 被完美弹反后的最小硬直（下限，动画播完仍保底）。M7 攻防转换：给弹反成功方稳定反击窗口，回合制才成立
+        public float ParriedDuration = 1.0f;          // 被完美弹反后的最小硬直，保证弹反方有反击时间。
         public float ParryCounterHitDelay = 0.1f;     // 被动完美弹反：以被弹方预计恢复 + 该值为反击命中目标；按首段 HitStartTime 倒推起手。长前摇/多段招不保证抢先
         [Min(0f), Tooltip("Boss 被玩家普通近战弹断后，估算玩家收刀与输入耗时；与玩家 LightAttack 首个有效判定开始时间相加。不是玩家实际输入计时，0.7 秒来自当前手动采样。")]
         public float PlayerParryAttackPreparationTime = 0.7f;
         [Min(0f), Tooltip("Boss 下一次攻击最早判定比玩家标准第一刀晚多少秒；只限制攻击，不限制硬直恢复后的格挡和移动。")]
         public float PlayerParryAttackHitBuffer = 0.1f;
-        // 空按惩罚（主动弹反重构）：一次真实按下 = 一次尝试，只有"实际开启窗口但没弹中"才缩窗。
-        // 旧的 DeflectMashLimit / DeflectMashWindow / DeflectMashPenalty 是按次数记账，
-        // 会把还没得到结果的按下直接算成失败，已按"有效尝试的结果"改写为下面三个字段。
+        // 只有实际开启窗口却未弹中的尝试才累计空按，避免在结果产生前惩罚输入。
         [Tooltip("前几次连续空按不缩窗。宽容次数内连按不吃惩罚，准确连弹与乱按才区分得开")]
         public int DeflectEmptyGraceCount = 3;
         [Tooltip("超出宽容次数后，每个空按把下一次窗口乘上该系数，取值 (0, 1]")]
@@ -78,7 +75,7 @@ namespace ARPG.Configs
 
         public float GuardPostureRecoveryMultiplier = 5f; // 按住格挡 2s 后架势回复倍率
 
-        [Header("架势（M9）")]
+        [Header("架势")]
         public bool PostureDecayInverse = false;   // true=非线性（架势越高回越慢，Boss 用）；false=线性
 
         [Tooltip("Stagger_Broken 动画开始后多久允许提前取消硬直：可切入 DeflectState（格挡/抬刀）或 DodgeState（垫步）。0 = 动画播完才能行动。")]
@@ -92,17 +89,17 @@ namespace ARPG.Configs
 
         [Header("闪避")]
         public float DodgeDuration = 0.5f; // 垫步持续时长（位移由动画根运动驱动，这里只控制总时长）
-        public float DodgeIFrame = 0.3f;  // 垫步无敌帧时长（M4）
+        public float DodgeIFrame = 0.3f;  // 垫步无敌帧时长。
 
         [Tooltip("玩家 Mid/Heavy 倒地取消到闪避时的固定融合秒数。0 = 沿用普通闪避进入策略。")]
         [Range(0f, 0.25f)]
         public float KnockdownToDodgeBlendDuration = 0.12f;
 
-        [Header("识破（M17）")]
+        [Header("识破")]
         public float MikiriDuration = 0.8f;      // 踩刀动画时长
         public float MikiriPostureGain = 30f;    // 识破成功涨攻击者架势
 
-        [Header("Boss 被动防御（M7 攻防转换）")]
+        [Header("Boss 被动防御")]
         [Tooltip("Boss 被动格挡的连续计数阈值：连续格挡满该次数后，下一次受击升级为完美弹反。2 = 第 3 刀必弹反。0 = 每次被动防御都是完美弹反")]
         public int PassiveDeflectThreshold = 2;
         [Tooltip("放下防御 / 停止被压制这么久（秒）后，清零被动格挡连续计数")]
@@ -151,7 +148,7 @@ namespace ARPG.Configs
         public int ReviveCount = 1;       // 复活次数
 
         [Header("喝药惩罚（Boss）")]
-        [Tooltip("检测到玩家喝药后，延迟这么久才开始播 Bow_Heavy。Boss 正在放招时等招打完再射，不打断。箭大约再过招式表出箭点（约 1.5s）飞出。调大可让葫芦播完后仍来得及弹反。0 = 空闲时立刻出招。")]
+        [Tooltip("Boss 空闲时检测到喝药后，延迟这么久开始重箭；等待期间开始其他攻击则放弃本次惩罚。0 = 空闲时立即起手，出箭时间由招式表决定。")]
         public float HealPunishDelay = 0.5f;
     }
 

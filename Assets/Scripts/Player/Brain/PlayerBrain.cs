@@ -7,12 +7,13 @@ using ARPG.Mgr;
 namespace ARPG.Player
 {
 
+    // 将玩家输入转换为移动方向和动作命令；具体能否执行由角色状态机决定。
     [RequireComponent(typeof(PlayerInput))]
     public class PlayerBrain : BrainBase
     {
         private PlayerInput playerInput;
 
-        // Player Input 组件管理的资产实例（双方案 Auto-Switch 只作用于这个实例）
+        // 使用 PlayerInput 管理的动作资产，保持输入与设备切换一致。
         private InputActionAsset actions;
         private InputAction moveAction;
         private InputAction attackAction;
@@ -23,8 +24,9 @@ namespace ARPG.Player
         private InputAction lockOnAction;
         private bool callbacksBound;
 
-        // 专门用来暂存摇杆当前的输入值
+        // 保存键盘或摇杆的移动方向。
         private Vector2 currentMoveInput;
+        // 记录本次攻击按下，用于区分普通攻击与长按突刺。
         private bool attackPressed;
         private bool holdAttackTriggered;
         private bool holdThresholdChecked;
@@ -38,12 +40,11 @@ namespace ARPG.Player
             acceptInputAfter = Time.unscaledTime + 0.35f;
         }
 
-        // 订阅放在 Start：Player Input 组件可能在自己 Awake 里才实例化动作资产，
-        // Start 保证此时 playerInput.actions 一定就绪
+        // 等 PlayerInput 完成初始化后，再查找动作并订阅输入事件。
         private void Start()
         {
-            // 始终使用 PlayerInput 管理的实例，让设备与控制方案切换作用于同一份输入。
             actions = playerInput.actions;
+            // 恢复玩家保存的改键设置。
             InputRebindService.Load(actions);
 
             var map = actions.FindActionMap("Player");
@@ -55,9 +56,12 @@ namespace ARPG.Player
             healAction = map.FindAction("Heal");
             lockOnAction = map.FindAction("LockOn");
 
+            // 将各个输入动作接到对应回调。
             BindActions();
-            callbacksBound = true;
+            callbacksBound = true; // 销毁时据此判断是否需要解绑。
+            // 暂停时清除残留操作，避免恢复后沿用暂停前的输入。
             GamePause.OnChanged += HandlePauseChanged;
+            // 让光标管理器根据键鼠 / 手柄切换调整光标。
             CursorController.BindPlayerInput(playerInput);
         }
 
@@ -82,8 +86,7 @@ namespace ARPG.Player
             lockOnAction.started += OnLockOnStarted;
         }
 
-        // InputActionAsset 可能是项目资源，场景重载/对象销毁后仍活着。
-        // lambda 无法解绑，必须用具名回调在 OnDestroy 里卸掉，否则会打到已销毁的 PlayerBrain。
+        // 销毁时移除订阅，避免输入事件继续调用已销毁的对象。
         private void UnbindActions()
         {
             moveAction.performed -= OnMovePerformed;
@@ -111,11 +114,8 @@ namespace ARPG.Player
         private void OnAttackStarted(InputAction.CallbackContext _)
         {
             if (!CanAcceptPlayInput()) return;
-            LogTimingInput("AttackPressed");
 
-            // 忍杀意图必须在按键按下这一刻确定。
-            // 这样破防前已经开始的普通攻击，即使在松键/缓冲期间打崩 Boss，
-            // 也只会继续作为 AttackCommand，不能被状态机改解释成忍杀。
+            // 按下时决定是否忍杀，避免普通攻击在松键或缓冲期间被改成忍杀。
             if (CombatManager.Instance.HasAvailableFinisher(body))
             {
                 attackPressed = false;
@@ -125,6 +125,7 @@ namespace ARPG.Player
                 return;
             }
 
+            // 从按下时开始计时，后续按持续时长区分普通攻击与突刺。
             attackPressed = true;
             holdAttackTriggered = false;
             holdThresholdChecked = false;
@@ -133,7 +134,7 @@ namespace ARPG.Player
 
         private void OnAttackCanceled(InputAction.CallbackContext _)
         {
-            LogTimingInput("AttackReleased");
+            // 未触发长按突刺时，松键提交普通攻击。
             if (attackPressed && !holdAttackTriggered && CanAcceptPlayInput())
             {
                 body.ActiveAttack = null;
@@ -151,33 +152,20 @@ namespace ARPG.Player
         {
             if (!CanAcceptPlayInput()) return;
 
-            // 只有真实物理按下生成新的按下身份：缓冲重试、状态重入都沿用同一个 PressId，
-            // 身体侧据此保证"同一次按下只开一次弹反窗口"。
+            // 同一次按下共用 PressId，避免缓冲重试或状态重入重复开启弹反窗口。
             int pressId = body.BeginDeflectPress();
             BufferCommand(DeflectCommand.Physical(pressId));
         }
 
         private void OnDeflectCanceled(InputAction.CallbackContext _)
         {
-            LogTimingInput("DeflectReleased");
-
-            // 松开不再用 IdleCommand 覆盖尚未消费的防御按下：释放记录挂在 PressId 上，
-            // 由防御状态按窗口到期决定收刀还是继续格挡（短点按保留窗口）。
+            // 只记录松键，收刀由防御状态决定，避免短按提前关闭弹反窗口。
             body.NotifyDeflectReleased();
-        }
-
-        private void LogTimingInput(string action)
-        {
-            if (body == null || !body.EnableStateDebugLog) return;
-            Debug.Log(
-                $"[CombatTiming][{action}] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
-                $"状态={body.CurrentStatePath}，攻击按下标志={attackPressed}，" +
-                $"长按攻击已触发={holdAttackTriggered}", body);
         }
 
         private void OnDodgeStarted(InputAction.CallbackContext ctx)
         {
-            // 进 Play / Enable 时 Input System 会把残留按键当成 started，看起来像开局垫步。
+            // 只接受按钮处于按下状态的回调。
             if (!ctx.ReadValueAsButton()) return;
             if (!CanAcceptPlayInput()) return;
             BufferCommand(new DodgeCommand());
@@ -204,8 +192,7 @@ namespace ARPG.Player
             ClearDeflectInput();
         }
 
-        // 输入被暂停 / 结算 / 生命周期阻断：清掉防御按住状态与待处理的防御命令。
-        // 状态机侧的未完成尝试按生命周期取消（不记空按）；恢复输入后必须由新的物理按下重新开始。
+        // 中断操作时清除防御状态与缓冲命令，恢复后需重新按下防御。
         private void ClearDeflectInput()
         {
             if (body == null) return;
@@ -213,9 +200,10 @@ namespace ARPG.Player
             DropBufferedCommand<DeflectCommand>();
         }
 
+        // 统一限制动作回调：组件需启用，且不在入场等待、暂停或结算期间。
         private bool CanAcceptPlayInput()
         {
-            // Unity 伪 null：对象已销毁时读 isActiveAndEnabled 会抛 MissingReferenceException
+            // Unity 对象销毁后，不能再读取 isActiveAndEnabled。
             if (this == null) return false;
             if (Time.unscaledTime < acceptInputAfter) return false;
             return isActiveAndEnabled && !GamePause.IsPaused && !CombatInputGate.Blocked;
@@ -225,6 +213,7 @@ namespace ARPG.Player
         {
             if (GamePause.IsPaused) return;
 
+            // 入场等待期间保持零移动，避免接收进入游戏前的残留操作。
             if (Time.unscaledTime < acceptInputAfter)
             {
                 currentMoveInput = Vector2.zero;
@@ -233,7 +222,7 @@ namespace ARPG.Player
                 return;
             }
 
-            // 胜利结算：丢掉预输入，持续发零移动，避免还停在走路动画里
+            // 结算期间清除操作并发送零移动，让角色停止移动。
             if (CombatInputGate.Blocked)
             {
                 attackPressed = false;
@@ -248,24 +237,25 @@ namespace ARPG.Player
             ProcessHeldAttack();
 
             Vector2 rawInput = moveAction.ReadValue<Vector2>();
+            // 忽略微小输入，避免摇杆漂移造成角色移动。
             currentMoveInput = rawInput.sqrMagnitude < 0.01f ? Vector2.zero : rawInput;
-            // 先写入本帧方向。垫步从缓冲落地时 OnEnter 才能判断「有没有按方向键」。
+            // 先更新方向，再消费缓冲，让垫步进入状态时能读取本帧方向。
             body.MoveDirection = currentMoveInput;
 
-            // 1. 调用基类的 Update，让它去处理缓冲池里的 攻击、弹反、跳跃 指令
+            // 由 BrainBase 尝试执行缓冲中的攻击、防御、跳跃等离散动作。
             base.Update();
 
-            // 崩解倒地：长按格挡键应在 BrokenDeflectDodgeOpenTime 到达后切入 DeflectState。
-            // 这是系统回防：只恢复普通格挡，不开新的完美弹反窗口、不计空按，也不伪造按键身份。
-            // 玩家真实按下仍留在缓冲里优先被接受（否则会被这条请求顶掉，白丢一次弹反窗口）。
+            // 破防后按住防御可请求恢复普通格挡，不开启完美弹反窗口。
+            // 玩家按下的防御命令优先，系统请求不能覆盖它。
             if (body.IsPostureBroken && deflectAction.IsPressed()
                 && !HasBufferedCommand<DeflectCommand>())
                 BufferCommand(DeflectCommand.System(), 0.15f);
 
-            // 2. 独立处理移动指令（连绵不断的意图，不走缓冲）
+            // 移动是连续输入，每帧直接提交，不占用离散动作缓冲。
             body.TryExecuteCommand(new MoveCommand(currentMoveInput));
         }
 
+        // 按住达到配置时长后请求突刺，每次按下只请求一次。
         private void ProcessHeldAttack()
         {
             if (!attackPressed || holdAttackTriggered || holdThresholdChecked) return;
@@ -284,7 +274,7 @@ namespace ARPG.Player
             attackPressed = false;
             holdAttackTriggered = false;
             holdThresholdChecked = false;
-            // 对象停用属于生命周期阻断：未完成尝试取消（不记空按），残留命令一并丢弃。
+            // 停用时取消防御尝试，并清除残留的防御命令。
             ClearDeflectInput();
         }
     }

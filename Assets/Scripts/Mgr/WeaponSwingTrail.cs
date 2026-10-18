@@ -4,7 +4,7 @@ using UnityEngine.Rendering;
 namespace ARPG.Mgr
 {
 
-    // 刀尖细线拖尾，跟着 Hitbox 走。不做柄到尖的半圆扇面。
+    // 在武器命中框上生成刀尖拖尾，随攻击窗口开始和停止发射。
     public class WeaponSwingTrail : MonoBehaviour
     {
         const float Duration = 0.2f;
@@ -21,6 +21,7 @@ namespace ARPG.Mgr
             if (trail == null)
                 trail = gameObject.AddComponent<TrailRenderer>();
 
+            // 使用独立材质，避免一次挥刀的颜色修改影响其他角色。
             Shader spark = Shader.Find("ARPG/FX/AdditiveSpark");
             materialInst = new Material(spark);
             if (mat != null && mat.HasProperty("_MainTex"))
@@ -53,6 +54,7 @@ namespace ARPG.Mgr
         public void Begin(Color start, Color end)
         {
             ApplyColors(start, end);
+            // 清除上次轨迹，避免两次攻击之间出现连线。
             trail.Clear();
             trail.emitting = true;
         }

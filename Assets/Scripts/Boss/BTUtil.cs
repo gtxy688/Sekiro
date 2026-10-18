@@ -4,9 +4,7 @@ using ARPG.FrameWork.Body;
 namespace ARPG.Boss
 {
 
-    // 行为树节点共享的静态工具：把 Transform 目标解析成 CharacterBody 并查询状态。
-    // 三个出招节点（BT_Kengeki / BT_MoveToTarget / BT_PickActive）原来各有一份
-    // IsTargetIncapacitated 复制品，统一收敛到这里。
+    // 行为树共用的目标状态查询，统一玩家倒地和回生期间的停攻条件。
     public static class BTUtil
     {
         // 目标（玩家）是否处于"Boss 不应继续进攻"的状态（倒地 / 回生中）

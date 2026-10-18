@@ -2,8 +2,7 @@ using UnityEngine;
 
 namespace ARPG.FrameWork.Body
 {
-    // 主动弹反尝试的结束原因。必须由状态机显式告知，不能靠 OnExit 猜测离开原因，
-    // 否则"被垫步取消"和"死亡清场"会被记成同一笔账。
+    // 显式区分主动离开防御与生命周期取消，决定是否记一次空按。
     public enum DeflectAttemptEndReason
     {
         Expired,      // 窗口自然到期仍未弹中 → 空按一次
@@ -13,21 +12,11 @@ namespace ARPG.FrameWork.Body
         Lifecycle,    // 死亡 / 复战 / 对象停用 / 输入模式切换 → 取消，不记空按
     }
 
-    // 主动弹反尝试与空按惩罚的记账（重构设计 §8）。
-    //
-    // 为什么单独一个类：旧实现是"每次进防御就 count++"，无法区分"已经弹中的按下"和"还没有结果的按下"，
-    // 于是准确连弹和乱按吃同样的惩罚。"一次真实按下 = 一次尝试，结果决定是否记空按"这套生命周期
-    // 必须有一个唯一入口，成功与结束都必须幂等。
-    //
-    // 约束：
-    // - 普通 C# 类，不查 Input System / Animator / Boss 招式 / 操作状态机；判定路径的时间与配置
-    //   一律由调用方传入，边界才好断言（也方便以后补纯逻辑测试）。
-    //   只有 Reset/ClearInput 这类生命周期取消会自己读 Time.time，且该时间戳只进调试信息，不参与记账。
-    // - 参数是轻量快照，来源仍是 CharacterConfig，不为弹反参数新建 SO。
-    // - 不持有 CharacterBody：状态机统一通过 CharacterBody 门面调用本类。
+    // 按真实按下身份管理弹反窗口与空按惩罚，成功和结束均只结算一次。
+    // 时间与配置由 CharacterBody 传入，本类不操作输入、动画或状态机。
     public class DeflectAttemptTracker
     {
-        // 配置缺失时的安全兜底（沿用迁移前的玩家数值）。
+        // 参数非法时使用的安全值。
         public const float FallbackWindow = 0.5f;
         public const float FallbackWindowMin = 0.1f;
         public const float FallbackResetInterval = 0.5f;
@@ -41,9 +30,7 @@ namespace ARPG.FrameWork.Body
             public float WindowMin;           // 窗口下限（秒）
             public float EmptyResetInterval;  // 相邻两次实际开启尝试的间隔超过该值则恢复
 
-            // 非法值夹紧：基础窗口 > 0；最小窗口 ∈ (0, 基础窗口]；惩罚系数 ∈ (0, 1]；
-            // 宽容次数 ≥ 0；恢复间隔 > 0。corrected = 是否修正过，调用方据此决定要不要告警。
-            // 必须夹紧而不是信任 Inspector：非法值会除零或让弹反窗口永久消失。
+            // 将窗口、惩罚系数和恢复间隔限制在有效范围，避免窗口失效；corrected 供调用方告警。
             public Settings Normalized(out bool corrected)
             {
                 corrected = false;
@@ -60,14 +47,8 @@ namespace ARPG.FrameWork.Body
             }
         }
 
-        // 调试追踪（可选）：把记账节点抛给调用方，本类不依赖 UnityEngine 日志。
-        // 项目侧接在 CharacterBody.EnableStateDebugLog 上，便于在 Unity 内核对
-        // "一次结算 / 成功恢复 / 截止边界 / 重入与缓冲重试"。
-        public System.Action<string> Trace { get; set; }
-
         // ===== 输入边沿身份 =====
-        // 只有真实物理按下生成新 ID；系统回防（崩解自动回防、UI 选择）不生成，
-        // 因此也不会伪造出一次主动尝试。计数器只增不减：复位前残留的命令必须能被识别成过期。
+        // 只有真实按下生成 ID，系统回防不开主动窗口；ID 不复用，以便识别复位前的残留命令。
         private int nextPressId = 1;
         private int lastPressId;
         private int lastReleasedPressId;
@@ -122,21 +103,17 @@ namespace ARPG.FrameWork.Body
 
         // ===== 主动尝试 =====
 
-        // 开启一次主动尝试。返回 AttemptId；被拒绝（系统回防 / 重复按下 / 复位残留）时返回 0。
-        //
-        // 顺序固定：先结算旧尝试 → 再判恢复间隔 → 再按当前空按次数算窗口 → 最后创建。
-        // 不能反过来"先算窗口再结算"，否则第 4 次按下会提前吃掉第 4 次失败的惩罚。
+        // 开启主动尝试并返回 ID；系统回防、重复按下或复位残留返回 0。
+        // 先结算旧尝试，再恢复计数并计算新窗口，确保缩窗只依据已经发生的空按。
         public int BeginAttempt(int pressId, float now, Settings settings)
         {
             if (pressId <= 0)
             {
-                Trace?.Invoke($"忽略无身份防御请求（系统回防不开启主动窗口）t={now:F4}s");
                 return 0;
             }
 
             if (pressId <= lastAttemptedPressId || pressId < attemptedFloor)
             {
-                Trace?.Invoke($"忽略重复 pressId={pressId}（缓冲重试 / 状态重入 / 复位残留）t={now:F4}s");
                 return 0;
             }
 
@@ -145,7 +122,7 @@ namespace ARPG.FrameWork.Body
             // 1. 旧尝试：还没到期就是被新按下替换，已经到期就是自然到期 —— 两者都只记一次空按。
             EndActiveAttempt(now < activeDeadline
                 ? DeflectAttemptEndReason.Replaced
-                : DeflectAttemptEndReason.Expired, now);
+                : DeflectAttemptEndReason.Expired);
 
             // 2. 恢复：按"相邻两次实际开启尝试的间隔"判断，不按结算时刻判断。
             //    否则缓慢、正常的点按也会被当成连续空按。
@@ -165,8 +142,6 @@ namespace ARPG.FrameWork.Body
             lastAttemptedPressId = pressId;
             lastBeginTime = now;
 
-            Trace?.Invoke($"开启 attempt={attemptId} pressId={pressId} 窗口={window:F4}s " +
-                          $"连续空按={emptyCount} 间隔恢复={reset} t={now:F4}s");
             return attemptId;
         }
 
@@ -187,12 +162,10 @@ namespace ARPG.FrameWork.Body
         {
             if (activeAttemptId == 0) return;
             if (now < activeDeadline) return;
-            EndActiveAttempt(DeflectAttemptEndReason.Expired, now);
+            EndActiveAttempt(DeflectAttemptEndReason.Expired);
         }
 
-        // 唯一的时间判定：未结束的尝试 + 固定半开区间 [start, deadline)。
-        // 抬刀动画（inBegin）不再参与资格判断，动画速度或长度也就无法延长窗口；
-        // 命中恰好等于截止时间不算完美弹反。
+        // 资格只看当前尝试的半开区间 [start, deadline)，截止时刻不算成功，抬刀动画不延长窗口。
         public bool CanParry(int attemptId, float now)
         {
             if (attemptId <= 0 || attemptId != activeAttemptId) return false;
@@ -208,34 +181,30 @@ namespace ARPG.FrameWork.Body
 
             activeSucceeded = true;
             emptyCount = 0;
-            Trace?.Invoke($"成功 attempt={attemptId} 连续空按清零 t={now:F4}s");
             return true;
         }
 
-        // 状态机显式通知结束原因；幂等：非当前尝试、重复结束都不再记账。
-        // now 只进调试信息：空按记账刻意不看结束时刻（见 BeginAttempt 第 2 步）。
-        public bool EndAttempt(int attemptId, DeflectAttemptEndReason reason, float now)
+        // 按状态机给出的原因结束尝试，非当前尝试或重复结束不再记账。
+        public bool EndAttempt(int attemptId, DeflectAttemptEndReason reason)
         {
             if (attemptId <= 0 || attemptId != activeAttemptId) return false;
-            EndActiveAttempt(reason, now);
+            EndActiveAttempt(reason);
             return true;
         }
 
         // 复战 / 死亡：取消未完成尝试（不记空按），清除空按计数与输入身份。
         public void Reset()
         {
-            EndActiveAttempt(DeflectAttemptEndReason.Lifecycle, Time.time);
+            EndActiveAttempt(DeflectAttemptEndReason.Lifecycle);
             emptyCount = 0;
             lastBeginTime = 0f;
             ClearInput();
         }
 
-        // 输入被暂停 / 结算 / 生命周期阻断：只取消未完成尝试与输入身份，不动空按记忆。
-        // 恢复输入后必须由新的物理按下重新开始尝试。
-        // PressId 计数器不回收，复位前残留的命令会被 attemptedFloor 判成过期。
+        // 清除尝试和输入身份，保留空按记忆；恢复后只接受新的按下，复位前的命令按过期处理。
         public void ClearInput()
         {
-            EndActiveAttempt(DeflectAttemptEndReason.Lifecycle, Time.time);
+            EndActiveAttempt(DeflectAttemptEndReason.Lifecycle);
             attemptedFloor = nextPressId;
             lastAttemptedPressId = 0;
             lastPressId = 0;
@@ -243,11 +212,10 @@ namespace ARPG.FrameWork.Body
         }
 
         // 结束当前尝试：成功过的尝试不再记空按；生命周期取消不记空按。
-        private void EndActiveAttempt(DeflectAttemptEndReason reason, float now)
+        private void EndActiveAttempt(DeflectAttemptEndReason reason)
         {
             if (activeAttemptId == 0) return;
 
-            int endedId = activeAttemptId;
             bool penalize = !activeSucceeded && reason != DeflectAttemptEndReason.Lifecycle;
             if (penalize) emptyCount++;
 
@@ -258,8 +226,6 @@ namespace ARPG.FrameWork.Body
             activeWindow = 0f;
             activeSucceeded = false;
 
-            Trace?.Invoke($"结束 attempt={endedId} 原因={reason} " +
-                          $"{(penalize ? "记一次空按" : "不记空按")} 连续空按={emptyCount} t={now:F4}s");
         }
     }
 }

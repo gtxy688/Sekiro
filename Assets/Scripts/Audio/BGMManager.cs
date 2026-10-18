@@ -6,8 +6,7 @@ using ARPG.Mgr;
 namespace ARPG.Audio
 {
 
-    // 背景音乐播放器：循环播放 BGM，支持 Boss 第二条命 / 胜利时切换（淡入淡出）
-    // 订阅 CombatEventBus（表现层事件驱动，不轮询）。挂一个带 AudioSource 的空物体。
+    // 循环播放背景音乐，并在 Boss 剩最后一条命时切换可选的二阶段曲目。
     public class BGMManager : MonoBehaviour
     {
         [Header("背景音乐")]
@@ -27,7 +26,7 @@ namespace ARPG.Audio
 
         private void Awake()
         {
-            // 自己加一条 Source，不要 GetComponent：和 AudioManager 同物体时会抢同一条。
+            // 使用独立 AudioSource，避免与同物体的音效播放器争用。
             source = gameObject.AddComponent<AudioSource>();
             source.playOnAwake = false;
             source.loop = true;
@@ -107,7 +106,7 @@ namespace ARPG.Audio
                 });
         }
 
-        // 只 tween 淡入淡出权重，用户音量随时可改、不和淡入抢绝对值
+        // 只插值淡入淡出权重，再叠加用户音量，避免两者互相覆盖。
         private Tween FadeWeight(float target, float duration)
         {
             return DOTween.To(() => fadeWeight, w =>

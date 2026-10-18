@@ -6,8 +6,7 @@ using ARPG.FrameWork.States.Base;
 namespace ARPG.FrameWork.States.Air
 {
 
-    // 空中攻击状态：出招/连招/多段判定/转向全部继承 AttackStateBase，
-    // 差异只有四处：退出的空中待机形态、派生同款、空中专属的 Jump2 连段、落地立刻离空。
+    // 复用攻击基类的判定与表现，补充二段跳取消、结束后续滞空和落地立即退出规则。
     public class AirAttackState : AttackStateBase
     {
         private float enterTime;
@@ -17,7 +16,7 @@ namespace ARPG.FrameWork.States.Air
         {
         }
 
-        // 落地立刻离空：刚进招给一帧宽限，上升中不当落地，避免贴地起跳误掐
+        // 进入后保留短暂宽限且上升时不判落地，避免贴地起跳误取消攻击。
         public override bool WantsImmediateLand
         {
             get

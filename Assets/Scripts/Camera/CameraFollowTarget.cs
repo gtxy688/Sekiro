@@ -3,10 +3,8 @@ using UnityEngine;
 namespace ARPG.Camera
 {
 
-    // 相机跟随点：位置硬跟上玩家，不平滑。
-    // 平滑会让镜头慢半拍，人和镜头错开，画面发糊（老花眼）。
-    // 存在的意义只有一个：不把玩家动画 yaw 传给相机（旋转保持 identity，锁定时才朝 Boss）。
-    // 不要挂成玩家子物体。
+    // 同步玩家位置并隔离动画旋转，锁定时才朝向目标；保持独立于玩家层级。
+    // 位置直接跟随，避免角色与相机之间出现额外延迟。
     [DefaultExecutionOrder(-100)]
     public class CameraFollowTarget : MonoBehaviour
     {

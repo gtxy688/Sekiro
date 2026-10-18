@@ -9,8 +9,8 @@ using ARPG.Mgr;
 namespace ARPG.FrameWork.States.Dead
 {
 
-    // 回生待机（M14）：Dead 倒地 → Deading 躺地等待。
-    // 倒地过程中不收输入；躺平且压暗结束后，攻击 / 起死回生 → Revive 爬起；防御 / 就此死去 → 真死。不超时。
+    // 倒地后等待回生选择，阶段计时结束才开放输入，选择等待不超时。
+    // 攻击键回生并播放起身，防御键放弃回生进入真死。
     public class RevivePendingState : BaseState
     {
         private HierarchicalState parent;

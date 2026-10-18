@@ -7,16 +7,8 @@ using ARPG.FrameWork.States.Ground;
 namespace ARPG.FrameWork.Body
 {
 
-    // 弹反记忆模块（CharacterBody 重构试点二）。
-    // 职责：Boss 侧被动防御记账（M7：连挡计数升级完美弹反）+ 连续被弹计数。
-    // 玩家侧主动弹反的窗口与空按惩罚已迁往 DeflectAttemptTracker（按有效尝试的结果记账），
-    // 本类不再持有按次计数：那种记法会把"还没得到结果的按下"直接算成失败。
-    // 约束：
-    // - 计数/时间戳等运行时状态收在本类内部，CharacterBody 不再持有；
-    // - Inspector 字段 EnablePassiveDeflect 留在 CharacterBody（prefab 已保存该值），模块只读；
-    // - 切状态的编排权通过构造注入的委托交回 Façade：模块只判定"要不要进格挡、以哪种级别进"，
-    //   自己不碰状态机（与"模块请求、Façade 编排"的拆分原则一致）；
-    // - 架构红线：不判状态类型，只依赖 body 的语义化标志（IsAttacking/IsParried/IsPostureBroken/IsDefeated）。
+    // 记录 Boss 连续格挡和被完美弹反次数，达到连挡阈值后请求升级为完美弹反。
+    // 是否能防御通过角色标志判断，状态切换交给构造时注入的委托。
     public class DeflectMemory
     {
         private readonly CharacterBody body;
@@ -44,10 +36,11 @@ namespace ARPG.FrameWork.Body
             ConsecutiveTimesParried = 0;
         }
 
-        // ===== M7 Boss 被动防御（只狼攻防转换）=====
+        // ===== Boss 被动防御（只狼攻防转换）=====
         private int passiveDeflectCount;
         private float lastPassiveDeflectTime;
 
+        // 可防御时按连续格挡次数选择普通格挡或完美弹反，并当场处理命中。
         public bool TryPassiveDeflect(HitData hit)
         {
             if (!body.EnablePassiveDeflect || body.IsDefeated) return false;
@@ -66,9 +59,7 @@ namespace ARPG.FrameWork.Body
             bool upgraded = passiveDeflectCount >= threshold;
             passiveDeflectCount = upgraded ? 0 : passiveDeflectCount + 1;
 
-            // 强制进格挡姿态并当场处理这次命中（PerfectParry 弹开攻击者 / PassiveGuard 普通格挡）。
-            // 切状态编排权在 Façade（委托注入）。计数先行更新：即使进不了格挡（如空中），
-            // 也和迁移前行为一致——本次命中仍消耗连挡窗口。
+            // 先记连挡再请求切状态，因此空中等切换失败的命中也会消耗本次连挡计数。
             DeflectEntryMode mode = upgraded ? DeflectEntryMode.PerfectParry : DeflectEntryMode.PassiveGuard;
             return enterDeflectState(hit, mode);
         }

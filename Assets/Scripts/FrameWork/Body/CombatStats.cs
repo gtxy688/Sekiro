@@ -8,9 +8,8 @@ using ARPG.Mgr;
 namespace ARPG.FrameWork.Body
 {
 
-    // 每个角色独立持有的数值模块：管理 HP、架势、葫芦、回生和命数。
-    // 从 CharacterConfig 读取属性，通过 CombatEventBus 通知表现层。
-    // 崩解和死亡通过回调交给 CharacterBody 切状态，本类不直接操作状态机。
+    // 按 CharacterConfig 管理角色 HP、架势、葫芦、回生和命数，通过事件通知表现层。
+    // 崩解和死亡通过回调交给 CharacterBody 切状态。
     public class CombatStats
     {
         private readonly CharacterBody body;
@@ -87,7 +86,7 @@ namespace ARPG.FrameWork.Body
             }
         }
 
-        // 累计架势。防御/弹反也会加少量（M9 细则接），这里统一入口。
+        // 统一累计伤害、格挡或弹反带来的架势，并在达到上限时通知角色崩解。
         // allowBreak=false：本次累计不会导致崩解（只狼：完美弹反时自己的架势永不崩防）
         public bool AccumulatePosture(
             float amount,
@@ -151,7 +150,7 @@ namespace ARPG.FrameWork.Body
                 // 基础回复速度
                 float rate = config.PostureDecayRate;
 
-                // 按住格挡 2s 后回复 ×5（只狼：格挡姿态回架势快）
+                // 格挡姿态使用配置中的回复倍率；是否开始回复仍由受击延迟控制。
                 if (body.IsGuarding)
                 {
                     rate *= config.GuardPostureRecoveryMultiplier;
@@ -168,7 +167,7 @@ namespace ARPG.FrameWork.Body
             }
         }
 
-        // 喝葫芦（M16）：有次数就能喝；满血也播动画、扣次数，HP 加完仍封顶
+        // 喝葫芦：有次数就能喝；满血也播动画、扣次数，HP 加完仍封顶
         public bool UseGourd()
         {
             CharacterConfig config = body.Config;
@@ -182,14 +181,14 @@ namespace ARPG.FrameWork.Body
             return true;
         }
 
-        // 死亡判定（M14）：有复活次数 → 进回生待机（先变暗，倒完再出选项）；否则直接真死
+        // 死亡判定：有复活次数 → 进回生待机（先变暗，倒完再出选项）；否则直接真死
         private void HandleDeath()
         {
             body.AttackUninterruptible = false;
             body.DisableWeaponHit();
             if (ReviveRemaining > 0)
             {
-                // 画面开始变暗（M13 接 OnReviveAvailable）；倒完再出回生选项
+                // 画面开始变暗（接 OnReviveAvailable）；倒完再出回生选项
                 CombatEventBus.TriggerReviveAvailable(body);
                 onDeath(true);
             }
@@ -200,7 +199,7 @@ namespace ARPG.FrameWork.Body
             }
         }
 
-        // 复活（M14）：回满血 + 架势清零（用户决策：直接回满），扣除一次复活次数
+        // 回生时回满血、清空架势并扣除一次回生次数。
         public void Revive()
         {
             CharacterConfig config = body.Config;
@@ -217,7 +216,7 @@ namespace ARPG.FrameWork.Body
                 CombatManager.Instance.BossRef.ResetConsecutiveTimesParried();
         }
 
-        // 处决清一条命（M10 用）：扣命 → 没命了发胜利事件；还有命 → 重置架势回满血接着打
+        // 处决清一条命：扣命 → 没命了发胜利事件；还有命 → 重置架势回满血接着打
         public void ClearLife()
         {
             LivesRemaining--;

@@ -11,29 +11,16 @@ using ARPG.Player;
 namespace ARPG.FrameWork.States.Ground
 {
 
-    // 防御状态（M4）：短按/长按都是格挡。
-    //   待机按下 → Deflect_Begin（抬刀）→ 静止 Deflect_Guard / 移动 Deflect_Walk|Deflect_Strafe
-    //   走着按下 → 跳过抬刀，直接进移动格挡（对齐当前步伐，避免根运动被掐断抽搐）
-    //   格挡中再按 → Deflect_Repeat（抖刀），开一次新的弹反窗口；没有 Repeat 状态则回退抬刀
-    //   窗口内挡住 → Deflect_Slash；窗口外挡住 → 普通格挡受击
-    //   长按松手 → Deflect_Cancel（收刀）；短按松手窗口保留到到期，直接回待机
-    //
-    // 主动弹反只由一个入口判定：DeflectAttemptTracker 里"未结束的尝试 + 固定半开窗口"。
-    // 抬刀阶段（inBegin）只管表现，不再放行弹反资格，动画播放速度/长度也就无法延长窗口。
-    // 一次真实按下 = 一次尝试；弹中则清罚，到期/被替换/被垫步取消/被打断才记空按。
-    // 系统回防（崩解恢复自动回防、UI 选择）pressId = 0，只恢复普通格挡：不开窗口、不计空按。
-    //
-    // M7 被动防御：只狼模式中 Boss 的格挡不是"AI 按按钮"，而是玩家命中瞬间的
-    // 防御判定。DeflectEntryMode.PassiveGuard（普通格挡，留下防御姿态）与
-    // DeflectEntryMode.PerfectParry（强制完美弹反，弹开攻击者）由 CharacterBody
-    // 的 TryPassiveDeflect 路由进入，不参与玩家主动尝试记账，处理完锁定中的命中后保持姿态片刻退出。
+    // 区分主动防御与 Boss 受击时直接触发的被动防御；被动入口不参与主动弹反记账。
     public enum DeflectEntryMode
     {
-        Normal,       // 玩家/BT 主动按防御（原 M4 流程）
+        Normal,       // 主动防御，真实按下可开启弹反窗口
         PassiveGuard, // 被动防御：本次命中按窗口外处理（普通格挡 Block + 架势涨）
         PerfectParry  // 被动防御升级：强制完美弹反（弹开攻击者，抢回主动权）
     }
 
+    // 处理举刀、格挡受击、弹反与收刀，并安排 Boss 弹反后的反击。
+    // 主动弹反资格统一查 Tracker，抬刀动画只影响表现，系统回防不开主动窗口。
     public class DeflectState : BaseState
     {
         private HierarchicalState parent;
@@ -46,14 +33,10 @@ namespace ARPG.FrameWork.States.Ground
         private bool releasedDuringWindow; // 窗口内已经松手：短点按，到期直接回待机，不走收刀
         private const float PassiveHoldDuration = 0.25f; // 普通格挡姿态保持时长（玩家连打会被连续重进场）
         private const float PerfectHoldMax = 1.1f;    // 完美弹反兜底：弹反挥刀动画缺失/异常时强制收刀
-        // 弹反收刀阈值：动画主体基本播完才收刀——弹反的"弹开表现"必须完整呈现，
-        // 直接砍掉动画立刻反手会显得 Boss"莫名其妙就打人"，且玩家失去格挡窗口。
+        // 无反击命令时等弹反动画主体播完再收刀。
         private const float PerfectExitNormalized = 0.9f;
 
-        // 完美弹反后收到的反击攻击配置：BT_Kengeki 在弹反瞬间抽好，先存下，
-        // 反击的发起时刻按"目标命中时刻 - 该招 HitStartTime"倒推（counterFireTime），
-        // 恢复基准由被弹方 ParriedState 的动画进度与最小硬直共同预测。
-        // 前摇过长或首段无命中的多段招不能保证按目标时刻命中。
+        // 缓存 BT_Kengeki 选择的反击，用对手预计恢复时刻与本招前摇倒推起手时间。
         private AttackConfig pendingCounter;
         public bool HasPendingCounter => pendingCounter != null;
         private float counterFireTime;
@@ -116,8 +99,7 @@ namespace ARPG.FrameWork.States.Ground
 
             body.IsGuarding = true;
 
-            // M7 被动防御入口：不参与玩家主动尝试记账、无抬刀动画，直接处理锁定中的命中，
-            // 处理完保持防御姿态，由 OnUpdate 的被动退出逻辑按时收刀。
+            // 被动入口直接结算传入的命中，再短暂保持防御姿态，不开主动尝试。
             if (mode != DeflectEntryMode.Normal)
             {
                 if (pendingHit.HasValue)
@@ -131,27 +113,18 @@ namespace ARPG.FrameWork.States.Ground
                 return;
             }
 
-            // 主动防御入口：只有真实物理按下才开启尝试。窗口从"身体实际接受并开启防御"的
-            // Time.time 起算，预输入时间不作为起点；系统回防只恢复普通格挡。
+            // 真实按下从身体接受防御时开启窗口，预输入等待不计入窗口；系统回防只恢复格挡。
             if (pressId > 0)
             {
                 attemptId = body.BeginDeflectAttempt(pressId);
 
-                // 命令延迟消费、而该 PressId 已经松开：按短点按处理（窗口照开并标记已释放），
-                // 不能凭"没按住"就丢掉这一次有效点按。
+                // 延迟消费时已松开的按下仍算有效点按，保留它的完整窗口。
                 if (attemptId != 0 && body.IsDeflectPressReleased(pressId))
                     releasedDuringWindow = true;
             }
 
-            if (body.EnableStateDebugLog)
-            {
-                Debug.Log(
-                    $"[CombatTiming][DeflectEnter] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
-                    $"pressId={pressId} attempt={attemptId} 窗口={body.CurrentDeflectWindow:F4}s " +
-                    $"连续空按={body.DeflectEmptyCount} 入口={mode}", body);
-            }
 
-            // 格挡中再按：抖刀，不要重播抬刀。没有 Repeat Clip（Boss）则走原来的抬刀/走路融合
+            // 再按优先播抖刀，缺少 Repeat 动画时回退到抬刀或移动融合。
             if (remash && AnimUtil.HasState(body.Animator, "Deflect_Repeat"))
             {
                 inBegin = true;
@@ -177,8 +150,7 @@ namespace ARPG.FrameWork.States.Ground
 
         public override void OnUpdate()
         {
-            // 状态 Update 与命中入口都要先按当前时间推进尝试到期，
-            // 否则两者的执行顺序会改变"窗口外命中"的结果（设计文档 §5）。
+            // Update 与命中入口都先推进尝试到期，避免调用先后改变窗口外命中的结果。
             body.AdvanceDeflectAttempt();
 
             if (canceling)
@@ -188,20 +160,12 @@ namespace ARPG.FrameWork.States.Ground
                 if ((AnimUtil.IsPlaying(cancelInfo, "Deflect_Cancel") && cancelInfo.normalizedTime >= 0.95f)
                     || cancelTimer >= cancelDuration)
                 {
-                    if (body.EnableStateDebugLog)
-                    {
-                        Debug.Log(
-                            $"[CombatTiming][DeflectCancelEnd] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
-                            $"收刀计时={cancelTimer:F4}s，收刀动画进度={cancelInfo.normalizedTime:F3}，" +
-                            $"到达超时={cancelTimer >= cancelDuration}，随后进入Idle", body);
-                    }
                     parent.SubStateMachine.ChangeState(new IdleState(body, parent));
                 }
                 return;
             }
 
-            // M7 被动防御：处理完命中后保持防御姿态一段时间即收刀回待机，
-            // 玩家连打时每次命中都会重新进场（GetDeflectState），姿态得以延续。
+            // 被动防御短暂持刀；完美弹反若已有反击配置，则等待预计起手时刻。
             if (mode != DeflectEntryMode.Normal)
             {
                 // 普通格挡受击动画（Hurt_Guard）也要播完，再按持姿态时长收刀
@@ -287,8 +251,7 @@ namespace ARPG.FrameWork.States.Ground
                 RotateIfMoving();
             }
 
-            // 窗口内松手：短点按。窗口不因松开而取消，等到期再决定收刀还是继续格挡
-            // （本次明确的操作设计调整：旧实现松开立刻 StartCancel，把点按的剩余弹反窗口砍掉了）。
+            // 短点按松手仍保留弹反窗口，到期后直接回待机。
             if (IsParryWindowActive() && IsReleased()) releasedDuringWindow = true;
 
             // 主动窗口到期后：松开则退出防御，仍按住则继续普通格挡（长按不会自动续窗）。
@@ -369,9 +332,7 @@ namespace ARPG.FrameWork.States.Ground
                 // 系统回防：已经有主动窗口时不重建状态，避免把正在进行的一次尝试打断。
                 if (!deflectCmd.IsPhysicalPress && IsParryWindowActive()) return true;
 
-                // 再按防御：重新进状态开一次新窗口。Tracker 内部先结算旧尝试
-                // （被替换 = 空按一次）再按当前空按次数算新窗口；同一个 PressId 的
-                // 缓冲重试或状态重入不会重复开窗，也不会重复记账。
+                // 再按时由 Tracker 先结算旧尝试再开新窗，同一 PressId 的重试不会重复记账。
                 parent.SubStateMachine.ChangeState(new DeflectState(body, parent, remash: true,
                     pressId: deflectCmd.PressId));
                 return true;
@@ -385,11 +346,7 @@ namespace ARPG.FrameWork.States.Ground
                 return true;
             }
 
-            // M7 完美弹反后的反击命令：BT_Kengeki（KengekiArmed 已置位）在弹反瞬间抽好反击招下发。
-            // 不立即出招——按"目标命中时刻 - 该招 HitStartTime"倒推出发起时刻，
-            // 可及时起手的单段近战以被弹方预计恢复 + ParryCounterHitDelay 为命中目标。
-            // 长前摇、多段位移/弓段仍按原招式执行，不承诺统一命中时刻。
-            // 只对被动完美弹反（Boss）生效；玩家主动弹反走 Normal 模式不受影响。
+            // Boss 被动弹反后缓存反击招，用对手恢复时间倒推起手；长前摇或多段招不保证统一命中时刻。
             if (mode == DeflectEntryMode.PerfectParry && cmd is AttackCommand)
             {
                 if (body.ActiveAttack != null)
@@ -439,20 +396,10 @@ namespace ARPG.FrameWork.States.Ground
         // 完美弹反：弹开攻击者 + 打铁表现。玩家弹反 Boss 且 Boss 架势崩时给玩家处决确认窗口。
         private bool HandlePerfectParry(HitData hit)
         {
-            // 主动尝试的成功记账必须早于任何状态切换（飞舟末刀互弹、架势崩解转忍杀准备、
-            // Boss 交锋反击），否则清罚会丢在切换里。被动入口没有主动尝试（attemptId = 0），
-            // 这里天然不会误记到玩家账上。
+            // 主动尝试先记成功再切状态，避免特殊反制或崩解切换遗漏清罚。
             if (mode == DeflectEntryMode.Normal)
                 body.RecordDeflectSuccess(attemptId);
 
-            if (body.EnableStateDebugLog || (hit.attacker != null && hit.attacker.EnableStateDebugLog))
-            {
-                Debug.Log(
-                    $"[CombatTiming][PerfectParry] t={Time.time:F4}s frame={Time.frameCount} " +
-                    $"弹反方={body.name}，攻击方={(hit.attacker != null ? hit.attacker.name : "<none>")}，" +
-                    $"箭矢={hit.isProjectile}，入口={mode}",
-                    body);
-            }
 
             if (!hit.isProjectile && hit.attacker != null
                 && HitReactionUtil.IsPlayer(body)
@@ -470,13 +417,8 @@ namespace ARPG.FrameWork.States.Ground
                     gain,
                     allowBreak: true,
                     source: PostureBreakSource.Deflect);
-                // 被弹断：统一给双方走 ParriedState 硬直，被弹方短暂停顿 → 弹反方拿先手。
-                // 两道例外：
-                //   1. 打不断的招（危字 / 飞舟 / JumpThrust）维持原样，招继续，保留连续弹反。
-                //   2. 多段连招只在末段被弹才断，中间段弹中招继续 —— 否则弹第一下就掐断，
-                //      后面几刀砍不出来，连续弹反就没了。
-                // armKengeki: false 必须显式传：默认值会给被弹方挂 KengekiArmed，
-                // 变成"玩家一弹反 Boss 立刻反击"，刚拿到的先手权当场又没了。
+                // 非霸体招只在末刀被弹时打断，保留中间段的连续弹反。
+                // 被弹方不武装交锋，避免它刚失去先手就立即反击。
                 if (!brokeAttackerPosture && !hit.attacker.AttackUninterruptible
                     && AttackStateBase.IsLastHit(hit.attacker))
                 {
@@ -516,9 +458,7 @@ namespace ARPG.FrameWork.States.Ground
             if (HitReactionUtil.IsPlayer(body) && HitReactionUtil.IsArrowHeavyGuard(hit))
                 CombatEventBus.TriggerHeavyArrowDefended(body, perfect: true);
 
-            // 弹反忍杀确认窗口只给玩家（DeflectToFinsher）。Boss 被动弹反玩家不进入处决准备；
-            // Boss 打崩玩家后继续播弹反挥刀（Normal 且攻击者是玩家时 mode 也是 Normal，此处靠
-            // FinisherReadyState 的准入 + 该分支共同约束）。
+            // 主动弹反打崩对手且存在确认动画时进入忍杀准备，具体发起资格由准备状态检查。
             if (brokeAttackerPosture && mode == DeflectEntryMode.Normal &&
                 AnimUtil.HasState(body.Animator, "DeflectToFinsher"))
             {
@@ -648,6 +588,7 @@ namespace ARPG.FrameWork.States.Ground
             return true;
         }
 
+        // 持续修正对手恢复预测，再减去本招前摇，得到反击起手时刻。
         private bool RefreshCounterFireTime()
         {
             if (parriedOpponent != null && parriedOpponent.IsParried)
@@ -665,12 +606,6 @@ namespace ARPG.FrameWork.States.Ground
         {
             if (canceling) return;
 
-            if (body.EnableStateDebugLog)
-            {
-                Debug.Log(
-                    $"[CombatTiming][DeflectCancelStart] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
-                    $"状态={body.CurrentStatePath}，入口={mode}，收刀超时={cancelDuration:F3}s", body);
-            }
 
             canceling = true;
             inBegin = false;
@@ -679,6 +614,7 @@ namespace ARPG.FrameWork.States.Ground
             AnimUtil.TryCrossFade(body.Animator, "Deflect_Cancel", 0.05f);
         }
 
+        // 按移动与锁定选择举刀循环，进入移动格挡时可沿用当前步伐进度。
         private void PlayGuardLoop(bool force, bool matchCycle = false, float blendSeconds = 0.08f)
         {
             bool moving = body.MoveDirection.sqrMagnitude > 0.01f;
@@ -769,8 +705,7 @@ namespace ARPG.FrameWork.States.Ground
             return open > 0f && arrowHeavyLockTimer >= open;
         }
 
-        // 箭 Heavy 动画锁定的提前结束。cmd 是触发取消的那条命令：它带着本次按下的身份，
-        // 必须原样传给下一个防御状态，否则这一下只会恢复普通格挡，白丢弹反窗口。
+        // 提前结束重箭动作锁；防御命令的 PressId 必须继续传递，才能开启新的主动窗口。
         void FinishArrowHeavyLockEarly(ICommand cmd)
         {
             waitingGuardHurt = false;

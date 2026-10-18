@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Parse GenichiroMoveTable.asset and emit GenichiroMoveCatalog.cs."""
+"""解析招式表资产并生成 C# 回填目录，辅助代码来自同目录的 _catalog_ 模板片段。"""
 import re
 from pathlib import Path
 
@@ -72,6 +72,7 @@ def parse_entry_windows(block):
     return parse_windows(base[matches[-1].end():], "    - ")
 
 
+# 用招式级 windows 的缩进边界隔开动画分支，分支内可带独立窗口。
 def parse_sequences(block):
     base = block.split("\n    baseDamage:")[0]
     seq_m = re.search(r"    sequences:\n", base)
@@ -111,6 +112,7 @@ def parse_windows(body, prefix):
     return wins
 
 
+# 招式窗口和分支窗口的缩进不同，按传入前缀读取字段与命中事件。
 def parse_window(text, prefix):
     leading = len(prefix) - len(prefix.lstrip(" "))
     sub_indent = " " * (leading + 2)
@@ -261,6 +263,7 @@ HELPERS = Path(__file__).with_name("_catalog_helpers.cs").read_text(encoding="ut
 POST = Path(__file__).with_name("_catalog_post.cs").read_text(encoding="utf-8")
 
 
+# 资产负责招式数据，两个模板负责辅助方法；这里仅组装后覆盖目录源码。
 def main():
     text = ASSET.read_text(encoding="utf-8")
     meta = {k: coerce(m.group(1)) for k in (

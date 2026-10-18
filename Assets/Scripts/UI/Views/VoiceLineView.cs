@@ -21,8 +21,7 @@ namespace ARPG.UI
             Hide();
         }
 
-        // 连战：上一场没播完的台词不能飘进新一场。
-        // 用 HideLine 走淡出而不是直接 Hide，避免切场瞬间文字硬切消失。
+        // 复战时淡出上一场台词，避免字幕跨场残留。
         public override void ResetForEncounter()
         {
             HideLine();

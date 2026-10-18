@@ -3,9 +3,10 @@ using System.Collections.Generic;
 namespace ARPG.Boss.BehaviourTree
 {
 
+    // 按优先级尝试子节点；只有声明锁定的运行中节点会在下一帧优先续跑。
     public class Selector : Node
     {
-        // Running 记忆：只对 ISelectorLock 续跑。禁止记住 BT_MoveToTarget，否则追击时招架抢不到。
+        // 走位节点不锁定，保证每帧都能被更高优先级的出招节点抢占。
         private int runningChildIndex = -1;
 
         public Selector(List<Node> children) : base(children) { }

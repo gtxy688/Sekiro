@@ -4,15 +4,8 @@ using ARPG.FrameWork;
 namespace ARPG.FrameWork.Body
 {
 
-    // 移动感知模块（CharacterBody 重构）：接地检测（迟滞防抖）+ 坠图保护 + 跳跃冲量 +
-    // 锁定四向动画参数 + 相机相对输入换算 + 跳跃跟髋骨采样。
-    // 约束：
-    // - Inspector 字段（groundCheckPoint/groundLayer/groundHysteresisFrames/fallKillY/GameCamera 等）
-    //   留在 CharacterBody（prefab 已保存），模块只读；
-    // - 接地点和地面层直接读取 CharacterBody 的 Inspector 配置；
-    // - MoveDirection/IsAirborne 等移动意图标志由状态/AI 写入，仍留在 Façade，模块不拥有；
-    // - 跳跃冲量等 FixedUpdate 再写速度：Animator 是 Animate Physics，根运动会在物理帧盖掉
-    //   velocity.y，所以起跳只记 pending（ApplyPendingJumpVelocity 由 Façade 的 FixedUpdate 驱动，时机不变）。
+    // 管理接地检测、坠图保护、跳跃速度、移动动画参数和相机相对输入换算。
+    // 配置与移动意图读取 CharacterBody，内部缓存感知结果、待补写的跳跃速度与骨骼引用。
     public class Locomotion
     {
         private readonly CharacterBody body;
@@ -90,9 +83,7 @@ namespace ARPG.FrameWork.Body
                 return;
             }
 
-            // 迟滞防抖：结果必须连续 N 帧保持一致才翻转 IsGrounded。
-            // 否则球边缘蹭到地面时，物理步进会让 true/false 每帧抖动，
-            // 导致 GroundedState(Idle) ↔ AirState(Jump) 反复横跳（"莫名其妙的待机+跳跃动画"）
+            // 新结果连续保持 N 帧才翻转接地状态，避免地面边缘抖动导致反复切换空地状态。
             if (check == groundedHysteresis)
             {
                 groundedChangeFrames = 0;
@@ -111,11 +102,7 @@ namespace ARPG.FrameWork.Body
 
         // --- 坠出地图保护 ---
         // 脚下有真实地面时持续记录；坠过 fallKillY 传回最近一次记录。
-        // 必须用原始检测结果记录，不能用 IsGrounded：迟滞有 2 帧延迟，
-        // 被传送/击飞到空中的头几帧 IsGrounded 仍是 true，会把空中坐标记成"安全点"，
-        // 之后每次回传都落回虚空，永远回不到地面（实测踩过的坑）。
-        // 写 transform 后同步 Rb.position 并清零速度（与 OnAnimatorMove 同一套写法），
-        // 落回地面后原始检测立刻为 true，迟滞跟进翻转，空中状态经正常落地流程回地面。
+        // 安全点只认原始检测结果，避免接地迟滞把刚离地的空中位置误记为落点。
         private Vector3 lastSafePosition;
         private bool hasSafePosition;
 
@@ -136,8 +123,7 @@ namespace ARPG.FrameWork.Body
             Debug.LogWarning($"[CharacterBody] {body.name} 坠出地图（y < {body.fallKillY}），已传回安全落点 {lastSafePosition}");
         }
 
-        // 跳跃冲量要等到 FixedUpdate 再写速度：
-        // Animator 是 Animate Physics，根运动在物理帧里会把 velocity.y 盖掉。
+        // 起跳后在 FixedUpdate 补写一次速度，避免 Animate Physics 的根运动覆盖起跳速度。
         private float pendingJumpSpeed;
         private bool hasPendingJump;
 
@@ -152,8 +138,6 @@ namespace ARPG.FrameWork.Body
             hasPendingJump = true;
             ApplyJumpVelocity(speed);
         }
-
-        // （横扫跳踩已删除：未实现对应踩头反制，Jump2 保留为空中二段）
 
         // 返回 true = 命令吃掉。playedNew = 本次新播了 Jump2（已用过则为 false）。
         public bool TryAirJump2(out bool playedNew)
@@ -179,7 +163,7 @@ namespace ARPG.FrameWork.Body
             body.Rb.velocity = new Vector3(v.x, speed, v.z);
         }
 
-        // Façade 的 FixedUpdate 每物理帧调用：pending 存在才写速度
+        // CharacterBody.FixedUpdate 只在有待处理起跳时补写速度。
         public void ApplyPendingJumpVelocity()
         {
             if (!hasPendingJump) return;
@@ -187,14 +171,13 @@ namespace ARPG.FrameWork.Body
             hasPendingJump = false;
         }
 
-        // 忍杀锁定时取消未生效的起跳（原 IsFinisherLocked setter 内联逻辑）
+        // 忍杀锁定时取消下一物理帧的起跳补写。
         public void CancelPendingJump()
         {
             hasPendingJump = false;
         }
 
-        // 摇杆输入 → 世界移动方向（相机相对，原神式）：
-        // 输入先经相机水平朝向变换，W = 远离镜头、A/D = 屏幕左右，与相机摆放无关
+        // 按相机水平前方和右方，将摇杆输入转换为世界方向。
         public Vector3 InputToWorldDir(Vector2 inputDir)
         {
             UnityEngine.Camera cam = body.GameCamera != null ? body.GameCamera : UnityEngine.Camera.main;
@@ -231,7 +214,6 @@ namespace ARPG.FrameWork.Body
         private void ResolveMoveParams()
         {
             if (moveParamsResolved) return;
-            // StringToHash 是 Animator 的静态方法，用类型名限定（不能经实例属性调用）
             moveXHash = Animator.StringToHash("MoveX");
             string forwardName = "MoveY";
             foreach (AnimatorControllerParameter parameter in body.Animator.parameters)

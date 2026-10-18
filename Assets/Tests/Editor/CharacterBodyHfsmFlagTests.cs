@@ -10,6 +10,7 @@ using ARPG.FrameWork.States.Base;
 
 namespace ARPG.Tests.Editor
 {
+    // 验证攻击标志取自当前状态，并在状态退出期间保持一致。
     public sealed class CharacterBodyHfsmFlagTests
     {
         private GameObject bodyObject;
@@ -26,7 +27,7 @@ namespace ARPG.Tests.Editor
             config = ScriptableObject.CreateInstance<CharacterConfig>();
             body.Config = config;
 
-            // 测试角色也提供实际需要的配置和武器，不依赖生产代码替缺失依赖兜底。
+            // 提供角色初始化所需的配置和武器。
             var weaponObject = new GameObject("Weapon");
             weaponObject.transform.SetParent(bodyObject.transform, false);
             body.weaponHitbox = weaponObject.AddComponent<Hitbox>();
@@ -87,8 +88,7 @@ namespace ARPG.Tests.Editor
             {
             }
 
-            // Deliberately bypasses AttackStateBase.OnEnter: the test must prove
-            // IsAttacking comes from the current leaf, not an OnEnter side effect.
+            // 跳过攻击状态的进入逻辑，验证标志来自当前状态而非进入时的赋值。
             public override void OnEnter()
             {
             }

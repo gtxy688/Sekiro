@@ -23,6 +23,7 @@ namespace ARPG.Boss.BehaviourTree
         private bool jumpThrustCameraActive;
         private float jumpThrustBossBaseY;
         private bool waitingForStart;
+        // 首段已计算过起手约束时，还需等普通格挡退出；此标记参与派发条件。
         private bool scheduleLogged;
 
         public bool IsBusy => started;
@@ -34,6 +35,7 @@ namespace ARPG.Boss.BehaviourTree
             this.table = table;
         }
 
+        // 清除分段进度和角色上的招式上下文，并成对关闭招式镜头。
         public void ResetMove()
         {
             ReleaseJumpThrustCamera();
@@ -52,6 +54,7 @@ namespace ARPG.Boss.BehaviourTree
             segment = 0;
         }
 
+        // 选定一条可播放的动画分支，再尝试派发首段；等待起手也算执行中。
         public NodeState Begin(BossMoveEntry move, bool interruptCurrent = false)
         {
             ResetMove();
@@ -89,7 +92,7 @@ namespace ARPG.Boss.BehaviourTree
                 waitingAttack = false;
                 segment++;
                 TryInterruptAir5();
-                // Clip 末段已是下落：起跳段一结束就收镜头，不要挂到落地突刺。
+                // 起跳段结束时关闭跟随镜头，落地突刺沿用普通战斗镜头。
                 if (jumpThrustCameraActive && segment > 0)
                     ReleaseJumpThrustCamera();
                 if (segment >= sequence.states.Length)
@@ -104,6 +107,7 @@ namespace ARPG.Boss.BehaviourTree
             return FireCurrentSegment();
         }
 
+        // 五连箭的后撤段结束后，可按表中概率换成重箭，并结算原招冷却。
         private void TryInterruptAir5()
         {
             if (entry.id != "Bow_Air5" && entry.id != "Kengeki_Air5") return;
@@ -121,6 +125,7 @@ namespace ARPG.Boss.BehaviourTree
             segment = 0;
         }
 
+        // 先等待首段起手条件，再烘焙配置交给角色攻击状态执行。
         private NodeState FireCurrentSegment()
         {
             string anim = sequence.states[segment];
@@ -137,14 +142,6 @@ namespace ARPG.Boss.BehaviourTree
                 float firstCue = FirstOffensiveCueTime(w);
                 float earliestStart = body.AttackHitNotBeforeTime - firstCue;
                 waitingForStart = Time.time < earliestStart;
-                if (!scheduleLogged && body.EnableStateDebugLog)
-                {
-                    Debug.Log(
-                        $"[CombatTiming][BossAttackSchedule] t={Time.time:F4}s frame={Time.frameCount} {body.name} " +
-                        $"招式={entry.id}/{anim}，玩家标准第一刀={body.PlayerParryExpectedHitTime:F4}s，" +
-                        $"Boss最早判定={body.AttackHitNotBeforeTime:F4}s，首段前摇={firstCue:F3}s，" +
-                        $"倒推最早起手={earliestStart:F4}s，需要等待={waitingForStart}", body);
-                }
                 scheduleLogged = true;
                 if (waitingForStart) return NodeState.Running;
             }

@@ -5,10 +5,8 @@ using UnityEngine.Rendering;
 namespace ARPG.Camera
 {
 
-    // 相机避障兜底表现：镜头被墙挤到玩家身上、没有后退空间时，把玩家淡出（虚化），
-    // 给镜头"让出"画面位置，避免玩家背影糊满整个屏幕。
-    // 只改材质透明度与阴影，不碰碰撞体/动画；材质在首次淡出时才实例化副本，
-    // 恢复时换回共享材质，避免常驻透明队列开销。由 CameraController 驱动 SetOccluded。
+    // 由 CameraController 通知遮挡状态，通过透明度和阴影淡出玩家以腾出近距离视野。
+    // 首次淡出时复制材质，恢复后换回共享材质，避免常驻透明渲染开销。
     public class CameraObstacleFader : MonoBehaviour
     {
         [Tooltip("淡出后的目标不透明度（0~1）。0.1 左右基本让开画面但保留轮廓不穿帮")]
@@ -98,6 +96,7 @@ namespace ARPG.Camera
             Apply(fade);
         }
 
+        // 需要淡出时创建材质副本，并按缓存的原始透明度更新每个材质。
         private void Apply(float value)
         {
             if (value <= 0.001f)
@@ -158,7 +157,7 @@ namespace ARPG.Camera
             }
         }
 
-        // 把 Lit 材质切成 Alpha 混合（URP14 / 内置 Standard 命名都有兜底）
+        // 按材质支持的属性切换 Alpha 混合，兼容 URP 与旧版 Lit 命名。
         private static void MakeFadeCapable(Material m)
         {
             if (m.HasProperty(SurfaceId)) m.SetFloat(SurfaceId, 1f); // 1 = Transparent

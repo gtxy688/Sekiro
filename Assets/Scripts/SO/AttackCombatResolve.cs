@@ -2,9 +2,10 @@ using ARPG.Boss;
 
 namespace ARPG.Configs
 {
-    // 招默认 → 段覆盖 → 刀/箭覆盖。不覆盖时行为与只配招伤害时相同。
+    // 战斗数值按招式默认、段覆盖、单刀/单箭覆盖逐级解析，并提供按等级区分的代码默认值。
     public static class AttackCombatResolve
     {
+        // 编辑器填值与目录初始化共用的默认数值；重箭和重近战使用不同伤害。
         public static void DefaultCombat(HitGrade grade, bool arrow, out int damage, out float posture)
         {
             switch (grade)

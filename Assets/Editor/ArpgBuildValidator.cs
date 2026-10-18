@@ -7,11 +7,7 @@ using UnityEditor.Build.Reporting;
 using UnityEngine;
 namespace ARPG.Editor
 {
-    // 构建前挡住非法战斗配置。
-    //
-    // 为什么必须让构建失败而不是只打警告：这类错误运行时不报错——
-    // 招式表的动画状态名写错，那个招就静默地永远不触发，只有打到那一招才会发现。
-    // 警告日志在构建输出里一闪而过，等于没有。
+    // 构建前运行共享配置校验，有错误就中止，避免缺动画等静默失效问题进入构建。
     public class ArpgBuildValidator : IPreprocessBuildWithReport
     {
         public int callbackOrder => 0;

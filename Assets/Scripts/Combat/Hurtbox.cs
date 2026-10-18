@@ -4,8 +4,7 @@ using ARPG.FrameWork.Body;
 namespace ARPG.Combat
 {
 
-    // 受击盒：挂在角色身体上（单胶囊体即可，无部位区分需求）
-    // 只标记"我是谁的主人"，具体判定/结算都交给 Hitbox → CombatManager
+    // 标记身体碰撞体所属的角色，供近战和箭矢查询后交给 CombatManager 结算。
     public class Hurtbox : MonoBehaviour
     {
         public CharacterBody Owner { get; private set; }

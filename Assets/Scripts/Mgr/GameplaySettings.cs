@@ -8,7 +8,7 @@ using ARPG.FrameWork.States;
 namespace ARPG.Mgr
 {
 
-    // 调试/练习用玩法开关。表现层写入，战斗逻辑只读。
+    // 保存练习模式开关；菜单修改设置，战斗逻辑读取设置。
     public static class GameplaySettings
     {
         public const string InfiniteHealthKey = "gameplay.infinite_health";
@@ -49,19 +49,15 @@ namespace ARPG.Mgr
             OnChanged?.Invoke();
         }
 
-        // 弹反 / 普攻 / 识破：Boss 被玩家打出架势伤害时直接崩防；拼刀等其它来源不算。
+        // 一击崩防只对敌人的弹反、识破或玩家攻击来源生效。
         public static bool ShouldOneHitBreakBoss(
             CharacterBody target,
             PostureBreakSource source,
             CharacterBody instigator = null)
         {
             Load();
-            // 不再需要判 CombatManager.Instance == null：判断只依赖 target 自己的阵营字段。
             if (!OneHitPostureBreak || target == null)
                 return false;
-            // 只有敌人吃一键崩防。改判阵营而非比 BossRef：
-            // 多 Boss 时这条对所有敌人生效，而不是只对「列表里那一个」生效。
-            // 下面已限定只有玩家打出来才算，所以语义是对的。
             if (target.Faction != Faction.Enemy)
                 return false;
 

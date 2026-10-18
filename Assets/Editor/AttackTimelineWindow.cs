@@ -7,10 +7,10 @@ using ARPG.Configs;
 namespace ARPG.Editor
 {
 
+    // 预览攻击动画并编辑判定、音效和出箭时间；工作副本在保存时写回配置资产。
     public class AttackTimelineWindow : EditorWindow
     {
-        // 编辑目标必须持久化：Unity 每次编译脚本都会 domain reload，
-        // 没标 [SerializeField] 的字段会被清空，改一行代码回来就得重新拖招式表、重选分支。
+        // 保留编辑目标与选中段，避免脚本重载后丢失当前编辑位置。
         [SerializeField] AttackConfig playerConfig;
         [SerializeField] BossMoveTable bossTable;
         [SerializeField] int moveIndex;
@@ -89,6 +89,7 @@ namespace ARPG.Editor
         {
             scroll = EditorGUILayout.BeginScrollView(scroll);
 
+            // 先确定编辑段和工作副本，再用对应 Prefab 的 Animator 找动画并采样。
             DrawPrefabSettings();
             DrawTargetPicker();
             ReloadWorkingIfNeeded();
@@ -149,6 +150,7 @@ namespace ARPG.Editor
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.EndScrollView();
+            // 绘制完成后再增删数组，避免本轮控件遍历期间改变数据长度。
             ApplyPendingEdits(clipLength);
             if (Event.current.type == EventType.MouseDrag)
                 Repaint();
@@ -169,6 +171,7 @@ namespace ARPG.Editor
                 EditorGUILayout.HelpBox("第一次把玩家、Boss Prefab 各拖进来一次。不会写进场景。", MessageType.Info);
         }
 
+        // 玩家配置与 Boss 招式表互斥，Boss 再依次选择招式、动画分支和段。
         void DrawTargetPicker()
         {
             EditorGUILayout.Space();
@@ -379,6 +382,7 @@ namespace ARPG.Editor
                 ReloadWorking();
         }
 
+        // 深拷贝当前段的事件点，拖动和增删操作不会立即修改源资产。
         void ReloadWorking()
         {
             loadedSource = playerConfig != null ? (Object)playerConfig : bossTable;
@@ -673,6 +677,7 @@ namespace ARPG.Editor
             return Rect.MinMaxRect(Mathf.Min(x0, x1), track.y + 3f, Mathf.Max(x0, x1), track.yMax - 3f);
         }
 
+        // 裁剪无效脉冲并同步窗口后写回选中资产；音效和出箭点独立保存。
         void Save(float clipLength)
         {
             HitPulse[] clamped = AttackWindowSync.ClampPulses(workingPulses, clipLength);
@@ -839,8 +844,7 @@ namespace ARPG.Editor
             return w != null ? w.arrowCues : null;
         }
 
-        // hitPulses 就是判定窗本身：没有就是没有，不再从单窗字段凭空补一段出来。
-        // （原来这里会在 stored 为空时用 hitStart/recover 造一段，那正是两套表示互相打架的源头。）
+        // 显示已有脉冲；空数组保持无近战，不从节奏字段推造判定区间。
         static HitPulse[] DisplayPulses(HitPulse[] stored)
         {
             if (!AttackWindowSync.CanMeleeHit(stored))

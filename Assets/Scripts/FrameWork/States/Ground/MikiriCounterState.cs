@@ -8,9 +8,8 @@ using ARPG.FrameWork.States.Base;
 namespace ARPG.FrameWork.States.Ground
 {
 
-    // 识破（踩刀）状态（M17）：突刺危字 + 无方向垫步 → 触发识破
-    // 播踩刀动画 → 大幅涨攻击者架势 → 崩解时踩刀剩余动画就是忍杀确认窗口
-    // 叶子状态，位于 GroundedState.SubStateMachine
+    // 无方向垫步识破危字突刺后播放踩刀，并增加攻击者架势、打断其攻击。
+    // 若造成崩解，踩刀剩余动画作为忍杀确认窗口。
     public class MikiriCounterState : BaseState
     {
         private const string MikiriAnim = "Mikiri";

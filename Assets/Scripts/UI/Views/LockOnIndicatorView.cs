@@ -47,12 +47,7 @@ namespace ARPG.UI
             }
         }
 
-        // 连战换 Boss 必须清目标。
-        //
-        // AutoBindFollowTarget 的开头是 `if (followTarget != null) return;`——
-        // 平时的语义是对的（绑上了就别乱换），但连战时旧 Boss 已随上一场销毁或停用，
-        // 不清就会让锁定点一直钉在一根已销毁的骨头上：位置卡死在原地，且没有任何报错。
-        // 清掉之后，LateUpdate 会重新走自动兜底；Controller 那边也会立刻重绑新 Boss。
+        // 清除上一场目标和锁定显示，随后由控制器或自动绑定重新关联 Boss。
         public override void ResetForEncounter()
         {
             followTarget = null;
@@ -115,6 +110,7 @@ namespace ARPG.UI
             transform.rotation = Quaternion.LookRotation(cam.transform.forward, Vector3.up);
         }
 
+        // 将标记改为世界空间 Canvas，并交给专用 Overlay 相机置顶绘制。
         private void EnsureWorldFollowSetup()
         {
             if (worldSetupDone) return;
@@ -122,7 +118,7 @@ namespace ARPG.UI
             markerLayer = LayerMask.NameToLayer(MarkerLayerName);
             EnsureOverlayCamera();
 
-            // 从 Screen Overlay Canvas 里拆出来，否则永远是贴在 UI 上的死图
+            // 脱离屏幕空间 Canvas，才能用骨骼的世界坐标定位锁定点。
             if (IsUnderScreenOverlay())
                 transform.SetParent(null, true);
 
@@ -155,6 +151,7 @@ namespace ARPG.UI
             return false;
         }
 
+        // 复用主相机栈中的标记相机，缺少时创建并记录所有权。
         private void EnsureOverlayCamera()
         {
             if (overlayCam != null) return;
@@ -210,6 +207,7 @@ namespace ARPG.UI
                 main.cullingMask &= ~(1 << markerLayer);
         }
 
+        // 只移除本组件创建的 Overlay 相机，避免销毁场景中复用的相机。
         private void TearDownOverlayCamera()
         {
             if (!overlayOwned || overlayCam == null) return;
@@ -229,6 +227,7 @@ namespace ARPG.UI
             overlayOwned = false;
         }
 
+        // 尚未绑定时从战斗管理器或场景 Boss 补齐跟随目标。
         private void AutoBindFollowTarget()
         {
             if (followTarget != null) return;

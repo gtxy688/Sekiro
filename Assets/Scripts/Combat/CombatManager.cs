@@ -10,8 +10,6 @@ namespace ARPG.Combat
 {
     // 战斗服务的统一入口：Awake 补齐组件，Start 解析参与者、校验配置并完成场景装配。
     // 命中交给 CombatResolver，成对演出交给 DuelDirector，顿帧交给 TimeScaleController。
-    // 保留门面，让现有调用方通过 CombatManager 使用这些服务。
-    // TODO：角色互撞和 ArenaBoundary 的装配可在需要时移到独立的场地初始化组件。
     public class CombatManager : MonoBehaviour, ICombatResettable
     {
         public static CombatManager Instance { get; private set; }
@@ -29,7 +27,7 @@ namespace ARPG.Combat
         public bool enableHitStop = true;   // 命中/弹反顿帧开关
         public float hitStopDuration = 0.05f;
 
-        [Header("处决（M10）")]
+        [Header("处决")]
         [Tooltip("过渡期保留：Start 时同步给 DuelDirector，同上。")]
         public float finisherRange = 2f;
 
@@ -116,10 +114,7 @@ namespace ARPG.Combat
 
         private void ValidateFinisherRefs()
         {
-            // 参与者由 EncounterScope 负责时，不再要求手工拖引用。
-            // 判 HasParticipants 而非判 Current != null：
-            // 自动兜底出来的是空壳，它不提供参与者，此时仍要按旧路径检查 PlayerRef/BossRef，
-            // 否则「忘了拖引用」这个配置错误会被兜底逻辑一起吞掉。
+            // 自动创建的空 Scope 不提供参与者，仍需校验回退的 PlayerRef / BossRef。
             if (EncounterScope.Current != null && EncounterScope.Current.HasParticipants) return;
 
             if (PlayerRef == null)
@@ -130,10 +125,7 @@ namespace ARPG.Combat
                 Debug.LogError("CombatManager.PlayerRef 与 BossRef 指向同一角色，处决已禁用。");
         }
 
-        // 阵营校验。Faction 是新增字段，旧 prefab / 旧场景对象会落到默认值 Enemy，
-        // 而玩家被当成敌人的后果是**静默**的：不崩、不报错，只是悄悄失去
-        // 专属受击表现、无敌血、玩家侧音效与特效等一整批按身份分支的逻辑。
-        // 这类错误最难查，所以开局就喊出来。
+        // 开局校验参与者阵营，避免配置错误悄悄改变玩家表现或处决资格。
         private void ValidateFaction()
         {
             CharacterBody player = ActivePlayer;
@@ -146,9 +138,7 @@ namespace ARPG.Combat
                     player);
             }
 
-            // Boss 必须是 Enemy。这条以前由 DuelDirector 里的 `initiator == bossRef` 兜着；
-            // 改成阵营判断后那行删了——它在逻辑上已被 CanInitiateFinisher 覆盖，
-            // 但覆盖的前提是「Boss 确实不是 Player」。前提得有人验，否则 Boss 会获得处决资格。
+            // Boss 若误设为 Player，会取得玩家侧的处决资格。
             CharacterBody boss = ActiveBoss;
             if (boss != null && boss.Faction == Faction.Player)
             {
@@ -160,14 +150,8 @@ namespace ARPG.Combat
             }
         }
 
-        // ===== 命中结算：转发 CombatResolver，顿帧向 TimeScaleController 申报 =====
-        //
-        // 为什么顿帧的「触发点」还在这里，但「执行」不在：
-        // 顿帧原本是命中的固有表现，触发时机与命中判定强绑定。
-        // 若改成让表现层去订阅 CombatEventBus.OnTakeDamage，被格挡/弹反的攻击不掉血、
-        // 不发该事件，行为就变了——那是需求变更，不是重构，本次不做。
-        // 所以这里保留触发点，但只做「申报一次顿帧」，
-        // 实际改 Time.timeScale 的权力已完全交给 TimeScaleController。
+        // ===== 命中结算 =====
+        // 命中转交 Resolver 后申报顿帧，格挡或弹反也能触发；时间尺度由 TimeScaleController 统一修改。
 
         // A 的武器扫到 B 的 Hurtbox
         public void ReportHit(Hitbox hitbox, Hurtbox hurtbox, Vector3 hitPoint)
@@ -242,8 +226,7 @@ namespace ARPG.Combat
         // ===== 复战重置 =====
         public void ResetForEncounter()
         {
-            // 顿帧必须取消：否则上一场残留的计时会在复战开场把时间拨回去。
-            // 拨到多少由 TimeScaleController 统一求值，这里只说"取消"。
+            // 取消旧顿帧，避免上一场的计时影响复战开场。
             TimeScaleController.CancelHitStop();
 
             director.Configure(ActiveBoss);

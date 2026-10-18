@@ -27,18 +27,16 @@ namespace ARPG.FrameWork.Body
         public string PreviousStatePath { get; private set; } = "<none>";
         public string LastStateChangeReason { get; private set; } = "<none>";
         public int StateTransitionCount { get; private set; }
-        public bool EnableStateDebugLog;
 
         // 2. 组件引用
         public Animator Animator { get; private set; }
         public Rigidbody Rb { get; private set; }
 
-        // 移动感知模块：接地检测（迟滞防抖）/坠图保护/跳跃冲量/锁定动画参数/输入换算/跟髋骨采样
-        // 已迁入 Locomotion。懒创建理由同 Facing；接地点和地面层由 Inspector 配置。
+        // 移动与环境感知由 Locomotion 管理，接地点和地面层由 Inspector 配置。
         private Locomotion loco;
         private Locomotion Loco => loco ??= new Locomotion(this);
 
-        // 跳跃镜头跟髋骨采样已迁入 Locomotion（相机在 LateUpdate 采样）
+        // 供相机在 LateUpdate 读取跳跃跟随高度。
         public float GetJumpFollowWorldY() => Loco.GetJumpFollowWorldY();
 
         // 外部通过角色访问武器；Hitbox 的选择和开关由 WeaponController 管理。
@@ -101,7 +99,7 @@ namespace ARPG.FrameWork.Body
         // AirState 期间为 true。OnAnimatorMove 用它决定要不要丢掉 Root 的 Y
         public bool IsAirborne { get; set; }
 
-        // ===== 战斗属性（M2）=====
+        // ===== 战斗属性 =====
 
         // 角色属性配置；当前 HP、架势等可变数据保存在 CombatStats，不写回 SO。
         public CharacterConfig Config;
@@ -112,7 +110,7 @@ namespace ARPG.FrameWork.Body
         public AttackConfig ThrustAttack;
         public AttackConfig AirAttack;
 
-        // ===== 战斗数值（M2）=====
+        // ===== 战斗数值 =====
         // 数值由 CombatStats 管理；通过两个回调请求本角色处理崩解和死亡状态切换。
         private CombatStats combat;
         private CombatStats Combat => combat ??= new CombatStats(
@@ -133,8 +131,7 @@ namespace ARPG.FrameWork.Body
         public bool IsDefeated => Combat.IsDefeated;
 
         // ===== 跨模块战斗事实 =====
-        // 这些不是用来替代 HFSM 当前状态的调试显示，而是给战斗数值、AI、表现层读取的
-        // 低成本事实快照。状态进入/退出时负责维护；跨模块不要直接判 CurrentState 类型。
+        // 供战斗数值、AI 和表现层查询；由状态维护标志，或在本类中解析当前叶子状态。
 
         // 是否正在格挡姿态（DeflectState 长按中）——架势回复 ×5 用
         public bool IsGuarding { get; set; }
@@ -216,8 +213,7 @@ namespace ARPG.FrameWork.Body
         private GroundedState sharedGrounded;
         public GroundedState SharedGrounded => sharedGrounded ??= new GroundedState(this);
 
-        // 转向模块：朝向的运行时状态与决策已迁入 FacingController（重构试点一），
-        // 本类只保留同名转发接口，调用方零改动。按需创建，避免为未使用的角色提前分配。
+        // 转向由 FacingController 管理，首次使用时创建并复用。
         private FacingController facing;
         private FacingController Facing => facing ??= new FacingController(this);
 
@@ -235,7 +231,6 @@ namespace ARPG.FrameWork.Body
 
         public void ResetAirJump2() => Loco.ResetAirJump2();
         // 连续被对手近战完美弹开的次数。JumpThrust（3022）抽招读这个；出手或交锋中断后清零。
-        // （记账已迁入 DeflectMemory，这里只转发）
         public int ConsecutiveTimesParried => Deflect.ConsecutiveTimesParried;
 
         public void NotifyPerfectlyParried() => Deflect.NotifyPerfectlyParried();
@@ -265,9 +260,7 @@ namespace ARPG.FrameWork.Body
         public float MidToGuardDeflectDodgeOpenTime =>
             Config.MidToGuardDeflectDodgeOpenTime;
 
-        // 弹反记忆模块：Boss 被动防御 + 连续被弹的记账已迁入 DeflectMemory；
-        // 玩家主动弹反的窗口与空按惩罚在 DeflectAttemptTracker（见下方门面）。
-        // 切状态编排权通过委托留在本类（模块"请求"、Façade 编排）；懒创建理由同 Facing。
+        // DeflectMemory 记录 Boss 被动防御和连续被弹次数，通过委托请求本角色切入防御。
         private DeflectMemory deflect;
         private DeflectMemory Deflect => deflect ??= new DeflectMemory(this,
             (hit, mode) => TryChangeGroundedSubState(g => new DeflectState(this, g,
@@ -294,17 +287,8 @@ namespace ARPG.FrameWork.Body
         private Vector3 spawnPosition;
         private Quaternion spawnRotation;
 
-        // ===== 阵营 =====
-        // 「这是谁」的唯一真相源。判断身份一律查 Faction 属性，
-        // 不要写 body == CombatManager.Instance.PlayerRef 这种对象身份比较。
-        //
-        // 注意：这里刻意不自动推导。推导要么靠 GetComponent<PlayerBrain>()——
-        // 那会让框架层反过来依赖玩家层（PlayerBrain 在 ARPG.Player），方向是错的；
-        // 要么靠 CombatManager 在 Start 里回填——但各组件 Start 顺序不定，
-        // 谁先查谁就拿到未推导的错值。字段是序列化的，Awake 时就已就位，两条坑都绕开。
-        // 本类内部一律写 Configs.Faction 而不是 Faction：
-        // 属性名与枚举类型名完全同名（Faction Faction），虽然 C# 的 "Color Color" 规则
-        // 允许这种写法，但读起来容易绕，索性写全，一眼看得出哪个是类型。
+        // 阵营直接序列化，Awake 前即可查询，避免依赖 PlayerBrain 或跨对象初始化顺序。
+        // 本类用 Configs.Faction 区分枚举类型与同名属性。
         [Header("阵营")]
         [Tooltip("玩家角色必须选 Player。选错不会崩，但会静默退化——" +
                  "玩家会失去专属受击表现、无敌血等，且很难察觉。启动时会有报错提醒。")]
@@ -356,18 +340,13 @@ namespace ARPG.FrameWork.Body
                 EncounterScope.Current.Unregister(this);
         }
 
-        // 复战重置：把角色恢复到「战斗刚开始」的瞬间——数值、锁标志、站位、状态机全部归零。
-        //
-        // 为什么需要：项目此前唯一的重置手段是重载场景（MonoBehaviour 全部重建，状态自然归零），
-        // 所以下面这些状态从没被显式清过，也从没暴露过问题。
-        // 复战 / 连战要走「原地重开」，不重载场景，那时漏掉任何一项都会原样带进下一场。
+        // 不重载场景地恢复角色数值、战斗标志、初始站位和地面待机状态。
         public void ResetForEncounter()
         {
             // 1. 数值：HP / 架势 / 葫芦 / 复活次数 / 命数
             Combat.ResetForEncounter();
 
-            // 2. 战斗内锁标志。漏掉任何一个复战开场都会异常，
-            //    其中 IsFinisherLocked 残留最致命——双方会永久无法操作。
+            // 清除战斗锁，避免上一场的受击或成对演出阻断新一场操作。
             IsKnockedDown = false;
             IsGuarding = false;
             IsHealing = false;
@@ -390,7 +369,7 @@ namespace ARPG.FrameWork.Body
             ResetConsecutiveTimesParried();
             ResetAirJump2();
 
-            // 4.5 主动弹反尝试：跨场残留会让复战开局第一刀就吃上一次空按的缩窗
+            // 弹反窗口与空按惩罚不跨场保留。
             ResetDeflectAttempts();
 
             // 5. 朝向锁定
@@ -410,8 +389,7 @@ namespace ARPG.FrameWork.Body
             // 8. 状态机回地面待机
             EnterGrounded("encounter reset: grounded idle");
 
-            // 9. 推事件：这些数值是直接改的，不走 TakeDamage 那条结算路径，
-            //    不主动通知的话 UI 会停在上一场的空血条 / 满架势条上
+            // 复位绕过伤害结算，需主动发事件让 UI 同步初始数值。
             CombatEventBus.TriggerHPChanged(this, CurrentHP, Config.MaxHP);
             CombatEventBus.TriggerPostureChanged(this, CurrentPosture, Config.MaxPosture);
             CombatEventBus.TriggerFinisherOpportunityChanged(this, false);
@@ -419,12 +397,10 @@ namespace ARPG.FrameWork.Body
 
         private void Update()
         {
-            // 1. 每帧更新物理环境感知 (例如是否接地)
-            // 这样做的好处是：所有 State 只需要读取 body.IsGrounded，不需要在各自内部写射线检测
+            // 先更新接地等环境信息，状态机本帧读取同一份结果。
             UpdateEnvironmentalChecks();
 
-            // 1.5 坠出地图兜底：地面是整块 MeshCollider、边缘无围栏，
-            // 走位/垫步/击退越过边缘后只剩重力会无限下坠，必须传回安全点
+            // 坠出地图时传回最近安全点。
             UpdateFallSafety();
 
             // 2. 架势自然回复（只狼：一段时间不受击就缓慢回架势）
@@ -446,7 +422,7 @@ namespace ARPG.FrameWork.Body
             Loco.ApplyPendingJumpVelocity();
         }
 
-        // 起跳：只打垂直初速度。根运动保持开着，由 OnAnimatorMove 丢掉 Y、保留 XZ。（实现已迁入 Locomotion）
+        // 起跳只提供垂直初速度，水平位移继续使用根运动。
         public void QueueJump() => Loco.QueueJump();
 
         // 返回 true = 命令吃掉。playedNew = 本次新播了 Jump2（已用过则为 false）。
@@ -460,8 +436,7 @@ namespace ARPG.FrameWork.Body
             // 忍杀成对 Root 会短暂重叠，挤开会对不齐。
             if (IsFinisherLocked) return;
 
-            // TODO(多 Boss)：这里取的是「主对手」。多 Boss 时应改为遍历所有对手或取最近的那个。
-            // 这属于「找对象」而非「判身份」，不在本次阵营改造范围内。
+            // 当前只处理 CombatManager 指定的主对手。
             CharacterBody other = CombatManager.Instance.BossRef;
             if (other == null || other.IsFinisherLocked) return;
 
@@ -489,8 +464,7 @@ namespace ARPG.FrameWork.Body
 
         public bool UsesAirState => Config.UseAirState;
 
-        // 01-states：根运动走 OnAnimatorMove。写了这个回调，Unity 不再自动套 Root，必须自己加。
-        // 空中丢掉 Root.y，否则跳跃高度被动画钉住；XZ 必须吃，否则中心不动、贴图自己滑，切 Idle 会瞬移回去。
+        // 手动应用根运动；空中只取 XZ，Y 留给跳跃速度与重力。
         private void OnAnimatorMove()
         {
             if (!UseRootMotion) return;
@@ -503,8 +477,7 @@ namespace ARPG.FrameWork.Body
 
             transform.position += delta;
 
-            // 旋转优先级（Hold > 攻击转向 > Root 抑制 > 动画增量）决策已迁入转向模块。
-            // 顺序保持原样：先写位置增量，再决定旋转，最后统一同步刚体。
+            // 先应用位移，再由转向模块决定朝向，最后同步刚体。
             Facing.ApplyRootRotation(Animator);
 
             Rb.position = transform.position;
@@ -516,9 +489,7 @@ namespace ARPG.FrameWork.Body
         {
             if (IsFinisherLocked) return true;
 
-            // 将大脑的指令直接喂给主状态机。
-            // 返回 true  表示：指令被某个状态 (父状态或子状态) 成功消耗；
-            // 返回 false 表示：当前层级下的所有状态都拒收这个指令。
+            // true 表示某层已消费命令，false 表示当前层级未接受、可由大脑保留缓冲重试。
             return MainStateMachine.HandleCommand(cmd);
         }
 
@@ -560,7 +531,7 @@ namespace ARPG.FrameWork.Body
         public void EnterDead(bool canRevive, bool alreadyDowned = false,
             string reason = "death: enter dead")
         {
-            // 死亡属于生命周期取消：未完成的弹反尝试直接丢掉，不记空按（设计文档 §4.2）。
+            // 死亡按生命周期取消未完成的弹反尝试，不记空按。
             ResetDeflectAttempts();
             MainStateMachine.ChangeState(new DeadState(this, canRevive, alreadyDowned), reason);
         }
@@ -578,12 +549,6 @@ namespace ARPG.FrameWork.Body
             LastStateChangeReason = string.IsNullOrEmpty(reason) ? "unspecified" : reason;
             StateTransitionCount++;
 
-            if (EnableStateDebugLog)
-            {
-                Debug.Log(
-                    $"[HFSM] {name}: {previousPath} -> {currentPath} " +
-                    $"({LastStateChangeReason})", this);
-            }
         }
 
         // 父状态的子状态机在切换时调用。这里不递归向下查找，
@@ -600,12 +565,6 @@ namespace ARPG.FrameWork.Body
             LastStateChangeReason = string.IsNullOrEmpty(reason) ? "unspecified" : reason;
             StateTransitionCount++;
 
-            if (EnableStateDebugLog)
-            {
-                Debug.Log(
-                    $"[HFSM] {name}: {previousPath} -> {currentPath} " +
-                    $"({LastStateChangeReason})", this);
-            }
         }
 
         public string GetStatePathForDebug(BaseState state)
@@ -662,14 +621,11 @@ namespace ARPG.FrameWork.Body
                 g.SubStateMachine.ChangeState(factory(g), reason);
                 return;
             }
-            // 重建时叶子以 null 父级创建：与旧直接重建语义一致（见 BossReviveBackoffState）
+            // 重建时叶子先以 null 父级创建，由状态进入时取得新父状态。
             EnterGrounded(factory(null), reason + ": rebuild parent");
         }
 
-        // 换到"格挡 / 垫步"叶子：四个受击/起身状态（Stunned / MidToGuard / Standing / StaggerBroken）
-        // 共用的取消配方，收敛成一处。
-        // pressId 由触发这次切换的 DeflectCommand 带入：真实按下的身份必须一路传到防御状态入口，
-        // 否则这一下只会恢复普通格挡，白白丢掉弹反窗口（0 = 系统回防）。
+        // 受击或起身时切入格挡 / 垫步；pressId 需传到防御入口才能开启主动弹反窗口，0 表示系统回防。
         public bool TryChangeToDeflectOrDodge(bool toDeflect, int pressId = 0)
         {
             return TryChangeGroundedSubState(g => toDeflect
@@ -694,13 +650,12 @@ namespace ARPG.FrameWork.Body
             return TryExecuteCommand(new AttackCommand());
         }
 
-        // --- 物理环境检测 / 坠图保护：实现已迁入 Locomotion（含迟滞防抖与安全点记录），
-        //     这里保留同名私有转发，Update/Start 的调用点与顺序零改动 ---
+        // 环境检测与坠图保护。
         private void UpdateEnvironmentalChecks() => Loco.UpdateEnvironmentalChecks();
 
         private void UpdateFallSafety() => Loco.UpdateFallSafety();
 
-        // --- 转向接口：实现已迁入 FacingController，签名不变，全项目调用方零改动 ---
+        // ===== 转向接口 =====
         // 水平转向（度/秒）。刚体冻结旋转后只改 transform，避免和插值抢 yaw
         public void RotateYaw(Vector3 worldDir, float degreesPerSecond) => Facing.RotateYaw(worldDir, degreesPerSecond);
 
@@ -720,20 +675,16 @@ namespace ARPG.FrameWork.Body
 
         public void ClearCombatYawFrozen() => Facing.ClearCombatYawFrozen();
 
-        // 摇杆输入 → 世界移动方向（相机相对，原神式）：实现已迁入 Locomotion
-        // 输入先经相机水平朝向变换，W = 远离镜头、A/D = 屏幕左右，与相机摆放无关
+        // 按相机水平朝向将输入转换为世界移动方向。
         public Vector3 InputToWorldDir(Vector2 inputDir) => Loco.InputToWorldDir(inputDir);
 
-        // AttackCommand 不携带配置（用户决策 9）：有 ActiveAttack 用覆盖，否则玩家走 LightAttack。
+        // AttackCommand 不携带配置：优先用本次覆盖配置，否则回退到默认普攻。
         public AttackConfig GetAttackConfig()
         {
             return ActiveAttack != null ? ActiveAttack : LightAttack;
         }
 
-        // ===== 受击动画接口（用户预留扩展点）=====
-        // 按受击语境取动画名：留空的字段逐级回退到普通受击动画，再回退到写死的默认名。
-        // 用户后续想区分"格挡受击/完美弹反受击/强力击退受击"，只需在 CharacterConfig 填对应动画名，
-        // 代码零改动。
+        // 按受击语境读取配置，空值逐级回退到普通受击，最终使用默认动画名。
         public string ResolveHurtAnim(HurtContext context)
         {
             string name = null;
@@ -754,27 +705,10 @@ namespace ARPG.FrameWork.Body
         }
 
         // ===== 主动弹反尝试：输入身份 / 窗口资格 / 空按记账 =====
-        // 记账与时间判定都在 DeflectAttemptTracker 里（唯一入口），本类只做门面：
-        // 状态不直接访问 Tracker 内部字段，也不自己算 elapsed。
+        // 状态经此门面使用 DeflectAttemptTracker，避免各自维护窗口和空按计数。
         private DeflectAttemptTracker deflectAttempts;
 
-        private DeflectAttemptTracker DeflectAttempts
-        {
-            get
-            {
-                if (deflectAttempts == null)
-                {
-                    deflectAttempts = new DeflectAttemptTracker();
-                    // 记账节点接在既有调试开关上：Unity 内验证"一次结算 / 成功恢复 / 截止边界"时不用加断点。
-                    deflectAttempts.Trace = message =>
-                    {
-                        if (EnableStateDebugLog)
-                            Debug.Log($"[CombatTiming][DeflectAttempt] {message}", this);
-                    };
-                }
-                return deflectAttempts;
-            }
-        }
+        private DeflectAttemptTracker DeflectAttempts => deflectAttempts ??= new DeflectAttemptTracker();
 
         // 真实物理按下：生成新的按下身份。只有 PlayerBrain 的按下回调可以调用。
         public int BeginDeflectPress() => DeflectAttempts.BeginPress();
@@ -804,12 +738,12 @@ namespace ARPG.FrameWork.Body
 
         // 显式结束一次尝试（垫步离开、被不可弹反的命中打断等）。幂等。
         public bool EndDeflectAttempt(int attemptId, DeflectAttemptEndReason reason)
-            => DeflectAttempts.EndAttempt(attemptId, reason, Time.time);
+            => DeflectAttempts.EndAttempt(attemptId, reason);
 
         // 这一击真的落实了、而当前尝试没弹掉它：按失败结束（空按一次）。
         public void NotifyDeflectHitFailed()
             => DeflectAttempts.EndAttempt(
-                DeflectAttempts.ActiveAttemptId, DeflectAttemptEndReason.HitFailed, Time.time);
+                DeflectAttempts.ActiveAttemptId, DeflectAttemptEndReason.HitFailed);
 
         // 当前尝试缓存的窗口（调试/表现读取用，不参与判定）。
         public float CurrentDeflectWindow => DeflectAttempts.ActiveWindow;
@@ -852,12 +786,11 @@ namespace ARPG.FrameWork.Body
             return normalized;
         }
 
-        // 锁定四向移动参数：有 MoveZ 用 MoveZ，否则回退 MoveY。实现已迁入 Locomotion
+        // 锁定四向移动参数：有 MoveZ 用 MoveZ，否则回退 MoveY。
         public void SetMoveStrafe(float x, float z, bool instant) => Loco.SetMoveStrafe(x, z, instant);
 
-        // 被完美弹反后的硬直入口（M4）：物理强制覆写，不走 Command，直接切顶层状态机。
-        // 普通弹反只用于玩家被 Boss 弹开。飞舟互弹时双方都走这里播 Deflected_Boat。
-        // ParriedState 装在 GroundedState 内（通过带初始子状态的构造），顶层结构不变。
+        // 强制打断当前攻击，将被弹硬直装入新的 GroundedState，不经 Command。
+        // animName 可指定飞舟互弹等动画，armKengeki 决定硬直后是否开放交锋抽招。
         public void ForceParryStun(string animName = null, bool armKengeki = true)
         {
             AttackUninterruptible = false;
@@ -890,15 +823,12 @@ namespace ARPG.FrameWork.Body
                 "combat: mikiri stun");
         }
 
-        // ===== M7 Boss 被动防御（只狼攻防转换）=====
-        // 只狼模式：Boss 非攻击/非硬直时被玩家命中 → 强制格挡判定；连续格挡达阈值后
-        // 升级为完美弹反（弹开玩家、抢回主动权）。由 BTBrain 启动时对 Boss 开启。
-        // 计数与升级判定已迁入 DeflectMemory；本字段是 Inspector 配置（prefab 已保存该值），保留原位。
+        // Boss 可防御时受击转入被动格挡，连挡达阈值后升级为完美弹反；由 BTBrain 启动时开启。
         public bool EnablePassiveDeflect;
 
         public bool TryPassiveDeflect(HitData hit) => Deflect.TryPassiveDeflect(hit);
 
-        // 架势崩解硬直入口（M9）：玩家 = 击飞倒地（不被处决）；Boss = 处决窗口（红点）。
+        // 架势崩解硬直入口：玩家 = 击飞倒地（不被处决）；Boss = 处决窗口（红点）。
         public void ForcePostureBroken(PostureBreakSource source = PostureBreakSource.Attack)
         {
             AttackUninterruptible = false;
@@ -935,12 +865,12 @@ namespace ARPG.FrameWork.Body
             EnterGrounded(brokenState, "combat: posture broken");
         }
 
-        // ===== 武器接口：实现已迁入 WeaponController，签名不变，全项目调用方零改动 =====
+        // ===== 武器接口 =====
 
-        // 开启武器判定（M3/M8）：攻击状态/动画事件调用。绑定本招式的伤害配置
+        // 攻击状态按窗口开启武器判定，并绑定本招伤害配置。
         public void EnableWeaponHit(AttackConfig config) => WeaponCtrl.EnableWeaponHit(config);
 
-        // 关闭武器判定（M3/M8）
+        // 关闭武器判定
         public void DisableWeaponHit() => WeaponCtrl.DisableWeaponHit();
 
         // 时间轴 arrowCues 到点由 AttackState 调用。伤害读招式表该支出箭，不读烘焙 AttackConfig。
@@ -948,13 +878,13 @@ namespace ARPG.FrameWork.Body
 
         public Vector3 GetProjectileAimPoint() => WeaponCtrl.GetProjectileAimPoint();
 
-        // ===== 战斗数值接口：实现已迁入 CombatStats，签名不变，全项目调用方零改动 =====
+        // ===== 战斗数值接口 =====
 
         // 受击结算：扣血 + 涨架势。由 ReceiveHit（物理）或外部调用。
         public void TakeDamage(int healthDmg, float postureDmg, CharacterBody instigator = null)
             => Combat.TakeDamage(healthDmg, postureDmg, instigator);
 
-        // 累计架势。防御/弹反也会加少量（M9 细则接），这里统一入口。
+        // 统一累计架势，并按来源与 allowBreak 决定是否触发崩解。
         // allowBreak=false：本次累计不会导致崩解（只狼：完美弹反时自己的架势永不崩防）
         public bool AccumulatePosture(
             float amount,
@@ -969,7 +899,7 @@ namespace ARPG.FrameWork.Body
         // 架势自然回复：停止受击超过 PostureDecayDelay 秒后，每秒回 PostureDecayRate（Update 驱动）
         private void UpdatePostureDecay() => Combat.UpdatePostureDecay();
 
-        // 喝葫芦（M16）：有次数就能喝；满血也播动画、扣次数，HP 加完仍封顶
+        // 喝葫芦：有次数就能喝；满血也播动画、扣次数，HP 加完仍封顶
         public bool UseGourd() => Combat.UseGourd();
 
         // 对手已倒地：打断当前攻击回 Idle，给 Boss 改走位用。不经过 Command。
@@ -985,13 +915,10 @@ namespace ARPG.FrameWork.Body
             EnterGrounded("boss: cancel attack to idle");
         }
 
-        // 死亡判定（M14）：判定与事件已迁入 CombatStats.HandleDeath，
-        // 状态切换（DeadState 回生/真死）经 onDeath 委托由本类编排。
-
-        // 复活（M14）：回满血 + 架势清零（用户决策：直接回满），扣除一次复活次数
+        // 复活时回满血、清空架势并扣除一次复活次数。
         public void Revive() => Combat.Revive();
 
-        // 处决清一条命（M10 用）：扣命 → 没命了发胜利事件；还有命 → 重置架势回满血接着打
+        // 处决清一条命：扣命 → 没命了发胜利事件；还有命 → 重置架势回满血接着打
         public void ClearLife() => Combat.ClearLife();
 
         // 崩解标志/架势条清掉，不切状态。倒地中再挨刀时先清再进受击，避免闪 Idle。
@@ -1000,7 +927,7 @@ namespace ARPG.FrameWork.Body
             Combat.ClearPostureBreak(remainingRatio);
         }
 
-        // 崩解超时恢复（M9）：架势清空 + 崩解解除，不扣命（与处决清命区分）
+        // 崩解超时恢复：架势清空 + 崩解解除，不扣命（与处决清命区分）
         public void RecoverFromBreak(float remainingRatio = 0f)
         {
             ClearPostureBreak(remainingRatio);
@@ -1013,7 +940,7 @@ namespace ARPG.FrameWork.Body
             CombatManager.Instance.ExecuteFinisher(this);
         }
 
-        // 接收外界物理碰撞传来的打击
+        // 接收近战或箭矢上报，先由防御与当前状态拦截，再结算伤害和强制受击状态。
         public void ReceiveHit(CharacterBody attacker, int healthDmg, float postureDmg, Vector3 hitPoint,
                                bool isPerilous = false, PerilousType perilousType = PerilousType.None,
                                float knockback = 0f,
@@ -1022,14 +949,14 @@ namespace ARPG.FrameWork.Body
         {
             if (IsFinisherLocked || IsDefeated) return;
 
-            // 打包成值类型，供状态机做层级查询（M1）
+            // 打包成值类型，供状态机做层级查询
             HitData hit = new HitData
             {
                 attacker = attacker,
                 healthDmg = healthDmg,
                 postureDmg = postureDmg,
                 hitPoint = hitPoint,
-                isPerilous = isPerilous,           // M17 危字攻击标记
+                isPerilous = isPerilous,           // 危字攻击标记
                 perilousType = perilousType,
                 knockback = knockback,             // 受击表现接口：击退强度
                 hitGrade = hitGrade,
@@ -1038,25 +965,20 @@ namespace ARPG.FrameWork.Body
 
             bool alreadyBroken = IsPostureBroken;
 
-            // 0. M7 Boss 被动防御（只狼攻防转换）：可防御时命中强制转格挡判定。
-            //    先于状态拦截，保证玩家连打压制时 Boss 始终先进入防御反应，而不是裸受击。
+            // 被动防御先于当前状态拦截，让可防御的 Boss 当场转入格挡反应。
             if (TryPassiveDeflect(hit)) return;
 
-            // 1. 先问当前状态层级：能拦截吗？（防御/垫步/识破/受击期间）
-            //    MainStateMachine 顶层只装 HierarchicalState，OnHitReceived 会逐层下钻到叶子状态
-            //    （如 DeflectState/DodgeState/MikiriCounterState），不用直接判顶层状态类型（那条路永远 false）
+            // 父状态先拦截，再逐层转交当前叶子处理防御、无敌或二次受击。
             if (MainStateMachine.CurrentState != null &&
                 MainStateMachine.CurrentState.OnHitReceived(hit))
             {
                 return; // 被状态拦截了（盾反成功 / 垫步无敌 / 识破 / 二次受击）
             }
 
-            // 2. 没拦住 → 伤害/架势结算（M2）：扣血 + 涨架势 + 死亡判定
+            // 2. 没拦住 → 伤害/架势结算：扣血 + 涨架势 + 死亡判定
             TakeDamage(healthDmg, postureDmg, attacker);
 
-            // 2.2 这一击真的落实了：窗口内没弹掉的防御尝试按失败结束（空按一次）。
-            //     致死不记：死亡走 ResetDeflectAttempts 按生命周期取消，不能重复记账。
-            //     被状态拦下的命中（完美弹反 / 普通格挡 / 垫步无敌）不会走到这里。
+            // 实际受伤后结束未成功的防御尝试；致死已按生命周期取消，避免重复记空按。
             if (CurrentHP > 0)
                 NotifyDeflectHitFailed();
 

@@ -4,7 +4,7 @@ using UnityEngine;
 namespace ARPG.Audio
 {
 
-    // 音乐 / 音效两档用户音量。表现层设置，不进战斗逻辑。
+    // 持久化音乐和音效两档用户音量，并通知播放器更新输出响度。
     public static class AudioVolumeSettings
     {
         public const string BgmKey = "audio.bgm";

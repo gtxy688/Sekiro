@@ -48,12 +48,7 @@ namespace ARPG.Boss
         [Header("完整 AI")]
         public BossMoveTable moveTable;
 
-        // MeleeOnly 调试白名单：只放行贴身交锋的普通平砍，屏蔽其余全部招式。
-        // 刻意不含 Slash_Double / Slash_Heavy / Slash_SpinElbow / Slash_StepTurn / Kick：
-        // 它们在数据上是「近战普攻」，但表现是两连斩、转身肘击、踢腿等独立招式，
-        // 混进来会让人以为 MeleeOnly 没生效。测交锋手感只要这两条。
-        // 两条都是 Kengeki 层、距离 0~2.5m：拉开距离时抽不到招是预期行为，
-        // 此时行为树落到追击走位，Boss 会自己贴近再出刀，不是发呆。
+        // MeleeOnly 只保留两条交锋平砍；距离不够时仍由走位节点靠近玩家。
         static readonly HashSet<string> MeleeOnlyMoveIds = new HashSet<string>
         {
             "Kengeki_Slash", "Kengeki_Double"
@@ -63,8 +58,7 @@ namespace ARPG.Boss
         private Node behaviorTreeRoot;
         private Blackboard blackboard;
 
-        // 实例级招式过滤（null = 不过滤）。只影响本 Boss，绝不写回 BossMoveTable 资产——
-        // SO 是共享资产，写回去会串到所有引用该表的 Boss（复战 / 多 Boss 必炸）。
+        // 白名单属于 Boss 实例，不能写回多个角色共享的招式表；null 表示不过滤。
         private HashSet<string> moveFilter;
 
         private void Awake()
@@ -117,12 +111,7 @@ namespace ARPG.Boss
             EncounterScope.Ensure().Register(this);
         }
 
-        // 复战重置：把 AI 的运行时状态清干净。
-        //
-        // 这里每一项漏掉都有明确症状：
-        //   - 黑板不清 → 上一场的招式冷却带进新一场，复战开局 Boss 发呆好几秒
-        //   - 执行器不清 → 上一场被打断的招会在新一场接着播下一段
-        //   - 复活阶段机不清 → Boss 卡在「等玩家起身」，站着不动
+        // 复战时清除冷却、未完成招式和回生等待，避免沿用上一场的执行进度。
         public void ResetForEncounter()
         {
             blackboard.Clear();
@@ -133,8 +122,7 @@ namespace ARPG.Boss
 
             ResetExecutors();
 
-            // 注意：moveFilter 是 MeleeOnly 调试白名单，属于「设定」而不是「状态」，
-            // 复战重开应当保留，不在这里清。
+            // moveFilter 是调试设定，复战时保留。
         }
 
         private BT_ExecuteMove activeExecutor;
@@ -149,6 +137,7 @@ namespace ARPG.Boss
         private float postReviveTimer;
         private const float PostReviveStandDelay = 0.35f;
 
+        // 特殊战斗阶段优先拦截，再评估行为树；等待起手时允许单独走位。
         private void Update()
         {
             if (PlayerTarget == null) return;
@@ -161,8 +150,7 @@ namespace ARPG.Boss
                 return;
             }
 
-            // 忍杀演出 / 被弹反或识破硬直：树不跑。否则出招节点一失败就会落到
-            // BT_MoveToTarget，近身 Roam 每帧 RotateYaw 对准玩家（识破后猛转）。
+            // 忍杀与硬直期间暂停整棵树，避免出招失败后落到走位并转向玩家。
             if (body.IsFinisherLocked || body.IsParried)
             {
                 // 树不跑时也要把 Busy 执行器清掉，否则硬直结束会接着播被打断招的下一段。
@@ -170,6 +158,7 @@ namespace ARPG.Boss
                 return;
             }
 
+            // 玩家刚倒地时中止当前攻击，之后只走位，直到回生流程允许恢复进攻。
             bool playerIncapacitated = PlayerBody.IsIncapacitatedForBoss;
             if (playerIncapacitated && !circlingIncapacitatedPlayer)
             {
@@ -241,9 +230,7 @@ namespace ARPG.Boss
             body.CombatTarget = null;
         }
 
-        // 完整树：崩解跳过 → 交锋 → 喝药重箭 → 主动抽招 → 追击
-        // 招架层已由 CharacterBody.TryPassiveDeflect（受击拦截）替代，不再挂 BT_DeflectIf。
-        // 调试：DisableBossAttacks 勾上时裁剪掉全部主动出招节点，只留追击走位（Boss 变挨打靶）。
+        // 优先级：禁止行动 → 交锋 → 喝药重箭 → 主动选招 → 走位；被动防御由受击流程处理。
         private Node ConstructBehaviorTree()
         {
             activeExecutor = new BT_ExecuteMove(body, moveTable);
@@ -260,9 +247,7 @@ namespace ARPG.Boss
             {
                 children.Add(new BT_Kengeki(
                     body, moveTable, PlayerTarget, kengekiExecutor, PlayerBody, moveFilter));
-                // 喝药惩罚是唯一绕过 moveFilter 的出招路径（BT_HealPunish 内部直接
-                // FindById("Bow_Heavy")，不接受白名单）。MeleeOnly 要的是纯净近战环境，
-                // 所以这里整节点不挂——否则一按葫芦就必吃重箭，白名单形同虚设。
+                // 喝药惩罚直接查找重箭，不经过白名单，因此纯近战调试时不挂此节点。
                 if (!MeleeOnly)
                 {
                     healPunish = new BT_HealPunish(body, moveTable, PlayerBody, interruptExecutor);
@@ -291,6 +276,7 @@ namespace ARPG.Boss
                 body.CancelAttackToIdle();
         }
 
+        // 等玩家起身并留出缓冲，再后撤一步，最后恢复招间走位。
         private void UpdatePostRevivePhase()
         {
             ResetExecutors();
@@ -336,7 +322,7 @@ namespace ARPG.Boss
 
         private void BeginReviveBackoff()
         {
-            // 走 CharacterBody 统一 API：地面态换子状态，非地面态重建地面父状态（禁止直接判顶层类型）
+            // 统一入口负责复用或重建地面父状态，AI 不直接操作顶层状态机。
             body.ForceChangeGroundedSubState(
                 g => new BossReviveBackoffState(body, g),
                 "boss: revive backoff");

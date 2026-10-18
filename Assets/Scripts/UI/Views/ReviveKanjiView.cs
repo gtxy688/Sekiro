@@ -1,7 +1,7 @@
 namespace ARPG.UI
 {
 
-    // 「回生」字：玩家爬起成功时弹在头顶，金白色。位置与「治」相同。
+    // 玩家回生成功时在头顶触发「回生」提示，外观由 Prefab 配置。
     // 显示逻辑全在 WorldGlyphView，这里只剩触发入口。
     public class ReviveKanjiView : WorldGlyphView
     {

@@ -40,7 +40,7 @@ namespace ARPG.FrameWork
             return null;
         }
 
-        // 不在这里 Animator.Update：崩解常从命中动画事件切入，Update 会重入。
+        // 播放请求不主动调用 Animator.Update，避免受击处理期间重入动画回调。
         public static bool TryPlay(Animator animator, string shortName, int layerIndex = 0)
         {
             if (!HasState(animator, shortName, layerIndex)) return false;

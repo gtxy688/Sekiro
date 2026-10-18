@@ -3,19 +3,8 @@ using UnityEngine;
 namespace ARPG.FrameWork.Body
 {
 
-    // 转向模块（CharacterBody 重构试点一）。
-    // 职责：水平朝向的全部驱动与决策——
-    //   1. 走位转向 RotateYaw（度/秒，带冻结/硬直拦截）
-    //   2. 瞬间对齐 SnapYaw + Hold（Animator 未切到目标状态前每帧补一次）
-    //   3. 攻击转向 SetSteerYaw（在 OnAnimatorMove 里转，盖过同帧 Clip 根旋转）
-    //   4. Root yaw 抑制 SetSuppressRootYaw / FreezeCombatYaw（丢掉 Clip yaw，锁死朝向）
-    //   5. OnAnimatorMove 的旋转优先级决策 ApplyRootRotation：Hold > 攻击转向 > Root 抑制 > 动画增量
-    // 约束：
-    // - 运行时状态（hold/steer/suppress/frozen）全部收在本类内部，CharacterBody 不再持有；
-    // - CharacterBody 保留同名转发接口，全项目调用方零改动；
-    // - 本模块没有任何序列化字段，CharacterBody 上的 Inspector 配置与 prefab 数据不受影响；
-    // - 只读依赖 body 的 transform/Rb 与 IsParried/IsFinisherLocked 两个语义化标志
-    //   （架构红线：不判状态类型，所以不碰状态机）。
+    // 管理角色水平朝向、攻击转向和朝向冻结，通过角色标志判断能否转动。
+    // OnAnimatorMove 按临时对齐、攻击转向、根旋转抑制、动画增量的优先级应用朝向。
     public class FacingController
     {
         private readonly CharacterBody body;
@@ -155,8 +144,7 @@ namespace ARPG.FrameWork.Body
             }
         }
 
-        // OnAnimatorMove 的旋转段：按优先级决定本帧朝向（原逻辑逐行迁移，调用时机不变）。
-        // 位置增量（Root 位移）仍由 CharacterBody.OnAnimatorMove 先行写入，这里只管旋转。
+        // 在根位移写入后按优先级应用朝向；临时对齐持续到目标动画真正进入。
         public void ApplyRootRotation(Animator animator)
         {
             bool holdFacing = false;

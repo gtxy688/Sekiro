@@ -6,10 +6,8 @@ using ARPG.Mgr;
 namespace ARPG.Camera
 {
 
-    // FreeLook 环绕输入（关掉 CinemachineInputProvider；FreeLook Axis Max Speed = 0）。
-    // 键鼠：鼠标移动即转（右键是防御，不能拿来转镜头）。
-    // 手柄：右摇杆转镜头。垂直轴松手回中，避免锁定后视角卡在天上/地上。
-    // 锁定时由 CameraController 禁用本组件，避免和锁定相抢轴。
+    // 读取鼠标和右摇杆驱动 FreeLook 环绕，垂直输入停止后回中。
+    // 锁定时由 CameraController 停用，避免同时驱动相机轴。
     public class CinemachineOrbitInput : MonoBehaviour
     {
         [Tooltip("水平旋转速度（度/像素）")]

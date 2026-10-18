@@ -8,9 +8,8 @@ using ARPG.FrameWork.States.Base;
 namespace ARPG.FrameWork.States.Ground
 {
 
-    // Hurt_Mid 倒地结束前按下防御：播起身进防，播完按住则举刀，松开则 Idle。
-    // pressId 是触发进场的那次真实按下（0 = 系统回防）。起身动画期间不接收弹反输入，
-    // 所以窗口留到 DeflectState 真正进场时才开——预输入时间不作为窗口起点。
+    // Hurt_Mid 受击期间按防御时播放起身进防，结束后按住则举刀，松开则回待机。
+    // 保存 PressId，直到真正切入 DeflectState 才开启主动窗口，配置也可提前开放防御 / 垫步取消。
     public class MidToGuardState : BaseState
     {
         private const float FallbackDuration = 1.2f;
@@ -58,7 +57,7 @@ namespace ARPG.FrameWork.States.Ground
                     CancelToDeflectOrDodge(toDeflect: true, deflectCmd.PressId);
                     return true;
                 }
-                // 提前开放时刻还没到：记下这次按下，播完后按它开窗口（旧实现也在这里吞掉命令）。
+                // 未到提前开放时刻时先保存真实按下，结束后再用它开启防御窗口。
                 if (deflectCmd.IsPhysicalPress) pressId = deflectCmd.PressId;
                 return true;
             }
