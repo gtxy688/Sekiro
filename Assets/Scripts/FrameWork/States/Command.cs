@@ -95,8 +95,7 @@ namespace ARPG.FrameWork.States
             => Source == DeflectCommandSource.PhysicalPress && PressId > 0;
     }
 
-    // M6 新增：葫芦 / 锁定 / 闪避
+    // 葫芦 / 闪避
     public struct HealCommand : ICommand { }
-    public struct LockOnCommand : ICommand { }
     public struct DodgeCommand : ICommand { }
 }

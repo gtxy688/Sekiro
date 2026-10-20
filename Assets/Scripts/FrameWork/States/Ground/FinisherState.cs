@@ -9,6 +9,7 @@ namespace ARPG.FrameWork.States.Ground
 {
 
     // 玩家成对忍杀状态：动画播完后代码结算清命并解锁双方，不依赖命中帧事件。
+    // CombatManager 安排双方进入各自状态；玩家这一侧负责报告忍杀结束，受害方不自行退出。
     public class FinisherState : BaseState
     {
         private readonly CharacterBody victim;
@@ -71,6 +72,7 @@ namespace ARPG.FrameWork.States.Ground
             }
 
             hasCompleted = true;
+            // 先记完成再通知流程，避免后续更新重复扣命；先结算，再让流程统一释放双方。
             CombatManager.Instance.ExecuteFinisher(body);
             CombatManager.Instance.CompleteFinisherSequence(body);
         }

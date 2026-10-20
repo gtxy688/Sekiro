@@ -57,10 +57,10 @@ namespace ARPG.FrameWork.Body
         public int LivesRemaining { get; private set; }
         public bool IsDefeated => LivesRemaining <= 0;
 
-        // 距上次受击的时间，用于架势自然回复的延迟判断
+        // 上次战斗接触的绝对时刻；用 Time.time - lastHitTime 算经过时长，控制架势回复延迟。
         private float lastHitTime;
 
-        // 受击结算：扣血 + 涨架势。由 ReceiveHit（物理）或外部调用。
+        // CharacterBody.ReceiveHit 确认没有被防御/无敌拦截后调用：扣血、加架势，再处理死亡。
         public void TakeDamage(int healthDmg, float postureDmg, CharacterBody instigator = null)
         {
             if (CurrentHP <= 0) return; // 已死不再重复结算
@@ -87,7 +87,8 @@ namespace ARPG.FrameWork.Body
         }
 
         // 统一累计伤害、格挡或弹反带来的架势，并在达到上限时通知角色崩解。
-        // allowBreak=false：本次累计不会导致崩解（只狼：完美弹反时自己的架势永不崩防）
+        // 架势是累积到满条才崩解的压力值，与越扣越少的 HP 方向相反。
+        // allowBreak=false 只累加但不触发崩解；返回 true 仅表示本次确实触发了崩解。
         public bool AccumulatePosture(
             float amount,
             bool allowBreak = true,
@@ -147,6 +148,7 @@ namespace ARPG.FrameWork.Body
 
             if (Time.time - lastHitTime >= config.PostureDecayDelay)
             {
+                // 回复“架势”就是让条下降；每秒回复量乘 deltaTime，得到本帧实际减少的量。
                 // 基础回复速度
                 float rate = config.PostureDecayRate;
 
@@ -219,6 +221,7 @@ namespace ARPG.FrameWork.Body
         // 处决清一条命：扣命 → 没命了发胜利事件；还有命 → 重置架势回满血接着打
         public void ClearLife()
         {
+            // HP 归零后的回生次数与忍杀扣除的命数是两套数据；这里扣 LivesRemaining。
             LivesRemaining--;
             CurrentPosture = 0f;
             IsPostureBroken = false;

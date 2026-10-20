@@ -8,9 +8,11 @@ using ARPG.FrameWork.States.Base;
 namespace ARPG.FrameWork.States.Ground
 {
 
-    // Mid/Heavy 倒地（含躺地）播完后的起身。期间挨刀按新的一次受击处理。
+    // GroundStunnedState 的 Mid/Heavy 倒地反应播完后进入，负责通常的起身过程。
+    // 它处于 GroundedState 下，可立即用防御/垫步取消；动画结束回 Idle，挨刀则走新的一次受击。
     public class StandingState : BaseState
     {
+        // 播放请求成功但未正常读到结尾时，最多等待这段秒数；缺少动画时下次更新直接回待机。
         private const float FallbackDuration = 2f;
 
         private string animName;
@@ -49,6 +51,7 @@ namespace ARPG.FrameWork.States.Ground
             GoIdle();
         }
 
+        // 常规起身已没有受击父状态的取消门槛；防御/垫步立即交给 CharacterBody 的地面切换接口。
         public override bool HandleCommand(ICommand cmd)
         {
             if (cmd is DodgeCommand)
@@ -67,12 +70,12 @@ namespace ARPG.FrameWork.States.Ground
         void CancelStanding(bool toDeflect, int pressId)
         {
             body.IsKnockedDown = false;
-            // 换格挡/垫步叶子（共用配方见 CharacterBody.TryChangeToDeflectOrDodge）。
-            // pressId 一并带过去：起身过程里按下的是真实按键，必须能开出弹反窗口。
+            // 与 MidToGuard 的区别：这里可直接换防御/垫步叶子，不再等一段起身进防动画。
+            // 防御保留这次 PressId；DeflectState 会据此申请窗口，而非在 StandingState 内开启。
             body.TryChangeToDeflectOrDodge(toDeflect, pressId);
         }
 
-        // 已经算站起来：不要拦截，让 ReceiveHit 按新一击完整播。
+        // 返回 false 表示没有拦住命中，让 CharacterBody.ReceiveHit 结算伤害并选择新的受击反应。
         public override bool OnHitReceived(HitData hit)
         {
             return false;
@@ -80,7 +83,7 @@ namespace ARPG.FrameWork.States.Ground
 
         void GoIdle()
         {
-            // 地面上换 Idle 子状态；非地面态回退重建地面父状态
+            // 优先只替换当前地面叶子；如果已不在地面父状态下，则通过统一入口重新进入地面待机。
             if (!body.TryChangeGroundedSubState(
                     g => new IdleState(body, g), "standing: animation finished"))
             {

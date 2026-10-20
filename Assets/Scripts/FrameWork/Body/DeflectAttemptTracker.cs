@@ -14,6 +14,8 @@ namespace ARPG.FrameWork.Body
 
     // 按真实按下身份管理弹反窗口与空按惩罚，成功和结束均只结算一次。
     // 时间与配置由 CharacterBody 传入，本类不操作输入、动画或状态机。
+    // 调用顺序：Brain 按下生成 PressId → 防御状态入场开启 AttemptId → 命中时查窗口/记成功 → 到期或离开时结算。
+    // 按下不等于已开窗：攻击或受击期间的预输入，可能还在 Brain 等待状态接受。
     public class DeflectAttemptTracker
     {
         // 参数非法时使用的安全值。
@@ -60,6 +62,7 @@ namespace ARPG.FrameWork.Body
         private int nextAttemptId = 1;
         private int activeAttemptId;
         private int activePressId;
+        // 起点与截止点是传入的绝对时刻，activeWindow 是本次窗口的持续秒数。
         private float activeStartTime;
         private float activeDeadline;
         private float activeWindow;
@@ -107,6 +110,7 @@ namespace ARPG.FrameWork.Body
         // 先结算旧尝试，再恢复计数并计算新窗口，确保缩窗只依据已经发生的空按。
         public int BeginAttempt(int pressId, float now, Settings settings)
         {
+            // 系统回防没有真实按下；已处理过的 PressId 也不能因缓冲重试重复开窗。
             if (pressId <= 0)
             {
                 return 0;
@@ -216,6 +220,7 @@ namespace ARPG.FrameWork.Body
         {
             if (activeAttemptId == 0) return;
 
+            // 统一在结束处记账：成功后结束不罚，死亡/复位等取消不罚，其他未成功结束只累计一次。
             bool penalize = !activeSucceeded && reason != DeflectAttemptEndReason.Lifecycle;
             if (penalize) emptyCount++;
 

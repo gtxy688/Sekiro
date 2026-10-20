@@ -14,7 +14,8 @@ namespace ARPG.FrameWork.Body
             this.body = body;
         }
 
-        // 攻击转向窗：吃 Root 位移，丢掉 Clip yaw，否则挥砍根旋转会把刚对准的朝向拧走
+        // yaw 指绕竖直 Y 轴的水平朝向。下面的标志只控制旋转，不关闭根运动位移。
+        // 攻击转向窗：丢掉 Clip yaw，否则挥砍根旋转会把刚对准的朝向拧走。
         private bool suppressRootYaw;
         private bool steerYawActive;
         private Vector3 steerYawDir;
@@ -33,6 +34,7 @@ namespace ARPG.FrameWork.Body
             worldDir.y = 0f;
             if (worldDir.sqrMagnitude < 0.01f) return;
             Quaternion target = Quaternion.LookRotation(worldDir.normalized, Vector3.up);
+            // 度/秒乘帧时长得到本帧最多旋转的角度，使转向速度不随帧率改变。
             body.transform.rotation = Quaternion.RotateTowards(body.transform.rotation, target, degreesPerSecond * Time.deltaTime);
         }
 
@@ -64,6 +66,7 @@ namespace ARPG.FrameWork.Body
         // 攻击转向：在 OnAnimatorMove 里转，才能盖过同一帧的 Clip 根旋转
         public void SetSteerYaw(Vector3 worldDir, float degreesPerSecond)
         {
+            // 此处记录请求，实际转动留到 ApplyRootRotation，统一处理代码朝向与动画根旋转的先后。
             worldDir.y = 0f;
             if (worldDir.sqrMagnitude < 0.01f || degreesPerSecond <= 0f)
             {
@@ -144,7 +147,8 @@ namespace ARPG.FrameWork.Body
             }
         }
 
-        // 在根位移写入后按优先级应用朝向；临时对齐持续到目标动画真正进入。
+        // CharacterBody.OnAnimatorMove 在根位移写入后调用。
+        // 优先级：成对动作临时对齐 > 攻击追踪转向 > 抑制根旋转 > 动画自己的根旋转。
         public void ApplyRootRotation(Animator animator)
         {
             bool holdFacing = false;

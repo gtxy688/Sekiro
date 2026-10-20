@@ -3,6 +3,7 @@ using ARPG.FrameWork.States;
 
 namespace ARPG.FrameWork.States.Base
 {
+    // 带有子状态机的父状态：例如 GroundedState 表示地面环境，内部 IdleState 表示当前动作。
     // 父状态先拦截命令与受击，未处理时再转交当前子状态。
     public abstract class HierarchicalState : BaseState
     {
@@ -38,7 +39,7 @@ namespace ARPG.FrameWork.States.Base
 
         public override void OnExit()
         {
-            // 强制退出当前正在运行的子状态
+            // 离开父状态也必须退出子状态，让攻击关判定、喝药清动画层等收尾有机会执行。
             SubStateMachine.ChangeState(null, "parent: exit child");
         }
 
@@ -60,7 +61,7 @@ namespace ARPG.FrameWork.States.Base
             return false;
         }
 
-        // 留给具体父状态去实现拦截逻辑
+        // true 在父层消费并停止下传；false 继续问子状态，并不是立刻返回给 Brain。
         protected virtual bool OnParentHandleCommand(ICommand cmd) 
         { 
             return false; 

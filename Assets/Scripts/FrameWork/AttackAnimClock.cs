@@ -24,6 +24,7 @@ namespace ARPG.FrameWork
             if (current.shortNameHash == hash)
                 return SecondsFrom(current);
 
+            // 目标攻击尚未成为当前/下一动画时，从 0 等待；不借用上一动作的时间推进新招判定。
             return 0f;
         }
 
@@ -31,6 +32,7 @@ namespace ARPG.FrameWork
         {
             if (info.length <= 0.0001f)
                 return 0f;
+            // 归一化进度 × 状态长度，换算成攻击配置使用的动画内秒数；不是全局 Time.time。
             return info.normalizedTime * info.length;
         }
     }

@@ -9,6 +9,7 @@ namespace ARPG.FrameWork.States.Ground
 {
 
     // Elbow 投技成对演出：双方播 Elbow_Danger，锁命令，播完由 CombatManager 一起解锁。
+    // 由命中处理请求 CombatManager 开始投技；这里管理演出，不通过武器 Hitbox 再打一次伤害。
     public class GrabThrowState : BaseState
     {
         public const string AnimName = "Elbow_Danger";
@@ -73,6 +74,7 @@ namespace ARPG.FrameWork.States.Ground
             }
 
             hasCompleted = true;
+            // 每个角色只报告自己已播完；CombatManager 收齐双方完成信号后再统一退出。
             CombatManager.Instance.CompleteGrabThrow(body);
         }
 
@@ -83,6 +85,7 @@ namespace ARPG.FrameWork.States.Ground
 
         public override bool OnHitReceived(HitData hit)
         {
+            // 演出期间吞掉普通命中，避免双方中途被切到其他动作而失去同步。
             return true;
         }
     }

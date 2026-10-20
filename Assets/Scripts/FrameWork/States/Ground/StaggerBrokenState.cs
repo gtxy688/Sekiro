@@ -9,6 +9,7 @@ namespace ARPG.FrameWork.States.Ground
 
     // 播放架势崩解倒地动画，结束后解除崩解；Boss 在此期间可被普通忍杀。
     // 达到配置时刻后可取消到格挡或垫步，并同步清除崩解数值。
+    // 崩解数值已在 CombatStats 中设置，本状态只管理倒地表现、输入限制与恢复时机。
     public class StaggerBrokenState : BaseState
     {
         // Animator 当帧还没切到 clip 时的兜底：玩家 Stagger_Broken 约 75 帧 / 30fps
@@ -25,6 +26,7 @@ namespace ARPG.FrameWork.States.Ground
             get
             {
                 float open = body.BrokenDeflectDodgeOpenTime;
+                // 配置单位是入场后的秒数；<= 0 表示不开放提前取消。
                 return open > 0f && timer >= open;
             }
         }
@@ -110,6 +112,7 @@ namespace ARPG.FrameWork.States.Ground
 
         private void FinishBreak()
         {
+            // 不能只切 Idle：RecoverFromBreak 同时清崩解数值与忍杀机会，再恢复地面待机。
             body.RecoverFromBreak();
         }
     }

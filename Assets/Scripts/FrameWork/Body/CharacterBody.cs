@@ -15,11 +15,14 @@ namespace ARPG.FrameWork.Body
 {
 
     // 玩家和 Boss 共用的角色入口：连接 Unity 生命周期、内部模块与 HFSM。
+    // Brain 把输入翻译成命令后交给 TryExecuteCommand；具体动作由当前状态决定。
+    // 本类提供移动、武器、数值等能力入口，并在受击、死亡时请求状态切换。
     // Awake 准备组件和初始数据，Start 进入初始状态，Update 驱动状态机。
     [RequireComponent(typeof(Animator), typeof(Rigidbody))]
     public class CharacterBody : MonoBehaviour, ICombatResettable
     {
-        // 1. 状态机
+        // 顶层区分地面、空中、受击、死亡；地面内部再区分待机、移动、攻击等子状态。
+        // 这是 C# 行为状态机，与 Animator 里负责播放动画的状态机分开维护。
         public StateMachine MainStateMachine { get; private set; }
 
         // HFSM 调试快照：逻辑状态和动画状态分开看，避免只看 Animator 猜状态机。
@@ -34,12 +37,14 @@ namespace ARPG.FrameWork.Body
 
         // 移动与环境感知由 Locomotion 管理，接地点和地面层由 Inspector 配置。
         private Locomotion loco;
+        // ??= 表示为空才创建；this 把当前角色交给模块，后续访问复用同一实例。
         private Locomotion Loco => loco ??= new Locomotion(this);
 
         // 供相机在 LateUpdate 读取跳跃跟随高度。
         public float GetJumpFollowWorldY() => Loco.GetJumpFollowWorldY();
 
-        // 外部通过角色访问武器；Hitbox 的选择和开关由 WeaponController 管理。
+        // Hitbox 负责攻击命中检测，与阻挡角色身体的 bodyCollider 用途不同。
+        // Weapon 是刀的槽位，ActiveHitbox 是当前攻击段选中的刀/肘/脚槽位。
         public Hitbox Weapon => WeaponCtrl.Weapon;
         public Hitbox ActiveHitbox => WeaponCtrl.ActiveHitbox;
 
@@ -63,11 +68,13 @@ namespace ARPG.FrameWork.Body
         public float arrowSpeed = 32f;
         public float arrowCastRadius = 0.12f;
         public float arrowLifetime = 2f;
+        // LayerMask 是多层选择掩码：箭只检查这些层上的碰撞体，不表示箭自身所在层。
         public LayerMask arrowTargetLayers;
         [Tooltip("被瞄准的胸口。空则用 Hurtbox 中心。玩家拖，Boss 不拖")]
         public Transform projectileAimPoint;
 
-        // 3. 移动意图：无论是手柄摇杆推的，还是 Boss AI 寻路计算的，都写到这里
+        // 移动意图：Brain 写入想往哪走，状态据此选动画和转向；它本身不是速度或实际位移。
+        // 实际移动主要来自 OnAnimatorMove 读取的动画根运动。
         public Vector3 MoveDirection { get; set; }
         // Boss AI 给的是世界 XZ；玩家输入是相机相对。MoveState 据此选转向
         public bool MoveUsesWorldDir { get; set; }
@@ -89,11 +96,11 @@ namespace ARPG.FrameWork.Body
         // 玩家 Mid/Heavy 受击已过「倒地过程」、处于躺地可被 Jump_Danger 抓取。≠ IsDowned（HP=0）。
         public bool IsKnockedDown { get; set; }
 
-        // 4. 物理状态 (Locomotion 负责检测，State 读取)
+        // 物理接地检测的缓存结果，由 Locomotion 更新；不等于逻辑上处于 GroundedState。
         public bool IsGrounded => Loco.IsGrounded;
 
-        // 全权根运动：位移由动画 Root 曲线驱动（Animator.applyRootMotion = true）
-        // 空中只吃 Root 的 XZ（贴图/骨骼跟动画），Y 留给跳跃初速度和重力
+        // 根运动总开关：OnAnimatorMove 手动把动画 Root 的位移应用到角色。
+        // 空中仍应用 XZ，只丢弃动画的 Y 位移；竖直运动交给刚体跳跃初速度和重力。
         public bool UseRootMotion = true;
 
         // AirState 期间为 true。OnAnimatorMove 用它决定要不要丢掉 Root 的 Y
@@ -107,6 +114,7 @@ namespace ARPG.FrameWork.Body
         // 玩家默认普攻（SO）。AttackCommand 不携带配置，待机/走路从这里取连招起点。
         // Boss 出招走 moveTable，不读这个槽。
         public AttackConfig LightAttack;
+        // 长按攻击由 PlayerBrain 选 ThrustAttack 并写入 ActiveAttack；空中状态使用 AirAttack。
         public AttackConfig ThrustAttack;
         public AttackConfig AirAttack;
 
@@ -133,30 +141,38 @@ namespace ARPG.FrameWork.Body
         // ===== 跨模块战斗事实 =====
         // 供战斗数值、AI 和表现层查询；由状态维护标志，或在本类中解析当前叶子状态。
 
-        // 是否正在格挡姿态（DeflectState 长按中）——架势回复 ×5 用
+        // 防御姿态事实：DeflectState 和受击转防御的 MidToGuardState 都会维护它。
+        // 数值模块据此提高架势回复，AI 也会查询；它不保证当前有格挡或弹反资格。
         public bool IsGuarding { get; set; }
 
         // 是否正在攻击——由当前 HFSM 攻击叶子派生，Boss AI 仍只通过此门面查询。
         public bool IsAttacking => GetCurrentLeafState() is AttackStateBase;
 
+        // boss是否准备好了反击
         public bool IsParryCounterPending => GetCurrentLeafState() is DeflectState deflect
             && deflect.HasPendingCounter;
 
-        public float PlayerParryExpectedHitTime { get; private set; }
-        public float AttackHitNotBeforeTime { get; private set; }
+        // 两者都是与 Time.time 比较的绝对时刻，0 表示未安排；不是持续时长。
+        public float PlayerParryExpectedHitTime { get; private set; } // 预计玩家首刀命中的时刻。
+        public float AttackHitNotBeforeTime { get; private set; } // 供 Boss 招式首段调度使用的最早出伤时刻，用于倒推起手。
 
-        // 玩家弹断本角色时只保护标准普通第一刀，不跟踪玩家实际按键或连招。
+        // 玩家完美弹反并打断 Boss 时由 DeflectState 调用：this 是被弹的 Boss，参数是玩家首刀配置。
+        // 为玩家预留一次标准首刀的反击时间；不等待玩家实际按键，也不跟踪后续连招。
         public void ArmPlayerParryAttackWindow(AttackConfig firstAttack)
         {
+            // 先清旧计划；配置缺失或首窗口非近战时，本次不留下旧时间限制。
             ClearPlayerParryAttackWindow();
-            if (firstAttack == null || firstAttack.hitPulses == null) return;
-            float firstHit = float.PositiveInfinity;
-            foreach (var pulse in firstAttack.hitPulses)
-            {
-                if (AttackWindowSync.PulseIsMelee(pulse))
-                    firstHit = Mathf.Min(firstHit, pulse.start);
-            }
-            if (float.IsPositiveInfinity(firstHit)) return;
+            if (firstAttack == null || firstAttack.hitPulses == null || firstAttack.hitPulses.Length == 0)
+                return;
+
+            // 玩家首段普攻只有一个命中窗口，直接读取该窗口。
+            var firstPulse = firstAttack.hitPulses[0];
+            if (!AttackWindowSync.PulseIsMelee(firstPulse))
+                return;
+            float firstHit = firstPulse.start;
+
+            // 现在 + 预留的出刀准备时间 + 首刀命中段在攻击内的偏移 = 预计命中时刻。
+            // Boss 首段起手调度在预计玩家命中之后再加缓冲；Max 将负配置夹到 0。
             PlayerParryExpectedHitTime = Time.time
                 + Mathf.Max(0f, Config.PlayerParryAttackPreparationTime) + Mathf.Max(0f, firstHit);
             AttackHitNotBeforeTime = PlayerParryExpectedHitTime
@@ -169,6 +185,8 @@ namespace ARPG.FrameWork.Body
             AttackHitNotBeforeTime = 0f;
         }
 
+        // 查询本角色被弹硬直的预计恢复时刻：
+        // 返回值表示是否查到，out recoveryTime 带回查询结果。
         public bool TryGetParriedRecoveryTime(out float recoveryTime)
         {
             recoveryTime = 0f;
@@ -176,8 +194,10 @@ namespace ARPG.FrameWork.Body
                 && parried.TryGetRecoveryTime(out recoveryTime);
         }
 
+        // 沿子状态向下寻找当前叶子状态；
         private BaseState GetCurrentLeafState()
         {
+            // GroundedState 只说明处于地面；继续沿子状态向下，才知道当前是否正在攻击等。
             BaseState state = MainStateMachine?.CurrentState;
             while (state is HierarchicalState hierarchical
                    && hierarchical.SubStateMachine?.CurrentState is BaseState child)
@@ -187,12 +207,15 @@ namespace ARPG.FrameWork.Body
 
             return state;
         }
+        // 是否是攻击后摇阶段
         public bool IsAttackRecoveryOpen { get; set; }
+        // 角色是否正在喝药
         public bool IsHealing { get; set; }
-        // 危字 / 飞舟：挨打仍扣血涨架势，不切受击、招不中断
+        // 当前招式是否不可被打断
         public bool AttackUninterruptible { get; set; }
 
-        // 忍杀演出 / Elbow 投技中：双方锁命令/受击/强切，直到动画播完
+        // 是否是 忍杀演出 / 投技 阶段：
+        // 双方锁命令/受击/强切，直到动画播完
         public bool IsFinisherLocked
         {
             get => isFinisherLocked;
@@ -208,8 +231,7 @@ namespace ARPG.FrameWork.Body
         }
         private bool isFinisherLocked;
 
-        // 普通回待机复用同一个地面父状态；进入时恢复默认子状态，退出时清空子状态机。
-        // 指定初始子状态的强制切换仍创建独立实例。
+        // 缓存一个普通的地面父状态对象。
         private GroundedState sharedGrounded;
         public GroundedState SharedGrounded => sharedGrounded ??= new GroundedState(this);
 
@@ -217,46 +239,47 @@ namespace ARPG.FrameWork.Body
         private FacingController facing;
         private FacingController Facing => facing ??= new FacingController(this);
 
-        // 识破打断后继续锁水平朝向，直到下一招；硬直一结束走位就会对准玩家猛转。
+        // 查询战斗中的水平朝向是否被冻结
         public bool IsCombatYawFrozen => Facing.IsCombatYawFrozen;
 
-        // 被完美弹刀硬直中（避免查 ParriedState 类型）
+        // 是否正处于攻击被完美弹开后的硬直中。（避免查 ParriedState 类型）
         public bool IsParried { get; set; }
-        // 硬直结束后交锋层可抽一招；距离过远或抽空则清掉
+        // 是否已经获得安排交锋反击的许可，供 Boss 决策读取。
         public bool KengekiArmed { get; set; }
 
-        // 多段刀当前脉冲（弹反 Boat 最后一刀等）。AttackState 写入。
+        // 当前攻击正在使用第几个命中窗口，-1 表示当前没有命中窗口在用。
         public int ActiveHitPulseIndex { get; set; } = -1;
         public bool AirJump2Used => Loco.AirJump2Used;
 
         public void ResetAirJump2() => Loco.ResetAirJump2();
-        // 连续被对手近战完美弹开的次数。JumpThrust（3022）抽招读这个；出手或交锋中断后清零。
+        // 查询本角色连续被对手完美弹开的次数
         public int ConsecutiveTimesParried => Deflect.ConsecutiveTimesParried;
-
+        //通知内部记录“本角色又被完美弹开了一次”，增加计数。
         public void NotifyPerfectlyParried() => Deflect.NotifyPerfectlyParried();
-
+        //把连续被弹计数清零。
         public void ResetConsecutiveTimesParried() => Deflect.ResetConsecutiveTimesParried();
 
-        // 下一次出手覆盖：Boss 表行烘焙、玩家突刺会先写这里。null 则玩家回退 LightAttack。
+        // 指定下一次攻击采用哪份 AttackConfig
         public AttackConfig ActiveAttack { get; set; }
 
-        // 当前招式表行/段。出箭读伤害；AttackState 不清，BT_ExecuteMove.ResetMove 清。
+        // Boss 当前使用的整条招式数据
         public BossMoveEntry CurrentMoveEntry { get; set; }
+        // Boss 当前执行段的窗口数据
         public BossMoveWindow CurrentMoveWindow { get; set; }
 
-        // 硬直 / 受击后摇：从 Config 读。玩家垫步取消：Light=StunDuration，Mid=KnockdownStunDuration，Heavy=HeavyStunDuration。
+        // 普通受击相关时长
         public float StunDuration => Config.StunDuration;
-
+        // 玩家mid受击倒地时，允许垫步取消的时间门槛。
         public float KnockdownStunDuration => Config.KnockdownStunDuration;
-
+        // 玩家heavy受击倒地时，允许垫步取消的时间门槛。
         public float HeavyStunDuration => Config.HeavyStunDuration;
-
+        // 玩家重受击倒地时，允许垫步取消的时间门槛。
         public float BrokenDeflectDodgeOpenTime =>
             Config.BrokenDeflectDodgeOpenTime;
-
+        // 重箭格挡、弹反反应开始后，多久允许提前切防御或垫步。
         public float ArrowHeavyDeflectDodgeOpenTime =>
             Config.ArrowHeavyDeflectDodgeOpenTime;
-
+        // 受击转防御动作开始后，多久允许提前切防御或垫步。
         public float MidToGuardDeflectDodgeOpenTime =>
             Config.MidToGuardDeflectDodgeOpenTime;
 
@@ -290,9 +313,8 @@ namespace ARPG.FrameWork.Body
         // 阵营直接序列化，Awake 前即可查询，避免依赖 PlayerBrain 或跨对象初始化顺序。
         // 本类用 Configs.Faction 区分枚举类型与同名属性。
         [Header("阵营")]
-        [Tooltip("玩家角色必须选 Player。选错不会崩，但会静默退化——" +
-                 "玩家会失去专属受击表现、无敌血等，且很难察觉。启动时会有报错提醒。")]
-        [SerializeField] private Faction faction = Configs.Faction.Enemy;
+        [Tooltip("玩家角色选 Player。")]
+        [SerializeField] private Faction faction = Faction.Enemy;
 
         public Faction Faction => faction;
 
@@ -324,13 +346,14 @@ namespace ARPG.FrameWork.Body
 
         private void Start()
         {
-            // 先同步物理位置并采样接地，避免检测初始值为 false 时误切空中状态。
+            // 先同步物理位置，让后面的接地检查使用更新后的位置
             Physics.SyncTransforms();
+            // 接地检查
             UpdateEnvironmentalChecks();
             // 地面父状态进入后，会在自己的子状态机中进入默认 IdleState。
             EnterGrounded("lifecycle: initial grounded");
 
-            // 各组件的 Start 顺序不定，Ensure 保证注册时已有战斗范围对象。
+            // 获取战斗范围对象，缺失时创建，再将本角色登记为可复位对象。
             EncounterScope.Ensure().Register(this);
         }
 
@@ -422,7 +445,7 @@ namespace ARPG.FrameWork.Body
             Loco.ApplyPendingJumpVelocity();
         }
 
-        // 起跳只提供垂直初速度，水平位移继续使用根运动。
+        // 起跳先写入垂直初速度，并预约下一物理帧补写一次；水平位移继续使用根运动。
         public void QueueJump() => Loco.QueueJump();
 
         // 返回 true = 命令吃掉。playedNew = 本次新播了 Jump2（已用过则为 false）。
@@ -442,6 +465,7 @@ namespace ARPG.FrameWork.Body
 
             Collider otherCol = other.bodyCollider;
 
+            // 有重叠时，物理查询给出分离方向和距离；这里只取水平分量，避免把角色顶到空中。
             Vector3 direction;
             float distance;
             if (!Physics.ComputePenetration(
@@ -484,10 +508,12 @@ namespace ARPG.FrameWork.Body
             Rb.rotation = transform.rotation;
         }
 
-        // 接收大脑 (Brain) 传来的指令
+        // Brain（玩家输入或 Boss 决策）统一从这里交命令，再由状态机询问当前状态。
+        // true 只表示命令已消费；例如演出锁期间直接吞掉命令，角色不会实际执行它。
         public bool TryExecuteCommand(ICommand cmd)
         {
-            if (IsFinisherLocked) return true;
+            if (IsFinisherLocked)
+                return true;
 
             // true 表示某层已消费命令，false 表示当前层级未接受、可由大脑保留缓冲重试。
             return MainStateMachine.HandleCommand(cmd);
@@ -496,7 +522,7 @@ namespace ARPG.FrameWork.Body
         // ===== 状态查询 / 切入 =====
         // 业务代码不要直接判顶层状态类型；顶层类型判定集中在这里。
 
-        // 当前顶层是否为地面态（只读查询）
+        // 查询逻辑上的地面父状态；与上面的物理接地结果 IsGrounded 分开使用。
         public bool IsGroundedTop => MainStateMachine?.CurrentState is GroundedState;
 
         // ===== 顶层状态切换门面 =====
@@ -607,6 +633,7 @@ namespace ARPG.FrameWork.Body
             string reason = "grounded child transition")
         {
             if (MainStateMachine?.CurrentState is not GroundedState g) return false;
+            // factory 是创建目标状态的函数：把当前父状态 g 传给它，新子状态才能在同一父级内切换。
             g.SubStateMachine.ChangeState(factory(g), reason);
             return true;
         }
@@ -728,7 +755,8 @@ namespace ARPG.FrameWork.Body
         // 按当前时间推进尝试到期。状态 Update 与命中入口都要先调用它。
         public void AdvanceDeflectAttempt() => DeflectAttempts.Advance(Time.time);
 
-        // 唯一的弹反资格查询：未结束的尝试 + 固定半开窗口。
+        // 唯一的弹反资格查询：未结束的尝试 + 固定半开窗口 [开始时刻, 结束时刻)。
+        // PressId 标识一次真实按下；AttemptId 标识状态接受该按下后开启的一次弹反尝试。
         public bool IsDeflectParryActive(int attemptId)
             => DeflectAttempts.CanParry(attemptId, Time.time);
 
@@ -949,7 +977,7 @@ namespace ARPG.FrameWork.Body
         {
             if (IsFinisherLocked || IsDefeated) return;
 
-            // 打包成值类型，供状态机做层级查询
+            // HitData 是本次命中的数据快照，攻方传来的伤害、类型等信息随它交给防守状态。
             HitData hit = new HitData
             {
                 attacker = attacker,
@@ -969,6 +997,7 @@ namespace ARPG.FrameWork.Body
             if (TryPassiveDeflect(hit)) return;
 
             // 父状态先拦截，再逐层转交当前叶子处理防御、无敌或二次受击。
+            // 返回 true 代表命中已处理，可能已经加过架势；不是统一表示“完全没有受到影响”。
             if (MainStateMachine.CurrentState != null &&
                 MainStateMachine.CurrentState.OnHitReceived(hit))
             {
@@ -986,6 +1015,7 @@ namespace ARPG.FrameWork.Body
             if (HitReactionUtil.IsPlayer(this) && attacker != null)
                 attacker.ResetConsecutiveTimesParried();
 
+            // TakeDamage 的死亡回调已切换状态，不能继续用普通受击把死亡状态盖掉。
             if (CurrentHP <= 0) return;
 
             if (hit.isPerilous && hit.perilousType == PerilousType.Grab

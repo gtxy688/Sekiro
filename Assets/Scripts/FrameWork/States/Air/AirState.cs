@@ -7,7 +7,8 @@ namespace ARPG.FrameWork.States.Air
 {
 
     // 空中父状态：子状态按 Jump → Jumping → Fall 切动画；空中刀是独立叶子。
-    // 根运动保持开启（XZ 跟贴图）；高度走 JumpSpeed + 重力。
+    // 根运动保持开启（XZ 跟动画）；高度由刚体的竖直速度与重力控制。
+    // 地面跳跃或踩空都会进入这里；父状态负责落地出口，子状态负责空中动作。
     public class AirState : HierarchicalState
     {
         public AirState(CharacterBody body) : base(body) { }
@@ -33,6 +34,7 @@ namespace ARPG.FrameWork.States.Air
 
         public override void OnUpdate()
         {
+            // 子状态先更新“是否可以离开空中”，父状态再据此切回地面，避免落地动作被提前掐断。
             base.OnUpdate();
 
             if (SubStateMachine.CurrentState is AirAttackState airAtk && airAtk.WantsImmediateLand)
@@ -48,6 +50,7 @@ namespace ARPG.FrameWork.States.Air
 
         private void LeaveAir()
         {
+            // 落地不等于自动清除架势崩解；仍崩解时要回倒地状态，不能直接待机。
             if (body.IsPostureBroken)
             {
                 body.EnterGrounded(new StaggerBrokenState(body), "air: landed while posture broken");

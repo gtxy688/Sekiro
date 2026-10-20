@@ -5,6 +5,7 @@ namespace ARPG.FrameWork.Body
 {
 
     // 管理接地检测、坠图保护、跳跃速度、移动动画参数和相机相对输入换算。
+    // 这是由 CharacterBody 持有的普通 C# 对象，不会自动收到 Unity 的 Update；角色显式调用它。
     // 配置与移动意图读取 CharacterBody，内部缓存感知结果、待补写的跳跃速度与骨骼引用。
     public class Locomotion
     {
@@ -30,6 +31,7 @@ namespace ARPG.FrameWork.Body
 
         public float GetJumpFollowWorldY()
         {
+            // 只提供镜头要跟随的视觉高度，不计算跳跃位移；模型骨骼可能升高而角色根节点仍贴地。
             Transform bone = ResolveJumpFollowBone();
             return bone != null ? bone.position.y : body.transform.position.y;
         }
@@ -53,6 +55,7 @@ namespace ARPG.FrameWork.Body
 
         static Transform FindNamedChild(Transform root, string name)
         {
+            // 深度优先搜索模型层级，找到第一根同名骨骼就返回；仅在首次解析时执行。
             if (root.name == name) return root;
             for (int i = 0; i < root.childCount; i++)
             {
@@ -70,6 +73,7 @@ namespace ARPG.FrameWork.Body
 
         public void UpdateEnvironmentalChecks()
         {
+            // 用脚下小球检查 groundLayer 指定的层，先得到原始结果，再进行连续帧防抖。
             bool check = Physics.CheckSphere(body.groundCheckPoint.position, body.groundCheckRadius, body.groundLayer);
             groundedCheckRaw = check;
 
@@ -136,10 +140,12 @@ namespace ARPG.FrameWork.Body
 
             pendingJumpSpeed = speed;
             hasPendingJump = true;
+            // 本帧先起跳，下个物理帧再补写一次；不是每帧持续施加向上的力。
             ApplyJumpVelocity(speed);
         }
 
-        // 返回 true = 命令吃掉。playedNew = 本次新播了 Jump2（已用过则为 false）。
+        // 返回 true = 命令已消费。playedNew = 本次新播了 Jump2（已用过则为 false）。
+        // 这里的 Jump2 只切动画并记次数，不再调用 QueueJump 增加竖直速度。
         public bool TryAirJump2(out bool playedNew)
         {
             playedNew = false;
@@ -187,6 +193,7 @@ namespace ARPG.FrameWork.Body
             Vector3 camRight = cam.transform.right;
             camRight.y = 0f;
             camRight.Normalize();
+            // 输入 y 沿相机前方，x 沿相机右方；去掉相机俯仰，得到水平面上的世界方向。
             return (camForward * inputDir.y + camRight * inputDir.x).normalized;
         }
 
@@ -206,6 +213,7 @@ namespace ARPG.FrameWork.Body
             }
             else
             {
+                // 带阻尼的 SetFloat 平滑混合树参数；这改变步伐混合，不直接给刚体设置速度。
                 body.Animator.SetFloat(moveXHash, x, 0.1f, Time.deltaTime);
                 body.Animator.SetFloat(moveForwardHash, z, 0.1f, Time.deltaTime);
             }

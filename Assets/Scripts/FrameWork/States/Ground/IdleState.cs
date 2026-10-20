@@ -29,6 +29,7 @@ namespace ARPG.FrameWork.States.Ground
 
         public override bool HandleCommand(ICommand cmd)
         {
+            // 地面父层先处理跳跃、喝药等公共命令；到达这里的命令只决定当前地面动作。
             if (cmd is MoveCommand moveCmd)
             {
                 // 忽略死区内输入，避免原地反复进入移动状态。
@@ -47,12 +48,14 @@ namespace ARPG.FrameWork.States.Ground
 
             if (cmd is AttackCommand)
             {
+                // AttackCommand 只有“想攻击”的含义；具体哪一招由 CharacterBody 的配置入口提供。
                 parent.SubStateMachine.ChangeState(new AttackState(body, parent, body.GetAttackConfig()));
                 return true;
             }
 
             if (cmd is DeflectCommand deflectCmd)
             {
+                // 将真实按下的 PressId 继续传递，DeflectState 真正进入时才开启弹反窗口。
                 parent.SubStateMachine.ChangeState(
                     new DeflectState(body, parent, pressId: deflectCmd.PressId));
                 return true;

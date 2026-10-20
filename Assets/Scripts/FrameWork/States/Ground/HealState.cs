@@ -44,7 +44,7 @@ namespace ARPG.FrameWork.States.Ground
                 return;
             }
 
-            // 先扣药；没药才退回。满血也能喝（播 Drink、扣次数，血量封顶）
+            // UseGourd 在入场时就扣次数并加血，不等待动画事件；之后受击打断也不会退还。
             if (!body.UseGourd())
             {
                 parent.SubStateMachine.ChangeState(new IdleState(body, parent));
@@ -68,6 +68,7 @@ namespace ARPG.FrameWork.States.Ground
                 body.Animator.GetCurrentAnimatorStateInfo(upperLayerIndex);
             if (AnimUtil.IsPlaying(info, DrinkState))
             {
+                // 先确认确实进入过喝药动画，再等待播放结束，避免融合期间读到旧状态就立刻退出。
                 drinkAnimationSeen = true;
                 if (info.normalizedTime >= 0.95f)
                 {
@@ -92,6 +93,7 @@ namespace ARPG.FrameWork.States.Ground
 
         public override void OnExit()
         {
+            // 上半身层权重恢复为 0，否则退出后仍可能覆盖攻击或待机的上半身动作。
             body.IsHealing = false;
             if (upperLayerIndex >= 0 &&
                 upperLayerIndex < body.Animator.layerCount)

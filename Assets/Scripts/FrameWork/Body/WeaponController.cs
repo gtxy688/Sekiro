@@ -30,6 +30,7 @@ namespace ARPG.FrameWork.Body
                 return;
             Hitbox target = ResolveHitbox(config.HitboxSlot);
 
+            // 刀、肘和脚不能残留同时判定；切槽时先关上一槽，再把本招配置交给新槽。
             if (ActiveHitbox != null && ActiveHitbox != target)
                 ActiveHitbox.Disable();
 
@@ -39,7 +40,7 @@ namespace ARPG.FrameWork.Body
             CombatEventBus.TriggerAttackSwingStart(body);
         }
 
-        // 关闭武器判定
+        // 关闭攻击扫描并通知表现层收尾；不是销毁或隐藏武器模型。
         public void DisableWeaponHit()
         {
             Hitbox target = ActiveHitbox != null ? ActiveHitbox : Weapon;
@@ -71,6 +72,7 @@ namespace ARPG.FrameWork.Body
             origin += dir * 0.35f;
 
             ArrowProjectile arrow = Object.Instantiate(body.arrowPrefab, origin, Quaternion.LookRotation(dir, Vector3.up));
+            // 生成后把飞行方向、碰撞层和伤害交给箭自身，此模块不逐帧推进箭的运动。
             arrow.Fire(body, dir, body.arrowSpeed, body.arrowCastRadius, body.arrowTargetLayers, body.arrowLifetime,
                 damage, posture, knockback, grade);
             CombatEventBus.TriggerArrowReleased(body);
@@ -78,6 +80,7 @@ namespace ARPG.FrameWork.Body
 
         public Vector3 GetProjectileAimPoint()
         {
+            // 返回“本角色被别人射击时”的瞄准点；出箭时再向目标角色查询这个入口。
             if (body.projectileAimPoint != null)
                 return body.projectileAimPoint.position;
 

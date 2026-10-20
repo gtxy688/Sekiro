@@ -10,6 +10,7 @@ namespace ARPG.FrameWork.States
         private readonly Action<BaseState, BaseState, string> onStateChanged;
         private readonly Func<BaseState, string> debugPathResolver;
 
+        // 每个 StateMachine 只持有本层的当前状态；父状态内部另有一台子状态机。
         public BaseState CurrentState { get; private set; }
         public BaseState PreviousState { get; private set; }
         public string PreviousStatePath { get; private set; } = "<none>";
@@ -27,6 +28,7 @@ namespace ARPG.FrameWork.States
         }
 
         // null 表示清空当前状态；切换始终先退出旧状态，再进入新状态。
+        // 即使传入的是同一实例也会重新退出/进入，因此可让缓存的待机状态重置自身数据。
         public void ChangeState(BaseState newState, string reason = null)
         {
             BaseState previous = CurrentState;
@@ -58,6 +60,7 @@ namespace ARPG.FrameWork.States
 
         public bool HandleCommand(ICommand command)
         {
+            // 不排队、不解释命令，只转交当前状态；玩家输入缓冲由 Brain 维护。
             return CurrentState != null && CurrentState.HandleCommand(command);
         }
     }

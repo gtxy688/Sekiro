@@ -19,6 +19,7 @@ namespace ARPG.FrameWork.States.Ground
         private float iFrameDuration;
         private readonly float entryBlendDuration;
         private bool lockedDodge;
+        // 入场时固定本次能否识破；垫步途中再松开方向键不会补得资格。
         private bool mikiriEligible;
 
         public DodgeState(
@@ -90,6 +91,7 @@ namespace ARPG.FrameWork.States.Ground
         // 垫步不可打断；仍更新移动意图，结束时才能接 DodgeToWalk
         public override bool HandleCommand(ICommand cmd)
         {
+            // true 会消费攻击、防御等命令，不会把它们排队到垫步结束；移动仅更新结束后的去向。
             if (cmd is MoveCommand moveCmd)
             {
                 body.MoveDirection = moveCmd.Direction;
@@ -113,6 +115,7 @@ namespace ARPG.FrameWork.States.Ground
 
             if (dodgeTimer <= iFrameDuration)
             {
+                // true 让 CharacterBody 跳过这次普通伤害结算；超出无敌时间则回到正常受击链。
                 return true;
             }
             return false;

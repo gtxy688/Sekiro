@@ -58,6 +58,7 @@ namespace ARPG.FrameWork.States.Ground
 
         public override void OnUpdate()
         {
+            // 仅保持静止并补试动画请求，不在这里自行计时解锁；双方必须由同一流程统一退出。
             body.MoveDirection = Vector3.zero;
             if (triedNestedPath) return;
 
@@ -82,6 +83,7 @@ namespace ARPG.FrameWork.States.Ground
 
         public override bool OnHitReceived(HitData hit)
         {
+            // 成对动作中的伤害/清命由流程结算，不能让普通武器命中打断或重复结算。
             return true;
         }
 

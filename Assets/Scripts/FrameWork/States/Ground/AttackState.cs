@@ -6,6 +6,7 @@ using ARPG.FrameWork.States.Base;
 namespace ARPG.FrameWork.States.Ground
 {
     // 复用攻击基类的判定与表现，补充地面格挡 / 垫步取消和后摇接移动规则。
+    // 攻击的 Update、连招与命中窗口在 AttackStateBase；这里仅覆盖地面专属的出口。
     public class AttackState : AttackStateBase
     {
         public AttackState(CharacterBody body, HierarchicalState parent, AttackConfig config)
@@ -27,6 +28,7 @@ namespace ARPG.FrameWork.States.Ground
         // pressId 原样透传：后摇里按下的是真实按键，必须能开出弹反窗口。
         protected override bool CancelToDeflect(bool canCancel, DeflectCommand cmd)
         {
+            // 不在取消窗口时返回 false，让尚未过期的防御预输入有机会在之后重试。
             if (!canCancel) return false;
             parent.SubStateMachine.ChangeState(
                 new DeflectState(body, parent, pressId: cmd.PressId), "attack: cancel to deflect");

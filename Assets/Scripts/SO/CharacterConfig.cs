@@ -8,6 +8,7 @@ namespace ARPG.Configs
 
     // 玩家和 Boss 共用的属性与状态参数；当前 HP、架势保存在各角色的 CombatStats。
     // 攻击伤害另由 AttackConfig、BossMoveTable 和结算默认值提供。
+    // ScriptableObject 是可在 Inspector 配置并被角色引用的资产；最大值/规则在这里，当前数值在角色实例里。
     [CreateAssetMenu(fileName = "NewCharacterConfig", menuName = "Combat/Character Config")]
     public class CharacterConfig : ScriptableObject
     {
@@ -21,6 +22,7 @@ namespace ARPG.Configs
         public float PostureDecayDelay = 2f;  // 停止受击多少秒后开始回复
 
         [Header("受击")]
+        // 同一参数可能用于不同角色的规则：玩家的取消开放时间不等于强制结束受击动画的时间。
         [Tooltip("Boss 非重击：硬直结束秒数。玩家 Light：受击后摇，这么久后可垫步取消；不垫则动画仍播完再回 Idle。")]
         public float StunDuration = 0.5f;
 
@@ -53,6 +55,7 @@ namespace ARPG.Configs
         public float MidToGuardDeflectDodgeOpenTime = 0f;
 
         [Header("防御/弹反")]
+        // Deflect 相关参数用于防守方；ParriedDuration 用于攻击被弹开的那一方，二者不能混用。
         public float DeflectWindow = 0.3f;             // 完美弹反窗口（秒）
         public float DeflectPostureGain = 30f;         // 完美弹反成功：攻击者涨的架势
         public float GuardPostureFactor = 0.5f;        // 格挡时自己涨架势的比例（×对方架势伤害）
@@ -73,7 +76,7 @@ namespace ARPG.Configs
         [FormerlySerializedAs("DeflectMashWindow")]
         public float DeflectEmptyResetInterval = 0.5f;
 
-        public float GuardPostureRecoveryMultiplier = 5f; // 按住格挡 2s 后架势回复倍率
+        public float GuardPostureRecoveryMultiplier = 5f; // 防御姿态下的架势回复倍率；开始回复仍需满足 PostureDecayDelay。
 
         [Header("架势")]
         public bool PostureDecayInverse = false;   // true=非线性（架势越高回越慢，Boss 用）；false=线性
@@ -96,7 +99,7 @@ namespace ARPG.Configs
         public float KnockdownToDodgeBlendDuration = 0.12f;
 
         [Header("识破")]
-        public float MikiriDuration = 0.8f;      // 踩刀动画时长
+        public float MikiriDuration = 0.8f;      // 保留字段；当前 MikiriCounterState 按动画结束，未读取此值。
         public float MikiriPostureGain = 30f;    // 识破成功涨攻击者架势
 
         [Header("Boss 被动防御")]
@@ -123,6 +126,7 @@ namespace ARPG.Configs
 
         [Tooltip("Jump2 切 Jumping 的归一化时间。比 Jump 略早，避免二段踢僵在半空")]
         [Range(0.1f, 1f)]
+        // 当前 AirIdleState 的 Jump2 仍共用 JumpToJumpingNormalized；此独立字段尚未接入。
         public float Jump2ToJumpingNormalized = 0.42f;
 
         [Tooltip("过最高点（速度转负）也立刻切 Jumping。起跳太长、空中还在抬腿时勾上")]
@@ -138,6 +142,7 @@ namespace ARPG.Configs
         public float LandAnimBlend = 0.05f;
 
         [Tooltip("下落速度超过该值且近地时提前切 Fall（更顺，0 = 只靠 LandEarlyHeight / 接地）")]
+        // 当前落地逻辑读取竖直速度和 LandEarlyHeight，尚未使用此速度阈值字段。
         public float FallStartDownSpeed = 1.5f;
 
         [Header("攻击输入")]

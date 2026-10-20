@@ -6,6 +6,7 @@ namespace ARPG.FrameWork
 
     // 从 Ground 层体积最大的碰撞体采样主地面范围，生成四面静态空气墙。
     // 按落点高度排除塔楼等上层结构，避免直接使用碰撞体包围盒把边界扩到悬空区。
+    // 这是场景环境辅助组件，不接收玩家命令；生成的 BoxCollider 在场地四周阻挡角色。
     public class ArenaBoundary : MonoBehaviour
     {
         [Tooltip("墙内收边距（≈胶囊半径），防止角色贴墙时半个身子悬出场外")]
@@ -94,6 +95,7 @@ namespace ARPG.FrameWork
 
         private static void MakeWall(Transform container, int layer, Vector3 center, Vector3 size)
         {
+            // 只创建碰撞体，没有 Renderer，所以是看不见的墙；未加 Rigidbody 的碰撞体作为静态障碍。
             GameObject go = new GameObject("AirWall");
             go.layer = layer;
             go.transform.SetParent(container, false);
@@ -115,6 +117,7 @@ namespace ARPG.FrameWork
 
             float step = Mathf.Max(0.5f, Mathf.Max(area.size.x, area.size.z) / 64f);
             int mask = 1 << ground;
+            // NameToLayer 得到层号，1 << ground 转成只选该层的位掩码，供 Raycast 过滤检测对象。
             float rayOriginY = area.max.y + 1f;
             float rayDist = area.size.y + 2f;
 

@@ -18,6 +18,7 @@ namespace ARPG.FrameWork.States.Ground
         private float enterTimer;
         private float enterDuration = 0.45f;
         private bool inEnterTransition;
+        // 记住上帧选用的移动模式，仅模式改变时重选动画，避免每帧 CrossFade 导致动画从头播放。
         private bool wasLocked;
         private bool wasFastWalk;
 
@@ -64,6 +65,7 @@ namespace ARPG.FrameWork.States.Ground
             }
 
             Vector2 inputDir = body.MoveDirection;
+            // 没有移动输入时，不更新角色朝向。
             if (inputDir.sqrMagnitude < 0.01f) return;
 
             Vector3 moveDir;
@@ -74,17 +76,14 @@ namespace ARPG.FrameWork.States.Ground
                 toTarget.y = 0f;
                 moveDir = toTarget.sqrMagnitude > 0.001f ? toTarget.normalized : body.transform.forward;
             }
-            else if (body.MoveUsesWorldDir)
-            {
-                moveDir = new Vector3(inputDir.x, 0f, inputDir.y);
-                if (moveDir.sqrMagnitude > 0.001f) moveDir.Normalize();
-            }
             else
             {
+                // 当前玩法中，无目标移动用于未锁定的玩家，按相机朝向换算输入。
                 moveDir = body.InputToWorldDir(inputDir);
             }
 
             body.RotateYaw(moveDir, rotationSpeed);
+            // 这里只选动画与朝向；实际位移由 CharacterBody.OnAnimatorMove 应用根运动。
         }
 
         // Walk_Strafe = 锁定/近身慢走绕圈；Walk = 未锁定或 Boss 远距离快跑拉近。
@@ -110,6 +109,7 @@ namespace ARPG.FrameWork.States.Ground
 
             toTarget.Normalize();
             Vector3 right = Vector3.Cross(Vector3.up, toTarget);
+            // 点积得到沿目标左右/前后轴的分量，可让角色面向目标同时侧移或后退。
             SetStrafe(Vector3.Dot(world, right), Vector3.Dot(world, toTarget), instant);
         }
 

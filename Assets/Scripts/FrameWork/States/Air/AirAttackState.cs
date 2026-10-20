@@ -7,6 +7,7 @@ namespace ARPG.FrameWork.States.Air
 {
 
     // 复用攻击基类的判定与表现，补充二段跳取消、结束后续滞空和落地立即退出规则。
+    // 普通出招与连招由 AttackStateBase 驱动，空中父状态 AirState 负责最终落地切换。
     public class AirAttackState : AttackStateBase
     {
         private float enterTime;
@@ -34,6 +35,7 @@ namespace ARPG.FrameWork.States.Air
 
         protected override void ExitToIdle()
         {
+            // 只是空中攻击结束，角色可能还没落地；回空中持续而非地面 IdleState。
             parent.SubStateMachine.ChangeState(new AirIdleState(body, parent, resumeAirborne: true));
         }
 

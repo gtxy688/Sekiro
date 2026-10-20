@@ -56,6 +56,7 @@ namespace ARPG.FrameWork.States.Dead
         {
             if (cmd is AttackCommand)
             {
+                // 同一个 AttackCommand 在不同状态有不同含义：真死分支用它重载当前场景。
                 SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
                 return true;
             }

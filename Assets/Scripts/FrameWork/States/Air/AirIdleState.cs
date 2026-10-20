@@ -16,6 +16,7 @@ namespace ARPG.FrameWork.States.Air
 
         private enum Phase
         {
+            // 同一逻辑子状态内部的小阶段，只决定空中动画；不是新增四个 StateMachine 子状态。
             Takeoff,  // Jump：起跳
             Airborne, // Jumping：空中持续
             Jump2,    // 空中二段（无踩头，纯二段跳）
@@ -179,6 +180,7 @@ namespace ARPG.FrameWork.States.Air
 
         private void TryEnterAirborne()
         {
+            // normalizedTime 是动画进度（1 为一轮结束）；Time.time - enterTime 是进入后的秒数。
             AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
             bool jumpFinished = AnimUtil.IsPlaying(info, "Jump")
                 && info.normalizedTime >= JumpToJumpingNorm
@@ -236,6 +238,7 @@ namespace ARPG.FrameWork.States.Air
 
         private bool IsNearGround()
         {
+            // 向下扫一个球，预判进入落地动画的时机；只做检测，不在这里移动角色或制造地面。
             float early = LandEarlyHeight;
             if (early <= 0.01f) return false;
 

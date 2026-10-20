@@ -24,20 +24,18 @@ namespace ARPG.Player
         private InputAction lockOnAction;
         private bool callbacksBound;
 
-        // 保存键盘或摇杆的移动方向。
-        private Vector2 currentMoveInput;
         // 记录本次攻击按下，用于区分普通攻击与长按突刺。
         private bool attackPressed;
+        // 本次按键是否已提交长按突刺请求，防止重复提交，以及松键时再提交普通攻击。
         private bool holdAttackTriggered;
+        // 本次长按判定是否已结束；提交突刺请求或按下转为忍杀后置为 true，跳过后续长按检查。
         private bool holdThresholdChecked;
         private float attackPressedTime;
-        private float acceptInputAfter;
 
         protected override void Awake()
         {
             base.Awake();
             playerInput = GetComponent<PlayerInput>();
-            acceptInputAfter = Time.unscaledTime + 0.35f;
         }
 
         // 等 PlayerInput 完成初始化后，再查找动作并订阅输入事件。
@@ -56,7 +54,7 @@ namespace ARPG.Player
             healAction = map.FindAction("Heal");
             lockOnAction = map.FindAction("LockOn");
 
-            // 将各个输入动作接到对应回调。
+            // 将攻击、跳跃等离散动作接到对应回调；移动在 Update 中轮询。
             BindActions();
             callbacksBound = true; // 销毁时据此判断是否需要解绑。
             // 暂停时清除残留操作，避免恢复后沿用暂停前的输入。
@@ -74,8 +72,6 @@ namespace ARPG.Player
 
         private void BindActions()
         {
-            moveAction.performed += OnMovePerformed;
-            moveAction.canceled += OnMoveCanceled;
             attackAction.started += OnAttackStarted;
             attackAction.canceled += OnAttackCanceled;
             jumpAction.started += OnJumpStarted;
@@ -89,8 +85,6 @@ namespace ARPG.Player
         // 销毁时移除订阅，避免输入事件继续调用已销毁的对象。
         private void UnbindActions()
         {
-            moveAction.performed -= OnMovePerformed;
-            moveAction.canceled -= OnMoveCanceled;
             attackAction.started -= OnAttackStarted;
             attackAction.canceled -= OnAttackCanceled;
             jumpAction.started -= OnJumpStarted;
@@ -99,16 +93,6 @@ namespace ARPG.Player
             dodgeAction.started -= OnDodgeStarted;
             healAction.started -= OnHealStarted;
             lockOnAction.started -= OnLockOnStarted;
-        }
-
-        private void OnMovePerformed(InputAction.CallbackContext ctx)
-        {
-            currentMoveInput = ctx.ReadValue<Vector2>();
-        }
-
-        private void OnMoveCanceled(InputAction.CallbackContext _)
-        {
-            currentMoveInput = Vector2.zero;
         }
 
         private void OnAttackStarted(InputAction.CallbackContext _)
@@ -185,10 +169,15 @@ namespace ARPG.Player
         private void HandlePauseChanged(bool paused)
         {
             if (!paused) return;
+            ClearActionInput();
+        }
+
+        // 取消尚未结束的攻击输入与防御输入，其它已缓冲动作仍按原策略保留。
+        private void ClearActionInput()
+        {
             attackPressed = false;
             holdAttackTriggered = false;
             holdThresholdChecked = false;
-            currentMoveInput = Vector2.zero;
             ClearDeflectInput();
         }
 
@@ -200,12 +189,12 @@ namespace ARPG.Player
             DropBufferedCommand<DeflectCommand>();
         }
 
-        // 统一限制动作回调：组件需启用，且不在入场等待、暂停或结算期间。
+        // 统一限制动作回调：组件需启用，且不在暂停或结算期间。
         private bool CanAcceptPlayInput()
         {
             // Unity 对象销毁后，不能再读取 isActiveAndEnabled。
             if (this == null) return false;
-            if (Time.unscaledTime < acceptInputAfter) return false;
+
             return isActiveAndEnabled && !GamePause.IsPaused && !CombatInputGate.Blocked;
         }
 
@@ -213,23 +202,10 @@ namespace ARPG.Player
         {
             if (GamePause.IsPaused) return;
 
-            // 入场等待期间保持零移动，避免接收进入游戏前的残留操作。
-            if (Time.unscaledTime < acceptInputAfter)
-            {
-                currentMoveInput = Vector2.zero;
-                ClearDeflectInput();
-                body.TryExecuteCommand(new MoveCommand(Vector2.zero));
-                return;
-            }
-
             // 结算期间清除操作并发送零移动，让角色停止移动。
             if (CombatInputGate.Blocked)
             {
-                attackPressed = false;
-                holdAttackTriggered = false;
-                holdThresholdChecked = false;
-                currentMoveInput = Vector2.zero;
-                ClearDeflectInput();
+                ClearActionInput();
                 body.TryExecuteCommand(new MoveCommand(Vector2.zero));
                 return;
             }
@@ -238,7 +214,7 @@ namespace ARPG.Player
 
             Vector2 rawInput = moveAction.ReadValue<Vector2>();
             // 忽略微小输入，避免摇杆漂移造成角色移动。
-            currentMoveInput = rawInput.sqrMagnitude < 0.01f ? Vector2.zero : rawInput;
+            Vector2 currentMoveInput = rawInput.sqrMagnitude < 0.01f ? Vector2.zero : rawInput;
             // 先更新方向，再消费缓冲，让垫步进入状态时能读取本帧方向。
             body.MoveDirection = currentMoveInput;
 
@@ -247,8 +223,7 @@ namespace ARPG.Player
 
             // 破防后按住防御可请求恢复普通格挡，不开启完美弹反窗口。
             // 玩家按下的防御命令优先，系统请求不能覆盖它。
-            if (body.IsPostureBroken && deflectAction.IsPressed()
-                && !HasBufferedCommand<DeflectCommand>())
+            if (body.IsPostureBroken && deflectAction.IsPressed() && !HasBufferedCommand<DeflectCommand>())
                 BufferCommand(DeflectCommand.System(), 0.15f);
 
             // 移动是连续输入，每帧直接提交，不占用离散动作缓冲。
@@ -258,6 +233,7 @@ namespace ARPG.Player
         // 按住达到配置时长后请求突刺，每次按下只请求一次。
         private void ProcessHeldAttack()
         {
+            // 没有按住攻击键、已经触发过长按，或判定已经处理过，就直接返回。
             if (!attackPressed || holdAttackTriggered || holdThresholdChecked) return;
 
             float threshold = body.Config.AttackHoldDuration;
@@ -271,11 +247,7 @@ namespace ARPG.Player
 
         private void OnDisable()
         {
-            attackPressed = false;
-            holdAttackTriggered = false;
-            holdThresholdChecked = false;
-            // 停用时取消防御尝试，并清除残留的防御命令。
-            ClearDeflectInput();
+            ClearActionInput();
         }
     }
 

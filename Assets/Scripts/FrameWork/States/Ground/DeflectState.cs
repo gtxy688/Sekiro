@@ -26,6 +26,7 @@ namespace ARPG.FrameWork.States.Ground
         private HierarchicalState parent;
         private readonly bool remash;
         private readonly DeflectEntryMode mode;
+        // ? 允许没有命中数据；Boss 被动防御时携带刚收到的那次命中，在 OnEnter 当场处理。
         private readonly HitData? pendingHit;
         private readonly int pressId;   // 本次防御对应的物理按下身份；0 = 系统回防
         private int attemptId;          // 主动弹反尝试；0 = 没有主动窗口（系统回防 / 被动防御）
@@ -42,6 +43,7 @@ namespace ARPG.FrameWork.States.Ground
         private float counterFireTime;
         private CharacterBody parriedOpponent;
         private float parriedRecoveryTime;
+        // 以下计时与标志控制抬刀、受击停顿、收刀等动画阶段；主动弹反资格独立由 Tracker 判定。
         private float guardFlinchTimer;
         private float beginTimer;
         private float beginFailsafe = 0.55f;
@@ -97,6 +99,7 @@ namespace ARPG.FrameWork.States.Ground
             parriedOpponent = null;
             parriedRecoveryTime = 0f;
 
+            // 供架势回复与 AI 查询防御姿态；主动弹反资格另查 attemptId 对应的时间窗口。
             body.IsGuarding = true;
 
             // 被动入口直接结算传入的命中，再短暂保持防御姿态，不开主动尝试。
@@ -309,6 +312,7 @@ namespace ARPG.FrameWork.States.Ground
 
         public override bool HandleCommand(ICommand cmd)
         {
+            // 本状态中的 true 也可能只吞掉当前不支持的输入；只有明确切状态/写入意图的分支才执行动作。
             // 格挡全程可被再格挡（开一次新窗口）或垫步取消，含抬刀/举刀/弹刀成功/收刀。
             // 箭 Heavy 特殊格挡/弹反动画：默认必须播完；到达 ArrowHeavyDeflectDodgeOpenTime 后可提前格挡/垫步。
             if ((arrowHeavyGuard || arrowHeavyDeflect) && waitingGuardHurt)
@@ -373,6 +377,7 @@ namespace ARPG.FrameWork.States.Ground
 
         public override bool OnHitReceived(HitData hit)
         {
+            // CharacterBody.ReceiveHit 先问当前状态；这里处理成功后返回 true，阻止重复走普通扣血受击。
             // 命中入口先推进到期：同帧的输入接受与命中按真实执行顺序处理，不回滚、不开事后窗口。
             body.AdvanceDeflectAttempt();
             if (canceling) return false;
@@ -423,6 +428,7 @@ namespace ARPG.FrameWork.States.Ground
                     && AttackStateBase.IsLastHit(hit.attacker))
                 {
                     hit.attacker.ForceParryStun(armKengeki: false);
+                    // 预留玩家标准首刀的反击时间，计划存到被弹的 Boss 上；此处不会替玩家自动出刀。
                     if (mode == DeflectEntryMode.Normal && HitReactionUtil.IsPlayer(body)
                         && !HitReactionUtil.IsPlayer(hit.attacker))
                         hit.attacker.ArmPlayerParryAttackWindow(body.LightAttack);
@@ -598,6 +604,8 @@ namespace ARPG.FrameWork.States.Ground
                 parriedRecoveryTime = recoveryTime;
             }
             float hitDelay = body.Config.ParryCounterHitDelay;
+            // 希望首个命中段落在“对手恢复 + 延迟”，减去本招前摇就得到起手的绝对时刻。
+            // 对手硬直时长可能随动画预测更新，因此等待期间每帧重新计算。
             counterFireTime = parriedRecoveryTime + hitDelay - pendingCounter.HitStartTime;
             return true;
         }
@@ -627,6 +635,7 @@ namespace ARPG.FrameWork.States.Ground
             if (matchCycle)
             {
                 var info = body.Animator.GetCurrentAnimatorStateInfo(0);
+                // normalizedTime 的小数部分是本轮进度；乘动画长度转成固定时间接口需要的秒数。
                 startAt = (info.normalizedTime % 1f) * info.length;
             }
 
@@ -669,6 +678,7 @@ namespace ARPG.FrameWork.States.Ground
 
             toBoss.Normalize();
             Vector3 right = Vector3.Cross(Vector3.up, toBoss);
+            // 将世界移动方向投影到“面向目标”的左右/前后轴，供锁定移动混合树选择步伐。
             SetStrafe(Vector3.Dot(world, right), Vector3.Dot(world, toBoss), instant);
         }
 

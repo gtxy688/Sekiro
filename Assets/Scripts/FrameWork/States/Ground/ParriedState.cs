@@ -8,7 +8,7 @@ using ARPG.FrameWork.States.Base;
 namespace ARPG.FrameWork.States.Ground
 {
 
-    // 被完美弹反 / 被识破后的硬直：攻击者被打断，播指定 Clip，动画结束回待机。
+    // 本角色作为攻击者被完美弹反 / 被识破后的硬直；与成功防守方的 DeflectState 不同。
     // 由 CharacterBody.ForceParryStun / ForceMikiriStun 强切（顶层走 GroundedState 初始子状态）。
     public class ParriedState : BaseState
     {
@@ -21,6 +21,7 @@ namespace ARPG.FrameWork.States.Ground
         private float timer;
         private float duration;
         private float enterTime;
+        // hasSeenAnim 防止进入动画的融合等待被误认成播放结束；triedNestedPath 只补试一次请求。
         private bool hasSeenAnim;
         private bool triedNestedPath;
 
@@ -113,12 +114,14 @@ namespace ARPG.FrameWork.States.Ground
 
             float remaining = Mathf.Max(0f, ExitNormalizedTime - info.normalizedTime)
                 * recoveryClips[0].clip.length / speed;
+            // 剩余进度 × Clip 秒数 ÷ 实际播放速度 = 还需等待的秒数；再与最小硬直取较晚者。
             recoveryTime = Mathf.Max(recoveryTime, Time.time + remaining);
             return true;
         }
 
         public override bool HandleCommand(ICommand cmd)
         {
+            // 硬直期间全部消费，不执行动作；返回 true 与“可以取消硬直”没有关系。
             return true;
         }
 

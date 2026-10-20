@@ -8,12 +8,14 @@ using ARPG.FrameWork.States.Base;
 namespace ARPG.FrameWork.States.Ground
 {
 
-    // Hurt_Mid 受击期间按防御时播放起身进防，结束后按住则举刀，松开则回待机。
-    // 保存 PressId，直到真正切入 DeflectState 才开启主动窗口，配置也可提前开放防御 / 垫步取消。
+    // StunnedState 在 Mid 倒地前段收到防御命令时进入，播放提前起身进防，而不是等倒地播完再走 StandingState。
+    // 动画结束后仍按住则进入 DeflectState，已松开则回 Idle；配置时刻到达后也可提前取消到防御或垫步。
+    // 这里只保存按下身份，主动弹反窗口要等真正进入 DeflectState 才申请开启。
     public class MidToGuardState : BaseState
     {
         private const float FallbackDuration = 1.2f;
 
+        // 来自输入命令的 PressId：把“哪次按下”带过动画等待，结束时还能检查它是否已释放。
         private int pressId;
         private string animName;
         private float timer;
@@ -25,6 +27,7 @@ namespace ARPG.FrameWork.States.Ground
             this.pressId = pressId;
         }
 
+        // 配置秒数是提前取消的门槛；<= 0 表示不开放提前取消，并非立刻可取消。
         public bool CanDeflectOrDodgeCancel
         {
             get
@@ -36,6 +39,7 @@ namespace ARPG.FrameWork.States.Ground
 
         public override void OnEnter()
         {
+            // 这个标志说明正处于进防动作，不代表已经能挡伤害；本状态的命中处理仍返回 false。
             body.IsGuarding = true;
             timer = 0f;
             seenStart = false;
@@ -57,7 +61,7 @@ namespace ARPG.FrameWork.States.Ground
                     CancelToDeflectOrDodge(toDeflect: true, deflectCmd.PressId);
                     return true;
                 }
-                // 未到提前开放时刻时先保存真实按下，结束后再用它开启防御窗口。
+                // 未开放时消费防御命令，但保留新的真实按下身份；系统回防不能覆盖成一次主动尝试。
                 if (deflectCmd.IsPhysicalPress) pressId = deflectCmd.PressId;
                 return true;
             }
@@ -68,7 +72,7 @@ namespace ARPG.FrameWork.States.Ground
                     CancelToDeflectOrDodge(toDeflect: false, pressId: 0);
                     return true;
                 }
-                // 窗口未到：不消耗，留缓冲重试（格挡键可长按）
+                // 垫步没有长按回防路径：未开放时返回 false，让输入缓冲在有效期内重试。
                 return false;
             }
             return true;
@@ -79,6 +83,7 @@ namespace ARPG.FrameWork.States.Ground
             timer += Time.deltaTime;
             if (waitForAnim)
             {
+                // 见到目标动画后按进度结束；尚未见到时才用兜底秒数，避免请求切换当帧就结束。
                 AnimatorStateInfo info = body.Animator.GetCurrentAnimatorStateInfo(0);
                 if (AnimUtil.IsPlaying(info, animName))
                 {
@@ -97,12 +102,13 @@ namespace ARPG.FrameWork.States.Ground
                 Finish();
         }
 
-        // 起身防还没进举刀循环：被打按新受击打断。
+        // 尚未真正进入防御判定：即使 IsGuarding 为 true，仍把命中交回 ReceiveHit 扣伤害并切新受击。
         public override bool OnHitReceived(HitData hit)
         {
             return false;
         }
 
+        // 以这次按下的释放记录决定去向，避免等待动画期间松键后仍被强制留在防御里。
         void Finish()
         {
             body.TryChangeGroundedSubState(g => IsReleased()
@@ -119,7 +125,7 @@ namespace ARPG.FrameWork.States.Ground
 
         void CancelToDeflectOrDodge(bool toDeflect, int pressId)
         {
-            // 换格挡/垫步叶子（共用配方见 CharacterBody.TryChangeToDeflectOrDodge）
+            // 身体侧统一执行叶子切换；这里不自行打开弹反窗口或结算本次按键。
             body.TryChangeToDeflectOrDodge(toDeflect, pressId);
         }
     }

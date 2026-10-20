@@ -10,6 +10,7 @@ namespace ARPG.FrameWork.States.Ground
 
     // 无方向垫步识破危字突刺后播放踩刀，并增加攻击者架势、打断其攻击。
     // 若造成崩解，踩刀剩余动画作为忍杀确认窗口。
+    // DodgeState 命中检查识别到可识破的突刺后进入；传入 HitData 只用于取得这次攻击者。
     public class MikiriCounterState : BaseState
     {
         private const string MikiriAnim = "Mikiri";
@@ -86,6 +87,7 @@ namespace ARPG.FrameWork.States.Ground
 
         public override bool HandleCommand(ICommand cmd)
         {
+            // 只用机会出现后新生成的 FinisherCommand 确认忍杀；普通攻击预输入和其他命令均消费掉。
             if (finisherWindow && cmd is FinisherCommand)
             {
                 CombatManager.Instance.TryExecuteFinisher(body, FinisherKind.Mikiri);
@@ -97,6 +99,7 @@ namespace ARPG.FrameWork.States.Ground
         {
             if (finisherWindow && attacker != null && attacker.IsPostureBroken)
             {
+                // 确认窗口过期后解除对手崩解，架势保留为上限的 80%，不是恢复 80% HP。
                 attacker.RecoverFromBreak(0.8f);
             }
             parent.SubStateMachine.ChangeState(new IdleState(body, parent));

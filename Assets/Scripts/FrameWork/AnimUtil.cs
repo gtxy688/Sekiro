@@ -5,7 +5,8 @@ using ARPG.Configs;
 namespace ARPG.FrameWork
 {
 
-    // 状态名全局唯一：用短名哈希在整层查找，不必拼 _Hurt.Hurt_Ground。
+    // 封装 Animator 的查找与播放请求，供 C# 行为状态共用；不在这里切换 C# 状态机。
+    // 按动画状态短名唯一的约定查找，不必在调用处拼 _Hurt.Hurt_Ground。
     public static class AnimUtil
     {
         public static bool IsPlaying(AnimatorStateInfo info, string shortName)
@@ -48,6 +49,7 @@ namespace ARPG.FrameWork
             return true;
         }
 
+        // duration 是归一化的融合长度；返回 true 只表示找到了状态并发出请求，不表示本帧已进入或播完。
         public static bool TryCrossFade(
             Animator animator,
             string shortName,
@@ -59,6 +61,7 @@ namespace ARPG.FrameWork
             return true;
         }
 
+        // 与上面的 CrossFade 不同，这里的融合时长和起播偏移 fixedTimeOffset 都以秒为单位。
         public static bool TryCrossFadeInFixedTime(
             Animator animator,
             string shortName,

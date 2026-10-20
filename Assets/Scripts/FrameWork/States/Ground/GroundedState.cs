@@ -46,6 +46,8 @@ namespace ARPG.FrameWork.States.Ground
 
         protected override bool OnParentHandleCommand(ICommand cmd)
         {
+            // 这里返回 false 只是父层不消费，HierarchicalState 还会继续问当前子状态。
+            // 最终是否保留 Brain 的输入缓冲，要看整个父/子调用链的返回值。
             // 忍杀 / Elbow 投技：父层也吞掉喝药，不能把演出切走。
             if (body.IsFinisherLocked)
             {
@@ -71,7 +73,7 @@ namespace ARPG.FrameWork.States.Ground
                 return true;
             }
 
-            // 攻击命中段不能被跳跃/喝药强切；命令保持在 0.2s 缓冲中等待后摇。
+            // 攻击后摇开放前，父层不代为执行跳跃/喝药，继续交攻击叶子按自己的规则处理。
             if (body.IsAttacking &&
                 !body.IsAttackRecoveryOpen &&
                 (cmd is JumpCommand || cmd is HealCommand))
@@ -88,6 +90,7 @@ namespace ARPG.FrameWork.States.Ground
                 }
 
                 body.QueueJump();
+                // QueueJump 已写入竖直速度，并预约 FixedUpdate 补写；随后切到空中父状态。
                 body.EnterAirborne("command: jump");
                 return true;
             }

@@ -19,6 +19,7 @@ namespace ARPG.FrameWork.States.Dead
         private float reviveTimer;
         private float reviveDuration = 1.5f;
         private bool lying;
+        // choiceReady 区分“倒地动画还没结束”和“可以选择回生”；reviving 区分已选择后的起身过程。
         private bool reviving;
         private bool choiceReady;
 
@@ -88,6 +89,7 @@ namespace ARPG.FrameWork.States.Dead
 
         private void BeginRevive()
         {
+            // 选择时立即回满 HP 并扣回生次数，但起身动画期间仍置 IsReviving，AI 不应把人当作已恢复操作。
             body.SetReviving(true);
             body.Revive();
             reviving = true;
@@ -102,6 +104,7 @@ namespace ARPG.FrameWork.States.Dead
 
         private void GiveUp()
         {
+            // 选择等待本身不超时；只有主动放弃才从可回生分支切到真死分支。
             CombatEventBus.TriggerDeath(body);
             body.EnterDead(false, alreadyDowned: true, reason: "revive: give up");
         }

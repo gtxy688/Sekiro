@@ -5,10 +5,11 @@ using ARPG.FrameWork.States.Base;
 namespace ARPG.FrameWork.States.Dead
 {
     // 死亡父状态：可回生时进入选择待机，否则进入游戏结束并允许攻击键重载场景。
+    // HP 归零时由 CombatStats 回调 CharacterBody 进入；数值结算已经完成，本层只选死亡流程。
     public class DeadState : HierarchicalState
     {
         private readonly bool canRevive;
-        private readonly bool alreadyDowned; // 回生超时切入时已经躺着，真死不再重播倒地
+        private readonly bool alreadyDowned; // 放弃回生时已经躺着，真死不再重播倒地。
 
         public DeadState(CharacterBody body, bool canRevive, bool alreadyDowned = false) : base(body)
         {

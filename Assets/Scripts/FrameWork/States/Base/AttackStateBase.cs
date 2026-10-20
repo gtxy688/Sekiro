@@ -17,10 +17,12 @@ namespace ARPG.FrameWork.States.Base
     {
         protected readonly HierarchicalState parent;
         protected readonly AttackConfig config; // 本次攻击配置；Boss 可由招式表烘焙生成
+        // 本招动画内已经播放的秒数；与 Time.time 的全局时刻不同，用它对照攻击配置的各窗口。
         protected float animTime;
 
         private bool weaponHitEnabled;
         private int activePulseIndex = -1;
+        // 保存本招基础伤害，避免上一刀的脉冲覆盖值成为下一刀“默认伤害”。
         private int fallbackDamage;
         private float fallbackPosture;
         private float fallbackKnockback;
@@ -94,7 +96,7 @@ namespace ARPG.FrameWork.States.Base
                 UpdateAttackSteer();
             }
 
-            // 前摇不开判定：贴身时刀还在蓄力就会扫到。到 HitStartTime / 第一段 pulse 再开。
+            // 判定只跟随 hitPulses 的有效近战时间段；HitStartTime 不直接开启 Hitbox。
             weaponHitEnabled = false;
             ApplyHitbox();
 
@@ -113,6 +115,7 @@ namespace ARPG.FrameWork.States.Base
             if (WantsImmediateLand) return;
 
             animTime = AttackAnimClock.ReadSeconds(body.Animator, config.AnimName);
+            // 先取本招的动画时钟，再同步命中、音效、出箭；动画变速时这些节点一起跟随。
             body.IsAttackRecoveryOpen = animTime >= config.RecoveryWindowStart;
 
             ApplyHitbox();
@@ -146,6 +149,7 @@ namespace ARPG.FrameWork.States.Base
 
         public override void OnExit()
         {
+            // 正常结束和被打断都会经过这里，必须关掉判定，避免离开攻击后仍能打中别人。
             body.DisableWeaponHit();
             body.ActiveHitPulseIndex = -1;
             body.IsAttackRecoveryOpen = false;
@@ -156,6 +160,7 @@ namespace ARPG.FrameWork.States.Base
         public override bool HandleCommand(ICommand cmd)
         {
             // 前摇可以主动取消；命中段锁定；进入后摇后重新开放所有非攻击行为。
+            // 此处只计算能否取消；具体能取消到什么动作，由地面/空中派生类实现。
             bool canCancel = animTime < config.HitStartTime ||
                              animTime >= config.RecoveryWindowStart;
 
@@ -201,6 +206,7 @@ namespace ARPG.FrameWork.States.Base
                 animTime >= config.RecoveryWindowStart &&
                 animTime <= config.ComboWindowEnd)
             {
+                // 新建下一段攻击状态，从头初始化其动画时钟和判定；不是把当前动画继续多播一刀。
                 parent.SubStateMachine.ChangeState(NewSelf(config.NextCombo));
                 return true;
             }
@@ -335,6 +341,7 @@ namespace ARPG.FrameWork.States.Base
 
         private int CurrentPulseIndex()
         {
+            // 同一攻击动画可以有多刀；遍历寻找覆盖当前动画时刻的有效近战窗口。
             HitPulse[] pulses = config.hitPulses;
             if (pulses == null) return -1;
             for (int i = 0; i < pulses.Length; i++)
@@ -401,7 +408,7 @@ namespace ARPG.FrameWork.States.Base
                 config, pulse, fallbackDamage, fallbackPosture, fallbackKnockback, fallbackGrade);
         }
 
-        // 动画时间越过 cue 后只触发一次，兼容一帧跨过多个 cue。
+        // cue 是时间轴上的一次事件。每个 cue 单独记 fired，越过触发时刻后只播放一次音效。
         private void ApplySfx()
         {
             AttackSfxCue[] cues = config.sfxCues;

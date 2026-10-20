@@ -10,7 +10,7 @@ using ARPG.FrameWork.States.Base;
 
 namespace ARPG.Tests.Editor
 {
-    // 验证攻击标志取自当前状态，并在状态退出期间保持一致。
+    // 编辑器单元测试：用简化状态验证 IsAttacking 来自当前攻击叶子，不需要播放真实攻击动画。
     public sealed class CharacterBodyHfsmFlagTests
     {
         private GameObject bodyObject;
@@ -53,6 +53,7 @@ namespace ARPG.Tests.Editor
         [Test]
         public void IsAttacking_remains_true_while_the_current_attack_leaf_exits()
         {
+            // ChangeState 先执行旧状态 OnExit，再替换 CurrentState，因此退出回调内仍应被视为正在攻击。
             var attack = new ProbeAttackState(body);
             body.MainStateMachine.ChangeState(attack);
 
@@ -73,6 +74,7 @@ namespace ARPG.Tests.Editor
 
         private static void InvokePrivateAwake(CharacterBody target)
         {
+            // 测试主动初始化角色依赖；反射仅用于调用私有 Awake，不属于游戏运行时的命令链。
             MethodInfo awake = typeof(CharacterBody).GetMethod(
                 "Awake",
                 BindingFlags.Instance | BindingFlags.NonPublic);
