@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AttackStateBase · 阅读速查</title><link rel="stylesheet" href="../teach-assets/lesson.css"><link rel="stylesheet" href="../teach-assets/disclosure.css"></head>
+<body><main class="wrap"><header class="lesson-head"><p class="eyebrow">源码速查 · 2026-10-16</p><h1>AttackStateBase 阅读速查</h1><p class="subtitle">把一段攻击视为：配置 + 独立运行数据 + 按动画时间推进的流程。</p></header>
+<p>主文件：<a href="../Assets/Scripts/FrameWork/States/Base/AttackStateBase.cs">AttackStateBase.cs</a>。下列行号对应本次读取，后续改动可能漂移。</p>
+<nav><a href="#fields">字段</a> · <a href="#enter">进入</a> · <a href="#update">更新</a> · <a href="#pulse">判定</a> · <a href="#commands">指令</a> · <a href="#helpers">其他函数</a></nav>
+<h2 id="fields">字段与 C# 写法</h2>
+<table><thead><tr><th>字段或写法</th><th>作用</th></tr></thead><tbody>
+<tr><td>body（继承自 BaseState）</td><td>当前角色，提供 Animator、武器开关、转向、状态标记等入口。</td></tr>
+<tr><td>parent</td><td>所属的地面或空中父状态，用其 SubStateMachine 切换当前层。</td></tr>
+<tr><td>config</td><td>这一次攻击保存的配置引用。与临时槽 ActiveAttack 是两个引用位置。</td></tr>
+<tr><td>animTime</td><td>通过 AttackAnimClock 读取的当前攻击动画秒数。</td></tr>
+<tr><td>weaponHitEnabled</td><td>状态侧记录是否已请求开窗，避免每帧重复开窗。</td></tr>
+<tr><td>activePulseIndex</td><td>状态侧当前段号，-1 表示没有活动脉冲。</td></tr>
+<tr><td>fallbackDamage / Posture / Knockback / Grade</td><td>进入时缓存的基础数值；没有脉冲覆盖时恢复这些值。</td></tr>
+<tr><td>sfxFired / arrowFired</td><td>每个音效点、出箭点本次是否触发过，防止超过时间点后逐帧重复。</td></tr>
+<tr><td>moveEntry / moveWindow</td><td>进招时保存的 Boss 招式行与段窗口，出箭时可恢复被 BT 提前清掉的引用。</td></tr>
+<tr><td>protected / private</td><td>前者可供派生类使用，后者限于本类内部。</td></tr>
+<tr><td>readonly config</td><td>限制字段被重新赋值，不保证对象内部数据只读。</td></tr>
+<tr><td>abstract / virtual / override</td><td>要求派生类提供实现 / 提供可替换的默认实现 / 派生类替换实现。</td></tr>
+</tbody></table>
+<h2 id="enter">构造与 OnEnter（38、56 行）</h2>
+<p>构造函数经 base(body) 交给基类保存角色，自身保存 parent 和 config；构造不是开始运行。切换状态后状态机才调用 OnEnter。</p>
+<ol><li>OnAttackEnter：让子类提前初始化；空中类记录进入时间。</li><li>空配置退回待机；清零本次进度、事件记录和攻击恢复标记。</li><li>缓存基础数值与 Boss 招式上下文，清掉已接手的 ActiveAttack 临时选择。</li><li>ValidateWindows：要求时间顺序合法，并检查脉冲。</li><li>请求攻击动画；请求失败会打印错误，此分支本身没有立即退出。</li><li>清除旧的朝向冻结；允许转向时抑制动画根旋转并申请代码转向。</li><li>初始化武器开关后 ApplyHitbox，按当前动画时间与脉冲决定是否开窗；脉冲从 0 开始时也可能立即开启。</li><li>设置不可打断标记，并按需要发送危字事件。</li></ol>
+<h2 id="update">OnUpdate 与结束条件（132 行）</h2>
+<p>落地保护和空配置检查之后，读取动画秒数，更新后摇开放标记，再调用 ApplyHitbox、ApplySfx、ApplyArrows、按配置更新转向。位移不在这个方法中逐帧计算。</p>
+<p>AttackAnimClock 在过渡中优先找目标攻击的下一状态，否则找当前状态；匹配后使用 normalizedTime × length，找不到则返回 0。它不是进入状态后自行累计的墙钟。</p>
+<ul><li>WaitAnimEnd 为真：等待 IsAnimFinished。</li><li>否则：到 StateDuration；或没有 NextCombo、最后判定已结束且动画播完；或没有有效近战判定且动画播完，满足任一条件就退出。</li><li>动画结束检查要求第 0 层不在过渡中、状态名匹配、normalizedTime ≥ 1。</li></ul>
+<h2 id="pulse">ApplyHitbox（399 行）</h2>
+<ol><li>CanMeleeHit 判断有无跨度至少 0.02 秒的有效脉冲。</li><li>CurrentPulseIndex 找到满足 start ≤ animTime &lt; end 的脉冲编号，找不到为 -1。</li><li>需要命中且尚未开启，或脉冲编号变化：必要时关旧窗、应用该段伤害、开启新窗并记录编号。</li><li>不需要命中但还开着：关闭并清掉状态侧标记。</li><li>同步 body.ActiveHitPulseIndex，供其他战斗规则读取。</li></ol>
+<p>Hitbox.Enable / SetConfig 会清理命中记录；只在必要时重开，才能兼顾“同段不重复打同一人”和“下一段可以再次命中”。本类协调判定时机，实际物理查询由 Hitbox 完成，命中仍交 CombatManager / CombatResolver 处理。</p>
+<p>ApplyPulseCombat（429 行）交 AttackCombatResolve.ApplyPulse 写入本段数值。脉冲 overrideCombat 为真使用独立数值，否则使用缓存基础值。当前实现会修改 config 字段，不能把它解释为严格不可变配置。</p>
+<h2 id="commands">HandleCommand 与子类钩子（182 行）</h2>
+<p>canCancel = animTime &lt; HitStartTime 或 animTime ≥ RecoveryWindowStart。是否进入取消状态还取决于具体子类；父状态也可能先处理指令。</p>
+<table><thead><tr><th>函数</th><th>处理</th></tr></thead><tbody>
+<tr><td>CancelToDeflect（203）</td><td>基类默认 false；地面 AttackState 在允许时切防御，并透传 PressId。</td></tr>
+<tr><td>CancelToDodge（206）</td><td>基类默认 false；地面 AttackState 在允许时切垫步。</td></tr>
+<tr><td>HandleJumpCommand（209）</td><td>基类默认 false；空中子类处理 Jump2，地面跳跃由父层处理。</td></tr>
+<tr><td>HandleMoveCommand（212）</td><td>默认只记录方向；地面子类在后摇且方向足够大时进入 MoveState。</td></tr>
+<tr><td>HandleAttackCommand（218）</td><td>普通攻击不重解释为忍杀；有 NextCombo 且处于闭区间 [RecoveryWindowStart, ComboWindowEnd] 时创建下一段，否则 false。</td></tr>
+<tr><td>HandleFinisherCommand（239）</td><td>玩家请求 CombatManager 尝试执行已经可用的忍杀，返回 true。</td></tr>
+</tbody></table>
+<p>NewSelf（54）由子类决定新建地面还是空中攻击；ExitToIdle（51）由子类决定退出到地面 Idle 或继续滞空的 AirIdle；WantsImmediateLand（45）用于空中落地停止推进本刀。</p>
+<h2 id="helpers">其他函数逐项定位</h2>
+<table><thead><tr><th>函数与行号</th><th>作用</th></tr></thead><tbody>
+<tr><td>OnExit（173）</td><td>关闭命中判定，重置 body 脉冲编号、恢复开放标记、不可打断标记和根旋转抑制。</td></tr>
+<tr><td>IsUninterruptibleAttack（249）</td><td>根据危字、特定 Boss 招式 ID 或 Boat 动画名前缀判定不可打断标记。</td></tr>
+<tr><td>HitChanceCount（268）</td><td>取 Boss 表行有效脉冲总数和最长动画序列段数的较大值，至少 1。它是按数据计算的辅助数量，不是实际命中计数。</td></tr>
+<tr><td>IsLastHit（304）</td><td>数量为 1 时 true，否则比较 body.ActiveHitPulseIndex 与 total-1；供防御命中处理使用。理解实际具体招式还要看调用与段号来源。</td></tr>
+<tr><td>LastHitWindowEnd（312）</td><td>取 RecoveryWindowStart 与各脉冲 end 的最大值，供动画已播完的退出判断使用。</td></tr>
+<tr><td>IsAnimFinished（328）</td><td>核对过渡、动画名和 normalizedTime。</td></tr>
+<tr><td>ValidateWindows（337）</td><td>检查 0 ≤ HitStart ≤ RecoveryStart ≤ ComboEnd ≤ Duration，转向窗口在时长内；脉冲另行校验。</td></tr>
+<tr><td>HasHitPulses（363）</td><td>数组非空且长度大于 0；不代表每个元素都是有效近战段。</td></tr>
+<tr><td>CurrentPulseIndex（368）</td><td>找当前所在的有效脉冲，区间左闭右开。</td></tr>
+<tr><td>ValidateHitPulses（382）</td><td>要求非空元素、start ≥ 0、end ≤ Duration、start &lt; end；此处没有检查脉冲排序和彼此重叠。</td></tr>
+<tr><td>ApplySfx（438）</td><td>达到时间点且 clip 存在时发送一次事件，sfxFired 防止重复。</td></tr>
+<tr><td>ApplyArrows（456）</td><td>到每个时间点只调用一次 SpawnArrow；需要时恢复进招时保存的 Boss 招式上下文。</td></tr>
+<tr><td>UpdateAttackSteer（481）</td><td>根据规则设置朝向请求，或清理转向请求。</td></tr>
+<tr><td>ShouldSteerTowardTarget（496）</td><td>有箭点、长无近战段持续跟踪；多脉冲到恢复起点；其余到 RotationWindowEnd。外层还受 AllowRotation 限制。</td></tr>
+<tr><td>HasArrowCues（508）</td><td>检查箭点数组是否存在且非空。</td></tr>
+<tr><td>SnapTowardCombatTarget（513）</td><td>起手时立即朝向目标，只取水平方向。</td></tr>
+<tr><td>ResolveAttackSteerDir（522）</td><td>有目标取目标方向，无目标则按世界方向输入或相机相关输入换算。</td></tr>
+<tr><td>HasCombatTarget（539）</td><td>检查目标解析是否得到非空目标，地面子类也使用。</td></tr>
+<tr><td>ResolveCombatTarget（544）</td><td>优先 body.CombatTarget，其次使用锁定系统的目标。</td></tr>
+</tbody></table>
+<h2 id="boundaries">阅读时的事实边界</h2>
+<p>ApplyHitbox 仅认 hitPulses；空数组不走单窗兜底。AnimUtil.TryBeginAttackAnim 当前通常按短名哈希请求 CrossFade，JumpThrust 特例用 Play；不要把注释中的旧路径规则当作现行代码。部分战斗数值有代码默认值。</p>
+<p>参考：<a href="https://docs.unity3d.com/2022.3/Documentation/ScriptReference/AnimatorStateInfo-normalizedTime.html">normalizedTime</a>、<a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/readonly">readonly 引用的限制范围</a>。这里是源码与资产梳理，未运行 Unity 场景。</p>
+<footer class="lesson-foot"><p><a href="../lessons/0004-one-attack-through-attack-state-base.html">回到本课主线</a> · <a href="input-intent-glossary.html">术语速查</a></p><p>带着具体函数或字段回到聊天，可以继续展开它的上下游。</p></footer></main></body></html>

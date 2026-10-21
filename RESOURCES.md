@@ -1,11 +1,32 @@
+> 当前复习入口（2026-10-20）：[核心路线](Docs/项目复习/00-简历核心复习路线.md)与[唯一进度记录](Docs/项目复习/01-复习进度.md)。下文保留为历史材料，旧教学目标、阅读顺序、进度与能力评语不作为当前结论；引用的源码事实需要重新核对。
+
 # 《苇名之刃》架构学习 Resources
 
 原则：**本项目源码是第一事实来源**；下面的外部资料只在"补概念、对照通用做法、准备面试表达"时使用。凡与源码冲突，以源码为准。
 
 ## Knowledge（外部权威资料）
 
+- [Unity 2022.3 — Order of execution for event functions](https://docs.unity3d.com/2022.3/Documentation/Manual/ExecutionOrder.html)
+  2026-10-16 已核对 First Scene load 与 Before the first frame update。用于区分 Awake 的自身准备与 Start 的首次运行入口；不同对象的同阶段先后不能随意假定，运行时实例化需要单独考虑。
+- [Unity 2022.3 — MonoBehaviour](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/MonoBehaviour.html)
+  2026-10-16 已核对。用于理解 CharacterBody 作为 Unity 组件接收生命周期回调；项目的普通状态类与它区别讲解。
+
+- [Dunlosky 等，2013 — Improving Students’ Learning With Effective Learning Techniques](https://www.psychologicalscience.org/journals/pspi/1529100612453266/)
+  2026-10-16 已查阅出版方摘要；练习测试、分散练习获较高效用评价。用于设计项目复习中的主动回忆与跨日复测；不把通用研究直接当成 Unity 面试效果或固定日程的验证。
+- [Karpicke 与 Blunt，2011 — Retrieval practice produces more learning than elaborative studying with concept mapping](https://pubmed.ncbi.nlm.nih.gov/21252317/)
+  2026-10-16 已核对原始研究摘要；科学文本任务中提取练习的优势也出现在理解与推论测试。用于说明复习要练习脱离材料重建关系；不泛化为所有任务都优于所有其他方法。
+
+- [Unity 2022.3 — AnimatorStateInfo.normalizedTime](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/AnimatorStateInfo-normalizedTime.html)
+  2026-10-16 已查阅；用于理解动画进度比例，配合项目 AttackAnimClock 的过渡匹配与秒数换算。
+- [Microsoft Learn — readonly](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/readonly)
+  2026-10-16 已查阅；用于区分 readonly 引用字段不可重赋值与被引用对象内部字段可修改。
+
+- [Unity Input System 1.14.2 — Actions](https://docs.unity3d.com/Packages/com.unity.inputsystem@1.14/manual/Actions.html)
+  2026-10-16 已查阅，与当前 manifest 的 1.14.2 对应。用于区分设备控件、Binding、InputAction，以及输入值与游戏动作执行。配合当前 PlayerBrain、BrainBase、CharacterBody 源码阅读。
+
 - [Game Programming Patterns — State（含 FSM/HFSM 讨论）](http://gameprogrammingpatterns.com/state.html)
   免费在线书。用于：理解"大量 bool → FSM → 分层状态机"的通用推导；对照本项目 HFSM 的取舍。**注意**：书中把状态写成对象/类的做法与本项目一致，但它不涉及本项目的 Command 路由，别拿书里的结论套项目。
+  2026-10-16 已核对作者官网检索结果及作者仓库章节：进入/退出动作与层级状态适合概念补充；本项目具体采用父层优先的命令路由，以 HierarchicalState 源码为准。
 - [Game Programming Patterns — Command](https://gameprogrammingpatterns.com/command.html)
   用于：Command 模式的标准动机（把意图对象化、可排队/可撤销）。对照本项目"Command 是意图、不是执行"的语义。
 - [Game Programming Patterns — Bytecode / Behavior Tree 相关章节（Behavioral Patterns 索引）](https://gameprogrammingpatterns.com/contents.html)

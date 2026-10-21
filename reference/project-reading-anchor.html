@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>当前项目阅读落点</title>
+  <link rel="stylesheet" href="../teach-assets/lesson.css">
+  <link rel="stylesheet" href="../teach-assets/disclosure.css">
+</head>
+<body><main class="wrap">
+  <header class="lesson-head"><p class="eyebrow">接手陌生项目 · 随阅读逐步补全</p><h1>当前项目阅读落点</h1><p class="subtitle">只保存已经引入的概念与下一落点，避免每次重新铺一张全项目清单。</p></header>
+  <section id="current">
+    <h2>当前主文件：CharacterBody.cs</h2>
+    <p><strong>已提供讲解：</strong>角色入口的职责、Awake 的准备、Start 的初始状态进入。尚未收到理解反馈，不记为掌握，也未完整读过这个文件。</p>
+    <p><strong>下次接续：</strong><a href="../Assets/Scripts/FrameWork/Body/CharacterBody.cs">CharacterBody.Update</a>，看持续更新如何连接环境感知、架势回复与状态机。保持在这个文件，再进入状态机的内部实现。</p>
+    <p><strong>尚待展开：</strong>字段与属性、接地检测辅助实现、武器和数值模块的构造、状态封装、根运动、受击、复位等。每段读到后更新此处，不能把只讲过的入口算作完整覆盖。</p>
+  </section>
+  <section id="words">
+    <h2>已经引入的词</h2>
+    <dl>
+      <dt><code>CharacterBody</code>：角色本体</dt><dd>玩家与 Boss 共用的角色运行入口；连接 Unity 组件、内部模块与状态机。</dd>
+      <dt><code>Awake</code>：当前对象的准备阶段</dt><dd>本项目在这里取得组件、准备内部模块、创建空状态机并保存初始站位。</dd>
+      <dt><code>Start</code>：当前脚本首次更新前的启动阶段</dt><dd>本项目在这里采样接地、进入地面及默认待机状态、登记复位能力。</dd>
+      <dt><code>StateMachine</code>：状态机</dt><dd>先理解为保存、更新和切换当前行为的对象；详细机制待后续源码讲解。</dd>
+    </dl>
+  </section>
+  <section id="boundary"><h2>证据范围</h2><p>当前术语来自实际源码与 <a href="https://docs.unity3d.com/2022.3/Documentation/Manual/ExecutionOrder.html#FirstSceneLoad">Unity 官方生命周期说明</a>。没有宣称任何一个脚本是场景绝对第一个执行，也没有执行运行验证。</p></section>
+  <footer class="lesson-foot"><p><a href="../lessons/0005-meet-character-body.html#place">本次讲解：角色进入场景后的准备</a> · <a href="input-intent-glossary.html">输入术语（后续材料）</a></p></footer>
+</main></body></html>

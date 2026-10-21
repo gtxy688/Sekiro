@@ -4,7 +4,7 @@
 
 ## 近战命中
 
-AttackStateBase 读取 AttackAnimClock 的当前动画秒数，根据 AttackConfig 的 HitStartTime、RecoveryWindowStart 与 hitPulses 开启或关闭判定。进入攻击前摇不会因为贴身而提前挥中；结束或退出时会关闭 Hitbox。
+AttackStateBase 读取 AttackAnimClock 的当前动画秒数，根据 AttackConfig.hitPulses 的有效时间段开启或关闭判定；HitStartTime、RecoveryWindowStart 用于连招与取消窗口，不直接决定 Hitbox 开关。切换到新的 pulse 时会重新开启判定并应用该段伤害，使同一招的不同段可以分别命中；退出攻击状态时关闭 Hitbox。
 
 Hitbox 在武器位置变化时执行 SphereCastAll 扫描，也使用 OverlapSphereNonAlloc / OverlapCapsuleNonAlloc 补充区域判定。已命中目标会去重；命中双方 Hitbox 时可以报告拼刀。实际扫描参数来自 Hitbox 和 CharacterBody 配置。
 

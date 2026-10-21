@@ -1,79 +1,47 @@
-# 项目协作说明
+# 简历核心源码复习协作规范
 
-本文件是本项目唯一的 Agent / AI 项目指引。当前实现事实以 Assets/Scripts、Assets/Editor、Unity 序列化资源和场景为准。Docs 用于说明和导航；与代码不一致时，先修订活跃文档，再按用户需求处理代码行为。历史计划、评审记录和用户决策记录不作为当前实现规范。
+当前目标：在一周准备两个项目的约束下，帮助学习者亲自读懂《只狼》Boss 战简历涉及的核心流程，并能依据源码解释具体实现和取舍。当前范围以用户提供的简历及核心路线为准。
 
-## 项目概况
+## 唯一入口
 
-《只狼》弦一郎 Boss 战复刻，Unity 2022.3 LTS + URP，面向个人作品集。AI 协助开发和源码梳理。
+- 每次回复源码学习相关内容前（讲解、答疑、继续、路线、掌握标准或进度讨论），必须实际读取 [核心路线](Docs/项目复习/00-简历核心复习路线.md) 的“学习阶段与掌握标准”“固定讲解方式”及对应章节，并读取 [复习进度](Docs/项目复习/01-复习进度.md) 的“当前进度”。同一连续会话也执行，不能只凭记忆或曾读过省略。
+- 新会话或上下文恢复时，再核对进度中的已读边界与保留疑问。以最新聊天校正停留位置；方法、深度与章节顺序统一以核心路线为准。
+- 学习者要求登记疑问与设计追问：统一收录入 [面试表达与设计答辩](Docs/项目复习/章节总结/06-全流程串联与高频面试表达.md)，不顺带推断阅读完成。
+- 进度只在复习进度保存。MISSION.md 是目标入口；lessons、reference、learning-records、NOTES 与归档只作历史参考，本次直接说明优先。
 
-## 当前架构事实
+## 带读方式
 
-- 玩家意图来自 Unity Input System。PlayerBrain 处理输入；连续移动直接送入 CharacterBody，离散动作经 BrainBase 的缓冲后作为 Command 路由。LockOn 由 LockOnManager 处理。
-- Boss 使用行为树与 Blackboard 决策。BossMovePicker 从 BossMoveTable 选择招式；BT_ExecuteMove 按招式段驱动角色攻击状态。
-- CharacterBody 是角色运行时 MonoBehaviour，持有 MainStateMachine。HFSM 顶层是 HierarchicalState 父状态：GroundedState、AirState、StunnedState、DeadState；叶子状态属于父状态各自的 SubStateMachine。
-- AttackStateBase 读取 AttackAnimClock 的动画时间，根据 AttackConfig 或 BossMoveWindow 推进攻击窗口、音效、出箭与连招。
-- Hitbox 使用 Physics 查询；当前使用 SphereCastAll 扫描，并有 OverlapSphereNonAlloc / OverlapCapsuleNonAlloc 查询，不使用 OnTrigger 作为近战命中主流程。
-- Hitbox 与箭矢把命中交给 CombatManager / CombatResolver，再调用目标 CharacterBody.ReceiveHit。不得从 Hitbox 直接结算角色伤害。
-- CharacterConfig、AttackConfig 是 ScriptableObject。BossMoveTable 也承载招式数据；AttackCombatResolve 含按 HitGrade / 箭矢类别计算的代码默认值。不能笼统写“所有战斗数值都只来自 SO”。
-- CombatEventBus 将多类战斗事件通知给 UI、音效和相机订阅方。不要把项目描述成完整 MVC，也不要在没有核对源码时声称表现层完全没有轮询。
+先全貌、再流程、后细节：开始本项目或新核心模块时，先交代玩法中的位置、主要职责、关键类型和交接关系，形成可理解的整体，再进入行为问题与源码。不把整体介绍变成文件清单、题库或逐方法讲解；同一连续流程无需反复总览。若学习者尚无全貌，优先补齐，而不是直接抛出局部入口。
 
-## 架构约束
+1. 每轮围绕一个可完成的行为问题，先说明本段目的与停止边界，再按“触发 → 判断 → 执行 → 结果”串起源码。先正常路径，再补影响理解的关键分支。
+2. 新文件先核对源码，用两到四句话介绍职责、与上一环的关系和本次方法范围。保持一条因果链，允许必要跨文件；未读依赖先说明接口作用。
+3. AI 先完整讲清一个功能的正常实现，在聊天中按顺序提供必要真实源码和明确阅读路线；学习者无需先自行跨文件找关系。简单转发合并讲，复杂判断展开，不能只列方法范围代替讲解。
+4. 讲清谁调用、数据来源、变量含义、条件、状态变化与返回值，使用同一具体场景演示。核心分支未展示、未解释时先补讲，不以“暂缓细节”跳过。
+5. 学习者提问时先直接答疑；普通“继续”沿当前链推进，明确要求完整讲解时覆盖指定范围。既定路线无需每轮重述或重新征求同意。
+6. Unity/C# 基础只补当前理解缺口。面试延伸每轮选一两个与当前实现相关的具体追问，说明项目处理和取舍，不展开整套基础题库。问题是讲解导航，不默认测验、强制复述或要求背答案。
+7. 以“学习阶段＋内容章节”定位，例如“阶段二 · 章节 3：一次普通攻击”；掌握标准见核心路线。讲解达到该标准后等待实际理解反馈；用户说没懂时留在当前实现补讲。代码讲过、概念理解、代码理解和整文件通读分别记录。
 
-1. MainStateMachine 顶层只装 HierarchicalState 父状态。GroundedState、AirState、StunnedState、DeadState 是父状态；叶子状态留在父状态 SubStateMachine 内。
-2. 业务代码不得用 MainStateMachine.CurrentState 判断叶子状态。查询或切换地面父状态 / 子状态时，优先使用 CharacterBody 的 IsGroundedTop、IsInGroundedSubState<T>、TryChangeGroundedSubState、ForceChangeGroundedSubState 等封装 API。顶层父状态类型判断只允许留在 CharacterBody 的封装内部。
-3. 命中判定使用当前 Hitbox / ArrowProjectile 查询流程；近战主流程禁止改成 OnTrigger。近战时间由攻击状态和配置窗口推进，不要把 Clip Animation Event 当作 Hitbox 必需开关。
-4. 命中数据由 AttackConfig、BossMoveTable 及各自窗口 / cue 提供。代码默认值存在时应明确说明，不要声称没有硬编码兜底。
-5. 命中由 Hitbox / ArrowProjectile 报告给 CombatManager，再经 CombatResolver 到目标 ReceiveHit；不允许攻击框直接结算目标。
-6. 玩家 / AI 离散 Command 与物理 Hit 走状态机路由；环境或受击造成的强制状态切换按 CharacterBody 当前入口直接切换，不伪装成玩家 Command。
-7. 表现系统按需订阅 CombatEventBus；新增订阅要在组件停用时解绑。具体 UI、相机和音频路径以当前组件为准。
+## 进度与笔记
 
-## 命名与数据结构
+- 以学习者报告为准。说“读完了”时，按上一轮明确范围记为“已读、本人表示已理解”；AI 查阅、讲解与创建笔记均不算本人已读，不把方法抽读扩展为文件通读。
+- 默认一个完整行为切片读完后更新复习进度；切片内普通答疑在聊天接续。暂停、换会话或明确要求保存时提前记录停留位置。
+- 总结提供可直接保存的笔记正文，只整理已报告读过的范围，包含职责、数据流、关键约束与状态逻辑；进度通知和下一步安排放在正文外。
+- 章节总结定位为可直接存入外部笔记软件（如语雀、Notion、Obsidian）的自包含个人复习笔记：
+  - 命名规范：文件名前缀统一从 `00-` 开始连续递增编号（如 `00-项目架构与角色内部结构.md`、`01-一次输入怎样切换角色动作.md`、`02-一次普通攻击怎样运行.md`）。
+  - 去除冗余头：正文不包含重复的一级大标题（`# 章节...`）、用途说明引用块（`> 用途说明...`）或分割线（`---`），直接从 `## 1.` 起始正文内容，避免在笔记软件中与已有页面标题重复。
+  - 无死链：文档内严禁关联本地源码文件路径（不使用 `file:///` 或相对路径超链接），统一采用行内代码格式（如 `CharacterBody`）。
+  - 图表排版适配：坚决避免使用复杂的嵌套 `subgraph` 或过多泳道的 `sequenceDiagram`，以防笔记软件拉伸截断或字体微缩；统一采用垂直流向、宽度适配的 `flowchart TD` 并配合纯文本缩进调用链（ASCII 树）。
+  - 内容纯粹：专注系统架构、数据流与执行流程，面试追问与设计取舍不杂糅在章节 00~05 基础正文中，统一收纳至 [06-全流程串联与高频面试表达](Docs/项目复习/章节总结/06-全流程串联与高频面试表达.md)。
+- 区分“文件整体覆盖”“方法切片已读”“学习者理解状态”和“代码事实已验证”。历史记录不完整时明确标待确认，本次更正优先。
 
-- 公开成员 PascalCase，私有成员 camelCase；不使用 m_ 前缀。
-- Command 使用“动作名 + Command”命名，如 MoveCommand、AttackCommand。
-- 状态是普通 C# 类；CharacterBody 是 MonoBehaviour。Command / Hit 数据按现有类型定义使用值类型。
-- 状态类命名以当前目录现实为准：
-  - 父状态继承 HierarchicalState：GroundedState 在 States/Ground，AirState 在 States/Air，DeadState 在 States/Dead，StunnedState 在 States 根目录。
-  - Ground 叶子状态通常不加区域前缀，如 IdleState、MoveState、AttackState、DeflectState、DodgeState、HealState。
-  - Air 叶子状态通常加 Air 前缀，如 AirIdleState、AirAttackState。
-  - GroundStunnedState 是历史命名例外；新增状态不照抄。StunnedState 与 GroundStunnedState 是两个不同类。
-- 新增配置优先沿用现有 ScriptableObject / 轻量数据类型；不要为了统一外观把身份枚举、运行时状态或命令都改成 SO。
-- 注释使用中文，优先解释决策原因。尚未替换的占位动画名必须注明占位状态。
+## 事实与边界
 
-## 目录与命名空间
+- 项目事实以当前源码、场景和配置为依据。区分源码确认、运行验证与待确认；推测设计意图时标明推测，保留真实实现的局限，不替代码编造设计理由。
+- 静态阅读不足以回答当前问题时再考虑运行验证。功能修改、测试和重写不作为学习前提；用户明确要求修改时按其授权范围处理。
+- 描述真实个人贡献与 AI 辅助范围，读懂不等同于原创。性能说法依据实际测量，不把局部验证扩大为整游戏结论。
 
-- 状态机：Assets/Scripts/FrameWork/States/<区域>/
-- 战斗：Assets/Scripts/Combat/
-- SO：Assets/Scripts/SO/，主要为 AttackConfig、CharacterConfig
-- 配置枚举 / 轻量数据：Assets/Scripts/Configs/
-- Boss AI：Assets/Scripts/Boss/BehaviourTree/，命名空间 ARPG.Boss.BehaviourTree
-- 玩家输入 / 控制：Assets/Scripts/Player/Input/、Assets/Scripts/Player/Control/
-- 表现：Assets/Scripts/UI/、Audio/、Camera/
-- 管理器：Assets/Scripts/Mgr/
-- 编辑器扩展：Assets/Editor/，第三方插件自身 Editor 目录不随意修改
-- 新类型放入对应 ARPG.* 命名空间，跨模块引用显式 using 对应命名空间。
+<!-- CODEGRAPH_START -->
+## CodeGraph
 
-## 编辑器扩展约定
-
-以下规则用于新增或修改工具；它们是维护约定，不代表仓库所有旧工具已经完成迁移：
-
-1. 修改序列化字段优先用 SerializedObject / SerializedProperty，确保 Undo、序列化和 Prefab 覆盖可用。
-2. 为临时像素读取或导入处理改变资源设置时，结束前恢复原值，所有提前退出路径也要还原。
-3. 需要跨 Domain Reload 保留的窗口 UI 状态用序列化字段或项目现有持久化方式保存。
-4. AssetPostprocessor 只在 importSettingsMissing 等首次导入条件满足时接管设置，不无条件覆盖已有资源。
-5. OnGUI 不做全项目遍历或大文件读写；重操作需缓存结果并提供进度或日志反馈。
-6. 新增校验规则放入 Assets/Editor/ArpgValidationRules.cs，与窗口和构建校验共用。
-
-## 文档与验证工作流
-
-1. 文档入口为 Docs/README.md；先定位对应模块，只读完成当前任务所需的说明。
-2. 代码 / 资源 / 场景用于描述当前实现；历史设计和计划只能作为背景。明确区分“已实现”“计划中”和“已运行验证”。
-3. 代码存在不等于 Unity 场景可运行。交付时说明修改内容、实际验证结果及尚未验证的边界；项目文档只维护实现说明，不维护手动验收清单。
-4. 当前仓库存在 Assets/Tests/Editor/CharacterBodyHfsmFlagTests.cs；不能宣称仓库完全没有测试代码，也不能据此宣称已建立完整自动化测试体系。
-5. 未经用户要求，不新增自动化测试；只有实际执行并确认结果后，才能声称编译 / 测试通过。
-6. 文档与明确需求冲突时，报告冲突和影响；描述当前代码事实时以实际源码为准。
-7. Docs/README.md 标记为历史 / 参考的内容不作为当前规范。Docs/策划案.md 与 .codebuddy 路径当前不存在，不得继续引用为有效规范入口。
-
-## 可用项目技能
-
-仅在确实匹配任务时使用：brainstorming、systematic-debugging、requesting-code-review、using-git-worktrees。不要为普通文档阅读强行调用功能开发流程。
+仓库存在 `.codegraph/` 时，在定位、理解或读取源码前优先调用 `codegraph_explore`，也可用 `codegraph explore`。查询时命名文件或符号。工具不可用时再用本地搜索；响应提示某文件索引过期时直接读取该文件。文档与配置可直接读取，不主动重新索引。
+<!-- CODEGRAPH_END -->

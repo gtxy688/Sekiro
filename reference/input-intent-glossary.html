@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>输入与动作 · 术语速查</title><link rel="stylesheet" href="../teach-assets/lesson.css"></head>
+<body><main class="wrap"><header class="lesson-head"><p class="eyebrow">速查</p><h1>输入与动作</h1></header>
+<dl>
+<dt id="binding"><strong>Binding · 输入绑定</strong></dt><dd>设备控件与输入动作之间的关联，例如将一组方向按键关联到 Move。</dd>
+<dt id="input-action"><strong>InputAction · 输入动作</strong></dt><dd>Move、Attack 等具名输入用途，可以读值或接收回调，不等于角色已完成动作。</dd>
+<dt id="brain"><strong>PlayerBrain · 玩家大脑</strong></dt><dd>当前项目中解释玩家输入、提出角色动作意图的组件。</dd>
+<dt id="body"><strong>CharacterBody · 角色身体</strong></dt><dd>角色运行时 MonoBehaviour，持有状态机并提供角色能力入口。</dd>
+<dt id="command"><strong>Command · 指令</strong></dt><dd>表达动作请求的数据，如 JumpCommand、MoveCommand。请求被消费不保证动作已执行。</dd>
+<dt id="fsm"><strong>FSM · 有限状态机</strong></dt><dd>在有限状态与转换之间组织行为；当前项目每台状态机保存一个 CurrentState。</dd>
+<dt id="hfsm"><strong>HFSM · 分层有限状态机</strong></dt><dd>父状态内部管理子状态机，活动状态形成路径，例如 GroundedState / AttackState。</dd>
+<dt id="lifecycle"><strong>状态生命周期</strong></dt><dd>OnEnter、OnUpdate、OnExit 分别表示进入、持续运行、退出。普通状态类由状态机调用这些方法。</dd>
+<dt id="scriptable-object"><strong>ScriptableObject · 可保存为资产的 Unity 对象</strong></dt><dd>本项目用其承载角色和招式配置；可在 Inspector 编辑、由其他对象引用，不作为组件挂到 GameObject。它并不强制数据只读。</dd>
+<dt id="attack-config"><strong>AttackConfig · 攻击配置类型</strong></dt><dd>定义动画、伤害、判定脉冲与连招等字段；atk1.asset 是实际配置资产示例。各次出招的运行进度存放在状态等运行时实例中。</dd>
+</dl><footer class="lesson-foot"><p><a href="../lessons/0001-input-intent-and-action.html">第 1 课：输入与动作</a> · <a href="../lessons/0002-from-conditions-to-hfsm.html">第 2 课：分层状态机</a> · <a href="https://docs.unity3d.com/Packages/com.unity.inputsystem@1.14/manual/Actions.html">官方 Actions 文档</a></p></footer></main></body></html>
