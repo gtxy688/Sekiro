@@ -410,4 +410,46 @@ private void OnDisable()
 
 `ClearActionInput` 在三种情况下被调用：游戏暂停、`CombatInputGate.Blocked` 的每一帧、组件被禁用（比如换场景、销毁）。它会重置攻击键的按下和长按标记，并清除防御：既重置 `body` 里的防御输入状态，也丢掉缓冲池里的 `DeflectCommand`。缓冲池里其他类型的指令（比如已经按下的闪避）不受影响。
 
-按源码，`ClearDeflectInput` 只在 `ClearActionInput` 里被调用，没有看到受击时触发清除的调用点。
+### 3. 受击时：不清缓冲池，由状态消费指令
+受击时 `PlayerBrain` 不会收到通知，也不会清缓冲池。处理分两处，都在角色一侧。
+
+**第一处：`ReceiveHit` 结束当前弹反尝试。** 命中没有被防御状态挡住、真的结算了伤害之后：
+
+```csharp
+// CharacterBody.cs ReceiveHit（节选）
+TakeDamage(healthDmg, postureDmg, attacker);
+
+// 实际受伤后结束未成功的防御尝试；致死已按生命周期取消，避免重复记空按。
+if (CurrentHP > 0)
+    NotifyDeflectHitFailed();
+```
+
+`NotifyDeflectHitFailed` 以 `HitFailed` 为原因结束当前弹反尝试，记一次空按（用于缩小下次弹反窗口），之后这次尝试就不能再弹反。
+
+**第二处：受击状态把指令消费掉。** `ReceiveHit` 之后角色进入 `StunnedState`，此后 `PlayerBrain` 缓冲池里的指令会被交给它处理：
+
+```csharp
+// StunnedState.cs OnParentHandleCommand（节选）
+// 父层先接收输入命令：通常消费掉，只有需要让输入缓冲稍后重试的垫步返回 false。
+if (useHitGrade && cmd is DodgeCommand)
+{
+    if (ground != null && ground.CanDodgeCancel)
+    {
+        ...
+        return true;
+    }
+    // 受击计时未到开放点：返回 false，输入缓冲仍可在有效期内再次尝试。
+    return false;
+}
+if (useHitGrade && cmd is DeflectCommand deflectCmd)
+{
+    if (ground != null && ground.CanMidToGuard) { ...进入 MidToGuardState...; return true; }
+    // 轻受击且已落地时可直接抬刀，不需要经过 Mid 的起身进防动画。
+    if (ground != null && ground.CanLightGuardCancel) { ...进入 DeflectState...; return true; }
+}
+return true;
+```
+
+受击期间，大部分指令（包括没到取消点的 `DeflectCommand`）走到最后的 `return true`，被当作已消费，`PlayerBrain` 随即清空缓冲池，不会等硬直结束后再执行；只有垫步在取消点还没开放时返回 `false`，继续留在缓冲池里重试，倒计时（0.2s）到了仍未接受才丢弃。弹反在达到取消条件时才会真正进入防御。
+
+这条路径的效果是：受击硬直期间按下的防御，不会在硬直结束后突然出现一次格挡。
