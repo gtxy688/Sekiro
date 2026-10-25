@@ -14,7 +14,7 @@ namespace ARPG.Combat
         public float castRadius = 0.1f;   // 扫描球半径（大约等于武器"粗细"）
         [Tooltip("柄到尖的刀身半径。贴身时刀尖在人外侧，只扫尖会漏")]
         public float shaftRadius = 0.3f;
-        public LayerMask targetLayers;    // 能打到的层：对方 Hurtbox / 对方 Hitbox（拼刀）
+        public LayerMask targetLayers;    // 能打到的层：对方 Hurtbox
 
         private CharacterBody owner;
         private AttackConfig config;          // 当前招式的伤害配置
@@ -23,8 +23,6 @@ namespace ARPG.Combat
 
         // 已命中记录：防止一次挥砍对同一目标多次结算
         private readonly HashSet<CharacterBody> hitTargets = new HashSet<CharacterBody>();
-        // 拼刀去重：同一判定窗内对同一 Hitbox 只结算一次；且只让 InstanceID 较小方上报，避免双方各报一次
-        private readonly HashSet<Hitbox> clashedPartners = new HashSet<Hitbox>();
         private readonly HashSet<CharacterBody> blockedUntilExit = new HashSet<CharacterBody>();
         private readonly HashSet<CharacterBody> overlappingThisFrame = new HashSet<CharacterBody>();
         private readonly Collider[] overlapBuf = new Collider[16];
@@ -61,7 +59,6 @@ namespace ARPG.Combat
             lastCastPos = transform.position;
             hitTargets.Clear();
             blockedUntilExit.Clear();
-            clashedPartners.Clear();
             // 有效脉冲开启时已经重叠的目标，也在本窗口内判定命中。
         }
 
@@ -71,7 +68,6 @@ namespace ARPG.Combat
             config = null;
             hitTargets.Clear();
             blockedUntilExit.Clear();
-            clashedPartners.Clear();
         }
 
         // 动画在 Update 写骨头，受击胶囊在物理步进才同步。LateUpdate 里先 Sync 再扫。
@@ -153,21 +149,7 @@ namespace ARPG.Combat
             if (hurtbox != null && hurtbox.Owner != owner)
             {
                 TryHit(hurtbox.Owner, hitPoint);
-                return;
             }
-
-            Hitbox other = col.GetComponentInParent<Hitbox>();
-            if (other != null && other != this && other.Owner != owner)
-                TryClash(other, hitPoint);
-        }
-
-        private void TryClash(Hitbox other, Vector3 hitPoint)
-        {
-            if (other == null || other.Owner == owner) return;
-            if (!clashedPartners.Add(other)) return;
-            // 双方 Hitbox 都会扫到对方；只让 InstanceID 较小的一方上报，避免一帧内架势双倍结算
-            if (GetInstanceID() > other.GetInstanceID()) return;
-            CombatManager.Instance.ReportClash(this, other, hitPoint);
         }
 
         private void TryHit(CharacterBody target, Vector3 hitPoint)

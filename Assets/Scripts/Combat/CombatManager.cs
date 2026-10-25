@@ -18,10 +18,6 @@ namespace ARPG.Combat
         public CombatResolver resolver;
         public DuelDirector director;
 
-        [Header("拼刀参数")]
-        [Tooltip("过渡期保留：Start 时同步给 CombatResolver，避免 Inspector 上已调过的值丢失。新代码请直接改 CombatResolver 上的值。")]
-        public float clashPostureMultiplier = 1f;
-
         [Header("打击感")]
         [Tooltip("过渡期配置入口：Start 时同步给 TimeScaleController，避免 Inspector 上已调过的值丢失。真正的顿帧执行在 TimeScaleController，本类不写 Time.timeScale。")]
         public bool enableHitStop = true;   // 命中/弹反顿帧开关
@@ -86,7 +82,6 @@ namespace ARPG.Combat
             ValidateFaction();
 
             // 将本组件保留的 Inspector 参数同步到实际执行组件，避免已有场景配置丢失。
-            resolver.clashPostureMultiplier = clashPostureMultiplier;
             director.finisherRange = finisherRange;
 
             // 这里只提供顿帧配置，时间尺度的实际修改由 TimeScaleController 负责。
@@ -173,12 +168,6 @@ namespace ARPG.Combat
             resolver.ReportProjectileHit(attacker, hurtbox, hitPoint,
                 healthDmg, postureDmg, knockback, hitGrade);
             TimeScaleController.HitStop();
-        }
-
-        // 双方 Hitbox 相交 → 拼刀：只狼里拼刀双方都涨架势，不打伤害
-        public void ReportClash(Hitbox a, Hitbox b, Vector3 point)
-        {
-            resolver.ReportClash(a, b, point);
         }
 
         // ===== 成对演出：转发 DuelDirector =====

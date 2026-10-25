@@ -40,12 +40,6 @@ namespace ARPG.Combat
             return fallback;
         }
 
-        public static Vector3 BetweenHitboxes(Hitbox a, Hitbox b, Vector3 fallback)
-        {
-            if (a == null || b == null) return fallback;
-            return ClosestMid(Hilt(a), Tip(a), Hilt(b), Tip(b));
-        }
-
         // 箭命中点在身上，火花改贴防守方刀身离命中点最近处。
         static Vector3 OnDefenderWeapon(CharacterBody defender, Vector3 hitPoint)
         {

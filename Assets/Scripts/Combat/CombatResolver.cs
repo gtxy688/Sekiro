@@ -7,14 +7,10 @@ using ARPG.FrameWork.States;
 using ARPG.Mgr;
 namespace ARPG.Combat
 {
-    // 按 Hitbox / Hurtbox 所属角色转发命中并处理拼刀架势，不依赖玩家或 Boss 的场景引用。
+    // 按 Hitbox / Hurtbox 所属角色转发命中，不依赖玩家或 Boss 的场景引用。
     public class CombatResolver : MonoBehaviour
     {
         public static CombatResolver Instance { get; private set; }
-
-        [Header("拼刀参数")]
-        [Tooltip("拼刀时双方架势增长系数（默认 1 = 按对方招式 PostureDamage 全额涨）")]
-        public float clashPostureMultiplier = 1f;
 
         private void Awake()
         {
@@ -63,23 +59,6 @@ namespace ARPG.Combat
 
             target.ReceiveHit(attacker, healthDmg, postureDmg, hitPoint,
                 false, PerilousType.None, knockback, hitGrade, true);
-        }
-
-        // 双方 Hitbox 相交 → 拼刀：只狼里拼刀双方都涨架势，不打伤害
-        public void ReportClash(Hitbox a, Hitbox b, Vector3 point)
-        {
-            if (a == null || b == null) return;
-            if (a.Owner == null || b.Owner == null || a.Owner == b.Owner) return;
-
-            // 各按对方招式的架势伤害涨架势（乘以拼刀系数）
-            if (b.Config != null)
-                a.Owner.AccumulatePosture(b.Config.PostureDamage * clashPostureMultiplier);
-            if (a.Config != null)
-                b.Owner.AccumulatePosture(a.Config.PostureDamage * clashPostureMultiplier);
-
-            // 通知表现层播放打铁音效和火花。
-            CombatEventBus.TriggerWeaponDeflected(
-                CombatFxPoint.BetweenHitboxes(a, b, point), DeflectType.Normal);
         }
     }
 }
